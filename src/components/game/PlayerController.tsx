@@ -101,7 +101,7 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, st
       // 3rd person - camera behind and above, with lag
       const targetCamX = snap(pos.current.x, CAM_SNAP);
       const targetCamY = snap(pos.current.y + 3, CAM_SNAP);
-      const targetCamZ = snap(pos.current.z + 6, CAM_SNAP);
+      const targetCamZ = snap(pos.current.z - 6, CAM_SNAP);
 
       camera.position.x += (targetCamX - camera.position.x) * CAM_LERP;
       camera.position.y += (targetCamY - camera.position.y) * CAM_LERP;
