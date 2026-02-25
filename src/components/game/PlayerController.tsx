@@ -85,13 +85,13 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, st
     // Camera follows pos directly (no lerp)
     if (mode === '1st') {
       camera.position.set(pos.current.x, 1.8, pos.current.z);
-      // Default: look forward and slightly down (like the reference image)
-      camera.lookAt(pos.current.x, 0.8, pos.current.z - 5);
-      // Steer look direction with velocity
+      // Always look at eye level in movement direction
       if (Math.abs(vel.current.x) > 0.1 || Math.abs(vel.current.y) > 0.1) {
         const lookX = pos.current.x + vel.current.x * 3;
         const lookZ = pos.current.z + vel.current.y * 3;
-        camera.lookAt(lookX, 0.8, lookZ);
+        camera.lookAt(lookX, 1.8, lookZ);
+      } else {
+        camera.lookAt(pos.current.x, 1.8, pos.current.z - 5);
       }
     } else {
       // 3rd person: camera sits behind+above pos, no lag
