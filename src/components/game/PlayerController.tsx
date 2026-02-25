@@ -51,10 +51,20 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
 
     if (k.has('ArrowLeft') || k.has('KeyA')) inputX = -1;
     if (k.has('ArrowRight') || k.has('KeyD')) inputX = 1;
-
-    // Forward/backward for all modes
     if (k.has('ArrowUp') || k.has('KeyW')) inputZ = -1;
     if (k.has('ArrowDown') || k.has('KeyS')) inputZ = 1;
+
+    // When in back-view (showCharacter), rotate input to be camera-relative
+    if (showCharacter && (inputX !== 0 || inputZ !== 0)) {
+      const dir = lastBehindDir.current;
+      const angle = Math.atan2(dir.x, dir.z);
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const rx = inputX * cos - inputZ * sin;
+      const rz = inputX * sin + inputZ * cos;
+      inputX = rx;
+      inputZ = rz;
+    }
 
     // Track movement for CH2 sign logic
     if (chapter === 'CH2') {
