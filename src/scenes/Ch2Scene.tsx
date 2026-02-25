@@ -1,148 +1,173 @@
-import React, { useRef, useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import React, { useRef, useMemo, useEffect } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import { PlayerController } from '@/components/game/PlayerController';
 import { useGameStore } from '@/store/useGameStore';
+import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
 
-const Maze: React.FC = () => {
-  const wallSegments = useMemo(() => {
-    const segments: { x: number; z: number; w: number; h: number; d: number }[] = [];
-    // Left wall (continuous)
-    for (let i = 0; i < 80; i += 4) {
-      segments.push({ x: -2, z: -i, w: 0.3, h: 4, d: 4 });
-    }
-    // Right wall (continuous)
-    for (let i = 0; i < 80; i += 4) {
-      segments.push({ x: 2, z: -i, w: 0.3, h: 4, d: 4 });
-    }
-    return segments;
-  }, []);
+const MAZE_SIZE = 30;
+const CELL_SIZE = 2;
+const WALL_HEIGHT = 3;
+
+/** InstancedMesh walls for performance */
+const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  useEffect(() => {
+    if (!meshRef.current) return;
+    const dummy = new THREE.Object3D();
+    maze.wallPositions.forEach((w, i) => {
+      dummy.position.set(w.x, WALL_HEIGHT / 2, w.z);
+      dummy.scale.set(w.scaleX, WALL_HEIGHT, w.scaleZ);
+      dummy.updateMatrix();
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+    });
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  }, [maze]);
 
   return (
-    <group>
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -40]}>
-        <planeGeometry args={[4, 80]} />
-        <meshStandardMaterial color="#444" />
-      </mesh>
-
-      {/* Walls */}
-      {wallSegments.map((s, i) => (
-        <mesh key={i} position={[s.x, s.h / 2, s.z]}>
-          <boxGeometry args={[s.w, s.h, s.d]} />
-          <meshStandardMaterial color="#666" />
-        </mesh>
-      ))}
-    </group>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, maze.wallPositions.length]}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial color="#555" />
+    </instancedMesh>
   );
 };
 
-const TriggerZones: React.FC<{ playerZ: number }> = ({ playerZ }) => {
+const MazeFloor: React.FC = () => {
+  const size = MAZE_SIZE * CELL_SIZE;
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[size / 2, 0, size / 2]}>
+      <planeGeometry args={[size, size]} />
+      <meshStandardMaterial color="#333" />
+    </mesh>
+  );
+};
+
+/** Trigger zones placed at specific points along the maze */
+const TriggerZones: React.FC<{ playerX: number; playerZ: number; maze: MazeData }> = ({ playerX, playerZ, maze }) => {
   const goToChapter = useGameStore(s => s.goToChapter);
   const triggerEvent = useGameStore(s => s.triggerEvent);
-  const leftMovement = useGameStore(s => s.leftMovement);
-  const rightMovement = useGameStore(s => s.rightMovement);
   const triggeredRef = useRef<Set<string>>(new Set());
 
-  // Check zones
-  React.useEffect(() => {
-    if (playerZ < -18 && playerZ > -22 && !triggeredRef.current.has('A')) {
+  // Place triggers at ~25%, 50%, 75% and exit
+  const zonePositions = useMemo(() => {
+    const q1 = cellToWorld(Math.floor(MAZE_SIZE * 0.25), Math.floor(MAZE_SIZE * 0.25), CELL_SIZE);
+    const q2 = cellToWorld(Math.floor(MAZE_SIZE * 0.5), Math.floor(MAZE_SIZE * 0.5), CELL_SIZE);
+    const q3 = cellToWorld(Math.floor(MAZE_SIZE * 0.75), Math.floor(MAZE_SIZE * 0.75), CELL_SIZE);
+    const exit = cellToWorld(maze.end.x, maze.end.y, CELL_SIZE);
+    return { q1, q2, q3, exit };
+  }, [maze]);
+
+  useEffect(() => {
+    const dist = (ax: number, az: number, bx: number, bz: number) =>
+      Math.sqrt((ax - bx) ** 2 + (az - bz) ** 2);
+
+    const TRIGGER_RADIUS = 2;
+
+    if (dist(playerX, playerZ, zonePositions.q1.x, zonePositions.q1.z) < TRIGGER_RADIUS && !triggeredRef.current.has('A')) {
       triggeredRef.current.add('A');
       triggerEvent('ch2_zoneA');
     }
-    if (playerZ < -38 && playerZ > -42 && !triggeredRef.current.has('B')) {
+    if (dist(playerX, playerZ, zonePositions.q2.x, zonePositions.q2.z) < TRIGGER_RADIUS && !triggeredRef.current.has('B')) {
       triggeredRef.current.add('B');
       triggerEvent('ch2_zoneB');
     }
-    if (playerZ < -58 && playerZ > -62 && !triggeredRef.current.has('C')) {
+    if (dist(playerX, playerZ, zonePositions.q3.x, zonePositions.q3.z) < TRIGGER_RADIUS && !triggeredRef.current.has('C')) {
       triggeredRef.current.add('C');
       triggerEvent('ch2_zoneC');
     }
-    if (playerZ < -76) {
-      if (!triggeredRef.current.has('D')) {
-        triggeredRef.current.add('D');
-        goToChapter('CH3');
-      }
+    if (dist(playerX, playerZ, zonePositions.exit.x, zonePositions.exit.z) < TRIGGER_RADIUS && !triggeredRef.current.has('D')) {
+      triggeredRef.current.add('D');
+      goToChapter('CH3');
     }
-  }, [playerZ]);
+  }, [playerX, playerZ]);
 
   const visited = useGameStore(s => s.visitedEvents);
+  const leftMovement = useGameStore(s => s.leftMovement);
+  const rightMovement = useGameStore(s => s.rightMovement);
 
   return (
     <group>
-      {/* Zone A signs */}
+      {/* Zone A: direction sign */}
       {visited.has('ch2_zoneA') && (
-        <group position={[0.8, 0, -20]}>
-          <mesh position={[0, 2, 0]}>
-            <boxGeometry args={[0.1, 1.5, 0.6]} />
+        <group position={[zonePositions.q1.x, 0, zonePositions.q1.z]}>
+          <mesh position={[0, 1.5, 0]}>
+            <boxGeometry args={[0.1, 3, 0.1]} />
             <meshStandardMaterial color="#aa0" />
           </mesh>
-          <mesh position={[0, 3, 0]}>
-            <boxGeometry args={[0.6, 0.4, 0.1]} />
-            <meshStandardMaterial color="#aa0" />
+          <mesh position={[leftMovement > rightMovement ? -0.5 : 0.5, 2.5, 0]}>
+            <boxGeometry args={[0.8, 0.3, 0.1]} />
+            <meshStandardMaterial color={leftMovement > rightMovement ? '#0af' : '#f80'} />
           </mesh>
-          {/* Direction sign based on movement */}
-          {leftMovement > rightMovement ? (
-            <mesh position={[-0.5, 2.5, 0]}>
-              <boxGeometry args={[0.8, 0.3, 0.1]} />
-              <meshStandardMaterial color="#0af" />
-            </mesh>
-          ) : (
-            <mesh position={[0.5, 2.5, 0]}>
-              <boxGeometry args={[0.8, 0.3, 0.1]} />
-              <meshStandardMaterial color="#f80" />
-            </mesh>
-          )}
         </group>
       )}
 
-      {/* Zone B NPC placeholder */}
+      {/* Zone B: NPC */}
       {visited.has('ch2_zoneB') && (
-        <mesh position={[0, 1, -40]}>
+        <mesh position={[zonePositions.q2.x, 1, zonePositions.q2.z]}>
           <cylinderGeometry args={[0.3, 0.3, 2, 8]} />
           <meshStandardMaterial color="#888" />
         </mesh>
       )}
 
-      {/* Zone C special NPC */}
+      {/* Zone C: special NPC */}
       {visited.has('ch2_zoneC') && (
-        <mesh position={[0.5, 1, -60]}>
+        <mesh position={[zonePositions.q3.x, 1, zonePositions.q3.z]}>
           <cylinderGeometry args={[0.3, 0.3, 2, 8]} />
           <meshStandardMaterial color="#a44" />
         </mesh>
       )}
 
-      {/* Zone D mart entrance */}
-      <mesh position={[0, 2, -78]}>
-        <boxGeometry args={[3, 4, 0.3]} />
-        <meshStandardMaterial color="#555" />
+      {/* Exit marker */}
+      <mesh position={[zonePositions.exit.x, 1.5, zonePositions.exit.z]}>
+        <boxGeometry args={[1.5, 3, 0.3]} />
+        <meshStandardMaterial color="#4a4" emissive="#0f0" emissiveIntensity={0.2} />
       </mesh>
     </group>
   );
 };
 
-const Ch2Inner: React.FC = () => {
-  const playerZ = useRef(0);
+const Ch2Inner: React.FC<{ maze: MazeData }> = ({ maze }) => {
+  const playerPos = useRef({ x: 0, z: 0 });
+  const [posState, setPosState] = React.useState({ x: 0, z: 0 });
+
+  const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
+  const mazeWorldSize = MAZE_SIZE * CELL_SIZE;
+
+  // Throttled position update for trigger zones
+  const frameCount = useRef(0);
+  const handlePosition = (x: number, z: number) => {
+    playerPos.current = { x, z };
+    frameCount.current++;
+    if (frameCount.current % 6 === 0) {
+      setPosState({ x, z });
+    }
+  };
 
   return (
     <>
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[5, 10, 5]} intensity={0.5} />
-      <Maze />
-      <TriggerZones playerZ={playerZ.current} />
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[mazeWorldSize / 2, 20, mazeWorldSize / 2]} intensity={0.6} />
+      <MazeFloor />
+      <MazeWalls maze={maze} />
+      <TriggerZones playerX={posState.x} playerZ={posState.z} maze={maze} />
       <PlayerController
         mode="3rd"
-        bounds={{ minX: -1.5, maxX: 1.5, minZ: -80, maxZ: 0 }}
-        onPosition={(x, z) => { playerZ.current = z; }}
+        bounds={{ minX: 0.5, maxX: mazeWorldSize - 0.5, minZ: 0.5, maxZ: mazeWorldSize - 0.5 }}
+        onPosition={handlePosition}
+        startPosition={[startWorld.x, 0.5, startWorld.z]}
       />
     </>
   );
 };
 
 export const Ch2Scene: React.FC = () => {
+  const maze = useMemo(() => generateMaze(MAZE_SIZE, MAZE_SIZE), []);
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-      <Canvas camera={{ fov: 75, position: [0, 3, 6] }} style={{ background: '#0a0a0a' }}>
-        <Ch2Inner />
+      <Canvas camera={{ fov: 75, position: [1, 8, 8] }} style={{ background: '#0a0a0a' }}>
+        <Ch2Inner maze={maze} />
       </Canvas>
     </div>
   );
