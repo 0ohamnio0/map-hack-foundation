@@ -168,11 +168,12 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
 
 export const Ch2Scene: React.FC = () => {
   const maze = useMemo(() => generateMaze(MAZE_SIZE, MAZE_SIZE), []);
-  const [playerPos, setPlayerPos] = React.useState({ x: 1, z: 1 });
+  const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
+  const [playerPos, setPlayerPos] = React.useState({ x: startWorld.x, z: startWorld.z });
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-      <Canvas camera={{ fov: 75, position: [1, 8, 8] }} style={{ background: '#d0d0d0' }}>
+      <Canvas camera={{ fov: 75, position: [startWorld.x, 1.8, startWorld.z] }} style={{ background: '#d0d0d0' }}>
         <Ch2Inner maze={maze} onPlayerMove={setPlayerPos} />
       </Canvas>
       <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} />
