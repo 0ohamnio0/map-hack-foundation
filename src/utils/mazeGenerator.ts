@@ -39,7 +39,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export function generateMaze(width: number, height: number, seed?: number): MazeData {
+export function generateMaze(width: number, height: number, seed?: number, cellSize = 2): MazeData {
   // Init grid
   const cells: MazeCell[][] = [];
   for (let y = 0; y < height; y++) {
@@ -83,42 +83,42 @@ export function generateMaze(width: number, height: number, seed?: number): Maze
   }
 
   // Convert to wall positions for 3D rendering
-  const CELL_SIZE = 2; // world units per cell
+  const CELL = cellSize;
   const WALL_THICKNESS = 0.15;
   const wallPositions: MazeData['wallPositions'] = [];
 
   // Outer boundary walls
   // Top boundary
-  wallPositions.push({ x: (width * CELL_SIZE) / 2, z: 0, scaleX: width * CELL_SIZE + WALL_THICKNESS, scaleZ: WALL_THICKNESS });
+  wallPositions.push({ x: (width * CELL) / 2, z: 0, scaleX: width * CELL + WALL_THICKNESS, scaleZ: WALL_THICKNESS });
   // Bottom boundary
-  wallPositions.push({ x: (width * CELL_SIZE) / 2, z: height * CELL_SIZE, scaleX: width * CELL_SIZE + WALL_THICKNESS, scaleZ: WALL_THICKNESS });
+  wallPositions.push({ x: (width * CELL) / 2, z: height * CELL, scaleX: width * CELL + WALL_THICKNESS, scaleZ: WALL_THICKNESS });
   // Left boundary
-  wallPositions.push({ x: 0, z: (height * CELL_SIZE) / 2, scaleX: WALL_THICKNESS, scaleZ: height * CELL_SIZE });
+  wallPositions.push({ x: 0, z: (height * CELL) / 2, scaleX: WALL_THICKNESS, scaleZ: height * CELL });
   // Right boundary
-  wallPositions.push({ x: width * CELL_SIZE, z: (height * CELL_SIZE) / 2, scaleX: WALL_THICKNESS, scaleZ: height * CELL_SIZE });
+  wallPositions.push({ x: width * CELL, z: (height * CELL) / 2, scaleX: WALL_THICKNESS, scaleZ: height * CELL });
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const cell = cells[y][x];
-      const wx = x * CELL_SIZE + CELL_SIZE / 2;
-      const wz = y * CELL_SIZE + CELL_SIZE / 2;
+      const wx = x * CELL + CELL / 2;
+      const wz = y * CELL + CELL / 2;
 
       // South wall
       if (cell.walls.south) {
         wallPositions.push({
           x: wx,
-          z: wz + CELL_SIZE / 2,
-          scaleX: CELL_SIZE,
+          z: wz + CELL / 2,
+          scaleX: CELL,
           scaleZ: WALL_THICKNESS,
         });
       }
       // East wall
       if (cell.walls.east) {
         wallPositions.push({
-          x: wx + CELL_SIZE / 2,
+          x: wx + CELL / 2,
           z: wz,
           scaleX: WALL_THICKNESS,
-          scaleZ: CELL_SIZE,
+          scaleZ: CELL,
         });
       }
     }
