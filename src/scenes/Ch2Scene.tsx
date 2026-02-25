@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Minimap } from '@/components/game/Minimap';
 import { Canvas, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -6,9 +6,10 @@ import { PlayerController, type WallAABB } from '@/components/game/PlayerControl
 import { useGameStore } from '@/store/useGameStore';
 import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
 
+
 const MAZE_SIZE = 20;
 const CELL_SIZE = 7;
-const WALL_HEIGHT = 3;
+const WALL_HEIGHT = 4;
 
 /** InstancedMesh walls for performance */
 const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
@@ -81,7 +82,7 @@ const TriggerZones: React.FC<{ playerX: number; playerZ: number; maze: MazeData 
       triggeredRef.current.add('D');
       goToChapter('CH3');
     }
-  }, [playerX, playerZ]);
+  }, [playerX, playerZ, zonePositions, triggerEvent, goToChapter]);
 
   const visited = useGameStore(s => s.visitedEvents);
   const leftMovement = useGameStore(s => s.leftMovement);
@@ -89,7 +90,6 @@ const TriggerZones: React.FC<{ playerX: number; playerZ: number; maze: MazeData 
 
   return (
     <group>
-      {/* Zone A: direction sign */}
       {visited.has('ch2_zoneA') && (
         <group position={[zonePositions.q1.x, 0, zonePositions.q1.z]}>
           <mesh position={[0, 1.5, 0]}>
@@ -102,24 +102,18 @@ const TriggerZones: React.FC<{ playerX: number; playerZ: number; maze: MazeData 
           </mesh>
         </group>
       )}
-
-      {/* Zone B: NPC */}
       {visited.has('ch2_zoneB') && (
         <mesh position={[zonePositions.q2.x, 1, zonePositions.q2.z]}>
           <cylinderGeometry args={[0.3, 0.3, 2, 8]} />
           <meshStandardMaterial color="#888" />
         </mesh>
       )}
-
-      {/* Zone C: special NPC */}
       {visited.has('ch2_zoneC') && (
         <mesh position={[zonePositions.q3.x, 1, zonePositions.q3.z]}>
           <cylinderGeometry args={[0.3, 0.3, 2, 8]} />
           <meshStandardMaterial color="#a44" />
         </mesh>
       )}
-
-      {/* Exit marker */}
       <mesh position={[zonePositions.exit.x, 1.5, zonePositions.exit.z]}>
         <boxGeometry args={[1.5, 3, 0.3]} />
         <meshStandardMaterial color="#4a4" emissive="#0f0" emissiveIntensity={0.2} />
@@ -130,7 +124,7 @@ const TriggerZones: React.FC<{ playerX: number; playerZ: number; maze: MazeData 
 
 const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: number }) => void }> = ({ maze, onPlayerMove }) => {
   const playerPos = useRef({ x: 0, z: 0 });
-  const [posState, setPosState] = React.useState({ x: 0, z: 0 });
+  const [posState, setPosState] = useState({ x: 0, z: 0 });
 
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const mazeWorldSize = MAZE_SIZE * CELL_SIZE;
@@ -148,7 +142,7 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
   const handlePosition = (x: number, z: number) => {
     playerPos.current = { x, z };
     frameCount.current++;
-    if (frameCount.current % 6 === 0) {
+    if (frameCount.current % 6 === 0) { // Throttle updates for TriggerZones and Minimap
       setPosState({ x, z });
       onPlayerMove?.({ x, z });
     }
@@ -158,9 +152,12 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
     <>
       <ambientLight intensity={0.4} />
       <directionalLight position={[mazeWorldSize / 2, 20, mazeWorldSize / 2]} intensity={0.6} />
+
       <MazeFloor />
       <MazeWalls maze={maze} />
+
       <TriggerZones playerX={posState.x} playerZ={posState.z} maze={maze} />
+
       <PlayerController
         mode="1st"
         showCharacter
@@ -169,7 +166,6 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
         onPosition={handlePosition}
         startPosition={[startWorld.x, 0.5, startWorld.z]}
         initialLookDir={[0, 1]}
-        forwardZSign={1}
       />
     </>
   );
@@ -178,7 +174,7 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
 export const Ch2Scene: React.FC = () => {
   const maze = useMemo(() => generateMaze(MAZE_SIZE, MAZE_SIZE, undefined, CELL_SIZE), []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
-  const [playerPos, setPlayerPos] = React.useState({ x: startWorld.x, z: startWorld.z });
+  const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>

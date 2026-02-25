@@ -10,13 +10,16 @@ interface GameState {
   rightMovement: number;
   cartItems: string[];
   activeEffect: string | null;
-  effectTimeout: number | null;
+  notification: string | null;
   goToChapter: (chapter: Chapter) => void;
   triggerEvent: (id: string) => boolean;
   addMovement: (direction: 'left' | 'right', amount: number) => void;
   addToCart: (medicine: string) => void;
   setActiveEffect: (effect: string | null, duration?: number) => void;
+  setNotification: (text: string | null) => void;
 }
+
+let effectTimeoutId: number | null = null;
 
 export const useGameStore = create<GameState>((set, get) => ({
   chapter: 'START',
@@ -26,12 +29,16 @@ export const useGameStore = create<GameState>((set, get) => ({
   rightMovement: 0,
   cartItems: [],
   activeEffect: null,
-  effectTimeout: null,
+  notification: null,
 
   goToChapter: (chapter: Chapter) => {
     set({ isTransitioning: true });
+    // Mid-point transition (400ms fade out, 400ms fade in)
     setTimeout(() => {
-      set({ chapter, isTransitioning: false });
+      set({ chapter });
+    }, 400);
+    setTimeout(() => {
+      set({ isTransitioning: false });
     }, 800);
   },
 
@@ -60,14 +67,18 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setActiveEffect: (effect, duration) => {
-    const { effectTimeout } = get();
-    if (effectTimeout) clearTimeout(effectTimeout);
+    if (effectTimeoutId) clearTimeout(effectTimeoutId);
     set({ activeEffect: effect });
     if (effect && duration) {
-      const timeout = window.setTimeout(() => {
-        set({ activeEffect: null, effectTimeout: null });
+      effectTimeoutId = window.setTimeout(() => {
+        set({ activeEffect: null });
+        effectTimeoutId = null;
       }, duration);
-      set({ effectTimeout: timeout });
     }
   },
+
+  setNotification: (notification) => {
+    set({ notification });
+  },
 }));
+

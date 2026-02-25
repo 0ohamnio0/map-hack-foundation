@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '@/store/useGameStore';
@@ -113,7 +113,7 @@ const Ch1Inner: React.FC = () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, []);
+  }, [triggerEvent, setActiveEffect]);
 
   // Door interaction — any key press during phase 2
   useEffect(() => {
@@ -126,12 +126,12 @@ const Ch1Inner: React.FC = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [phase]);
+  }, [phase, goToChapter, setActiveEffect, play]);
 
   return (
     <>
-      <ambientLight intensity={0.05} color="#ff2200" />
-      <pointLight position={[0, 2.5, 0]} intensity={0.3} color="#ff0000" />
+      <ambientLight intensity={0.2} color="#ff2200" />
+      <pointLight position={[0, 2.5, 0]} intensity={1.5} color="#ff0000" />
       <Room />
       <CutsceneCamera phase={phase} />
     </>
@@ -177,3 +177,5 @@ export const Ch1Scene: React.FC = () => {
     </div>
   );
 };
+
+

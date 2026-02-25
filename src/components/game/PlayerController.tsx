@@ -48,7 +48,7 @@ function collidesWithWalls(px: number, pz: number, walls: WallAABB[]): boolean {
   return false;
 }
 
-export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, collisionWalls, onPosition, startPosition, initialLookDir, forwardZSign = -1 }) => {
+export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, collisionWalls, onPosition, startPosition, initialLookDir }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
   const { camera } = useThree();
@@ -59,7 +59,15 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
   const vel = useRef(new THREE.Vector2(0, 0));
   const meshRef = useRef<THREE.Mesh>(null);
   const camDir = useRef(new THREE.Vector3());
-  const lastLookDir = useRef({ x: initialLookDir?.[0] ?? 0, z: initialLookDir?.[1] ?? -1 });
+
+  const initLook = initialLookDir || [0, -1];
+  const lastLookDir = useRef({ x: initLook[0], z: initLook[1] });
+
+  // Calculate movement axes based on initial orientation
+  const axes = useRef({
+    forward: new THREE.Vector2(initLook[0], initLook[1]).normalize(),
+    right: new THREE.Vector2(-initLook[1], initLook[0]).normalize()
+  });
 
   useFrame((_, delta) => {
     if (!shouldUpdate(delta)) return;
@@ -67,28 +75,29 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
     const dt = 1 / 24;
     const k = keys.current;
 
-    let inputX = 0;
-    let inputZ = 0;
+    let inputRight = 0;
+    let inputForward = 0;
 
-    if (k.has('ArrowLeft') || k.has('KeyA')) inputX = -1;
-    if (k.has('ArrowRight') || k.has('KeyD')) inputX = 1;
-    if (k.has('ArrowUp') || k.has('KeyW')) inputZ = forwardZSign;
-    if (k.has('ArrowDown') || k.has('KeyS')) inputZ = -forwardZSign;
+    if (k.has('ArrowLeft') || k.has('KeyA')) inputRight -= 1;
+    if (k.has('ArrowRight') || k.has('KeyD')) inputRight += 1;
+    if (k.has('ArrowUp') || k.has('KeyW')) inputForward += 1;
+    if (k.has('ArrowDown') || k.has('KeyS')) inputForward -= 1;
 
-    // No camera-relative rotation needed; CH2 showCharacter now uses same
-    // 1st-person camera as CH3, character is just rendered in front.
+    // Movement world vectors
+    const moveX = inputRight * axes.current.right.x + inputForward * axes.current.forward.x;
+    const moveZ = inputRight * axes.current.right.y + inputForward * axes.current.forward.y;
 
     // Track movement for CH2 sign logic
     if (chapter === 'CH2') {
-      if (inputX < 0) addMovement('left', Math.abs(inputX) * dt);
-      if (inputX > 0) addMovement('right', Math.abs(inputX) * dt);
+      if (inputRight < 0) addMovement('left', Math.abs(inputRight) * dt);
+      if (inputRight > 0) addMovement('right', Math.abs(inputRight) * dt);
     }
 
     // Apply acceleration
-    if (inputX !== 0) vel.current.x += inputX * ACCEL * dt;
+    if (moveX !== 0) vel.current.x += moveX * ACCEL * dt;
     else vel.current.x *= Math.exp(-FRICTION * dt);
 
-    if (inputZ !== 0) vel.current.y += inputZ * ACCEL * dt;
+    if (moveZ !== 0) vel.current.y += moveZ * ACCEL * dt;
     else vel.current.y *= Math.exp(-FRICTION * dt);
 
     // Clamp
@@ -98,6 +107,7 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
     // Update position with per-axis collision
     const newX = pos.current.x + vel.current.x * dt;
     const newZ = pos.current.z + vel.current.y * dt;
+
 
     if (collisionWalls && collisionWalls.length > 0) {
       // Try X axis

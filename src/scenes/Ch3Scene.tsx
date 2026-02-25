@@ -51,9 +51,9 @@ const Ch3Inner: React.FC = () => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const addToCart = useGameStore(s => s.addToCart);
   const setActiveEffect = useGameStore(s => s.setActiveEffect);
+  const setNotification = useGameStore(s => s.setNotification);
   const { play } = useSoundManager();
   const [collected, setCollected] = useState<Set<number>>(new Set());
-  const [notification, setNotification] = useState<string | null>(null);
   const playerZ = useRef(0);
 
   // Check medicine pickups
@@ -75,9 +75,10 @@ const Ch3Inner: React.FC = () => {
       if (playerZ.current < -53 && playerZ.current > -57) {
         if (triggerEvent('ch3_elevator')) {
           // Loop motif — brief flash
-          setActiveEffect('darken', 1000);
+          setActiveEffect('glitch', 500);
         }
       }
+
 
       // Exit
       if (playerZ.current < -58) {
@@ -89,12 +90,13 @@ const Ch3Inner: React.FC = () => {
 
     const interval = setInterval(check, 100);
     return () => clearInterval(interval);
-  }, [collected]);
+  }, [collected, addToCart, play, setActiveEffect, setNotification, triggerEvent, goToChapter]);
 
   return (
     <>
       <FlickerLight />
       <directionalLight position={[0, 3, 0]} intensity={0.3} />
+
 
       {/* Floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -30]}>
@@ -134,7 +136,7 @@ const Ch3Inner: React.FC = () => {
 
       {/* Medicine pickups */}
       {MEDICINES.map((med, i) => (
-        <MedicinePickup key={i} med={med} collected={collected.has(i)} onPickup={() => {}} />
+        <MedicinePickup key={i} med={med} collected={collected.has(i)} onPickup={() => { }} />
       ))}
 
       {/* Elevator */}
@@ -155,7 +157,7 @@ const Ch3Inner: React.FC = () => {
 
 export const Ch3Scene: React.FC = () => {
   const cartItems = useGameStore(s => s.cartItems);
-  const [notification, setNotification] = useState<string | null>(null);
+  const notification = useGameStore(s => s.notification);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
@@ -163,7 +165,29 @@ export const Ch3Scene: React.FC = () => {
         <Ch3Inner />
       </Canvas>
 
+      {/* Notification */}
+      {notification && (
+        <div style={{
+          position: 'fixed',
+          top: '40%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          color: '#fff',
+          padding: '20px 40px',
+          fontFamily: 'monospace',
+          fontSize: 24,
+          border: '1px solid #fff',
+          zIndex: 300,
+          pointerEvents: 'none',
+          animation: 'fadeinout 2s forwards',
+        }}>
+          {notification}
+        </div>
+      )}
+
       {/* Cart UI */}
+
       <div style={{
         position: 'fixed',
         bottom: 20,
@@ -189,3 +213,4 @@ export const Ch3Scene: React.FC = () => {
     </div>
   );
 };
+
