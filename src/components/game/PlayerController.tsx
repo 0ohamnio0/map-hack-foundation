@@ -32,6 +32,8 @@ interface Props {
   startPosition?: [number, number, number];
   /** Initial look direction as [dx, dz]. Defaults to [0, -1] (look toward -Z). */
   initialLookDir?: [number, number];
+  /** Forward direction on Z axis: -1 (CH3 style), +1 (opposite). */
+  forwardZSign?: 1 | -1;
 }
 
 const PLAYER_HALF = 0.3; // half-width of player box
@@ -46,7 +48,7 @@ function collidesWithWalls(px: number, pz: number, walls: WallAABB[]): boolean {
   return false;
 }
 
-export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, collisionWalls, onPosition, startPosition, initialLookDir }) => {
+export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, collisionWalls, onPosition, startPosition, initialLookDir, forwardZSign = -1 }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
   const { camera } = useThree();
@@ -70,8 +72,8 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
 
     if (k.has('ArrowLeft') || k.has('KeyA')) inputX = -1;
     if (k.has('ArrowRight') || k.has('KeyD')) inputX = 1;
-    if (k.has('ArrowUp') || k.has('KeyW')) inputZ = -1;
-    if (k.has('ArrowDown') || k.has('KeyS')) inputZ = 1;
+    if (k.has('ArrowUp') || k.has('KeyW')) inputZ = forwardZSign;
+    if (k.has('ArrowDown') || k.has('KeyS')) inputZ = -forwardZSign;
 
     // No camera-relative rotation needed; CH2 showCharacter now uses same
     // 1st-person camera as CH3, character is just rendered in front.
