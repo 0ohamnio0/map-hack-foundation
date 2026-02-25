@@ -45,11 +45,9 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition }) 
     if (k.has('ArrowLeft') || k.has('KeyA')) inputX = -1;
     if (k.has('ArrowRight') || k.has('KeyD')) inputX = 1;
 
-    // Full WASD for 1st person, only left/right for 3rd person
-    if (mode === '1st') {
-      if (k.has('ArrowUp') || k.has('KeyW')) inputZ = -1;
-      if (k.has('ArrowDown') || k.has('KeyS')) inputZ = 1;
-    }
+    // Forward/backward for all modes
+    if (k.has('ArrowUp') || k.has('KeyW')) inputZ = -1;
+    if (k.has('ArrowDown') || k.has('KeyS')) inputZ = 1;
 
     // Track movement for CH2 sign logic
     if (chapter === 'CH2') {
