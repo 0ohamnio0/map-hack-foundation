@@ -1,4 +1,5 @@
 import React, { useRef, useMemo, useEffect } from 'react';
+import { Minimap } from '@/components/game/Minimap';
 import { Canvas, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PlayerController } from '@/components/game/PlayerController';
@@ -127,20 +128,20 @@ const TriggerZones: React.FC<{ playerX: number; playerZ: number; maze: MazeData 
   );
 };
 
-const Ch2Inner: React.FC<{ maze: MazeData }> = ({ maze }) => {
+const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: number }) => void }> = ({ maze, onPlayerMove }) => {
   const playerPos = useRef({ x: 0, z: 0 });
   const [posState, setPosState] = React.useState({ x: 0, z: 0 });
 
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const mazeWorldSize = MAZE_SIZE * CELL_SIZE;
 
-  // Throttled position update for trigger zones
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
     playerPos.current = { x, z };
     frameCount.current++;
     if (frameCount.current % 6 === 0) {
       setPosState({ x, z });
+      onPlayerMove?.({ x, z });
     }
   };
 
@@ -163,12 +164,14 @@ const Ch2Inner: React.FC<{ maze: MazeData }> = ({ maze }) => {
 
 export const Ch2Scene: React.FC = () => {
   const maze = useMemo(() => generateMaze(MAZE_SIZE, MAZE_SIZE), []);
+  const [playerPos, setPlayerPos] = React.useState({ x: 1, z: 1 });
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
       <Canvas camera={{ fov: 75, position: [1, 8, 8] }} style={{ background: '#0a0a0a' }}>
-        <Ch2Inner maze={maze} />
+        <Ch2Inner maze={maze} onPlayerMove={setPlayerPos} />
       </Canvas>
+      <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} />
     </div>
   );
 };
