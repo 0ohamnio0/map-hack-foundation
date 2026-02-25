@@ -29,7 +29,7 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, maze.wallPositions.length]}>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="#555" />
+      <meshStandardMaterial color="#666" />
     </instancedMesh>
   );
 };
@@ -39,7 +39,7 @@ const MazeFloor: React.FC = () => {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[size / 2, 0, size / 2]}>
       <planeGeometry args={[size, size]} />
-      <meshStandardMaterial color="#333" />
+      <meshStandardMaterial color="#bbb" />
     </mesh>
   );
 };
@@ -172,7 +172,7 @@ export const Ch2Scene: React.FC = () => {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-      <Canvas camera={{ fov: 75, position: [1, 8, 8] }} style={{ background: '#0a0a0a' }}>
+      <Canvas camera={{ fov: 75, position: [1, 8, 8] }} style={{ background: '#d0d0d0' }}>
         <Ch2Inner maze={maze} onPlayerMove={setPlayerPos} />
       </Canvas>
       <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} />
