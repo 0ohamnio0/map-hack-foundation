@@ -20,16 +20,17 @@ interface Props {
   mode: '1st' | '3rd';
   bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
   onPosition?: (x: number, z: number) => void;
+  startPosition?: [number, number, number];
 }
 
-export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition }) => {
+export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, startPosition }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
   const { camera } = useThree();
   const chapter = useGameStore(s => s.chapter);
   const addMovement = useGameStore(s => s.addMovement);
 
-  const pos = useRef(new THREE.Vector3(0, 0.5, 0));
+  const pos = useRef(new THREE.Vector3(...(startPosition || [0, 0.5, 0])));
   const vel = useRef(new THREE.Vector2(0, 0));
   const meshRef = useRef<THREE.Mesh>(null);
 
@@ -112,7 +113,7 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition }) 
   });
 
   return (
-    <mesh ref={meshRef} position={[0, 0.5, 0]}>
+    <mesh ref={meshRef} position={startPosition || [0, 0.5, 0]}>
       <boxGeometry args={[0.6, 1, 0.6]} />
       <meshStandardMaterial color="#888" />
     </mesh>
