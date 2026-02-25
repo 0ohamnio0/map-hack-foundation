@@ -169,6 +169,7 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
         onPosition={handlePosition}
         startPosition={[startWorld.x, 0.5, startWorld.z]}
         initialLookDir={[0, 1]}
+        forwardZSign={1}
       />
     </>
   );
