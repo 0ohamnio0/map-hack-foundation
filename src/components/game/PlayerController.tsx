@@ -16,8 +16,8 @@ function snap(v: number, unit: number) {
   return Math.round(v / unit) * unit;
 }
 
-const CHAR_FORWARD_DIST = 1.5; // how far in front of camera the character appears
-const CHAR_DOWN_OFFSET = -0.6;  // lower the character a bit so we see the back
+const CHAR_FORWARD_DIST = 2.0;
+const CHAR_Y = 0.5; // character feet on ground
 
 export interface WallAABB {
   minX: number; maxX: number; minZ: number; maxZ: number;
@@ -54,8 +54,7 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
   const pos = useRef(new THREE.Vector3(...(startPosition || [0, 0.5, 0])));
   const vel = useRef(new THREE.Vector2(0, 0));
   const meshRef = useRef<THREE.Mesh>(null);
-  // Track facing direction for character rotation
-  const facingAngle = useRef(0);
+  const camDir = useRef(new THREE.Vector3());
 
   useFrame((_, delta) => {
     if (!shouldUpdate(delta)) return;
@@ -124,34 +123,29 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
     }
 
 
-    // Camera follows pos directly (same as CH3 for all 1st-person modes)
+    // Camera — identical to CH3
     if (mode === '1st') {
       camera.position.set(pos.current.x, 1.8, pos.current.z);
       if (Math.abs(vel.current.x) > 0.1 || Math.abs(vel.current.y) > 0.1) {
         const lookX = pos.current.x + vel.current.x * 3;
         const lookZ = pos.current.z + vel.current.y * 3;
         camera.lookAt(lookX, 1.8, lookZ);
-        facingAngle.current = Math.atan2(vel.current.x, -vel.current.y);
       } else {
-        // Keep looking in last faced direction
-        const lookX = pos.current.x + Math.sin(facingAngle.current) * 5;
-        const lookZ = pos.current.z - Math.cos(facingAngle.current) * 5;
-        camera.lookAt(lookX, 1.8, lookZ);
+        camera.lookAt(pos.current.x, 1.8, pos.current.z - 5);
       }
     } else {
-      // 3rd person: camera sits behind+above pos, no lag
       camera.position.set(pos.current.x, pos.current.y + 2.5, pos.current.z + 3.5);
       camera.lookAt(pos.current.x, pos.current.y + 0.5, pos.current.z);
     }
 
-    // Update character mesh: place in front of camera if showCharacter
+    // Place character mesh in front of camera using camera's actual forward direction
     if (meshRef.current) {
       if (showCharacter) {
-        // Place character ahead of camera in the facing direction
-        const charX = pos.current.x + Math.sin(facingAngle.current) * CHAR_FORWARD_DIST;
-        const charZ = pos.current.z - Math.cos(facingAngle.current) * CHAR_FORWARD_DIST;
-        meshRef.current.position.set(charX, 1.8 + CHAR_DOWN_OFFSET, charZ);
-        meshRef.current.rotation.y = facingAngle.current;
+        camera.getWorldDirection(camDir.current);
+        const charX = pos.current.x + camDir.current.x * CHAR_FORWARD_DIST;
+        const charZ = pos.current.z + camDir.current.z * CHAR_FORWARD_DIST;
+        meshRef.current.position.set(charX, CHAR_Y, charZ);
+        meshRef.current.rotation.y = Math.atan2(camDir.current.x, camDir.current.z);
       } else {
         meshRef.current.position.set(pos.current.x, pos.current.y, pos.current.z);
       }
