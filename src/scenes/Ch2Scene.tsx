@@ -10,10 +10,24 @@ import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator'
 const MAZE_SIZE = 20;
 const CELL_SIZE = 7;
 const WALL_HEIGHT = 4;
+const SNAP_FACTOR = 64;
+
+function makeSnapMaterial(color: string): THREE.MeshStandardMaterial {
+  const mat = new THREE.MeshStandardMaterial({ color });
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <project_vertex>',
+      `#include <project_vertex>
+      gl_Position.xyz = floor(gl_Position.xyz / gl_Position.w * ${SNAP_FACTOR}.0 + 0.5) / ${SNAP_FACTOR}.0 * gl_Position.w;`,
+    );
+  };
+  return mat;
+}
 
 /** InstancedMesh walls for performance */
 const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
+  const material = useMemo(() => makeSnapMaterial('#666'), []);
 
   useEffect(() => {
     if (!meshRef.current) return;
@@ -28,19 +42,18 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
   }, [maze]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, maze.wallPositions.length]}>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, maze.wallPositions.length]} material={material}>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="#666" />
     </instancedMesh>
   );
 };
 
 const MazeFloor: React.FC = () => {
   const size = MAZE_SIZE * CELL_SIZE;
+  const material = useMemo(() => makeSnapMaterial('#bbb'), []);
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[size / 2, 0, size / 2]}>
-      <planeGeometry args={[size, size]} />
-      <meshStandardMaterial color="#bbb" />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[size / 2, 0, size / 2]} material={material}>
+      <planeGeometry args={[size, size, MAZE_SIZE, MAZE_SIZE]} />
     </mesh>
   );
 };
@@ -166,6 +179,7 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
         onPosition={handlePosition}
         startPosition={[startWorld.x, 0.5, startWorld.z]}
         initialLookDir={[0, 1]}
+        gridCellSize={CELL_SIZE}
       />
     </>
   );
