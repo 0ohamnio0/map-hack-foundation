@@ -157,10 +157,10 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
       <TriggerZones playerX={posState.x} playerZ={posState.z} maze={maze} />
       <PlayerController
         mode="1st"
+        showCharacter
         bounds={{ minX: 0.5, maxX: mazeWorldSize - 0.5, minZ: 0.5, maxZ: mazeWorldSize - 0.5 }}
         onPosition={handlePosition}
         startPosition={[startWorld.x, 0.5, startWorld.z]}
-        
       />
     </>
   );
@@ -173,7 +173,7 @@ export const Ch2Scene: React.FC = () => {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-      <Canvas camera={{ fov: 75, position: [startWorld.x, 1.8, startWorld.z] }} style={{ background: '#d0d0d0' }}>
+      <Canvas camera={{ fov: 75, position: [startWorld.x, 1.5, startWorld.z + 1.8] }} style={{ background: '#d0d0d0' }}>
         <Ch2Inner maze={maze} onPlayerMove={setPlayerPos} />
       </Canvas>
       <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} />

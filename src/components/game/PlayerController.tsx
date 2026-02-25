@@ -16,14 +16,18 @@ function snap(v: number, unit: number) {
   return Math.round(v / unit) * unit;
 }
 
+const BACK_DIST = 1.8;
+const BACK_HEIGHT = 1.0;
+
 interface Props {
   mode: '1st' | '3rd';
+  showCharacter?: boolean;
   bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
   onPosition?: (x: number, z: number) => void;
   startPosition?: [number, number, number];
 }
 
-export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, startPosition }) => {
+export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, onPosition, startPosition }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
   const { camera } = useThree();
@@ -33,6 +37,8 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, st
   const pos = useRef(new THREE.Vector3(...(startPosition || [0, 0.5, 0])));
   const vel = useRef(new THREE.Vector2(0, 0));
   const meshRef = useRef<THREE.Mesh>(null);
+  // Holds last known "behind" direction so camera doesn't snap when player stops
+  const lastBehindDir = useRef({ x: 0, z: 1 });
 
   useFrame((_, delta) => {
     if (!shouldUpdate(delta)) return;
@@ -84,14 +90,27 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, st
 
     // Camera follows pos directly (no lerp)
     if (mode === '1st') {
-      camera.position.set(pos.current.x, 1.8, pos.current.z);
-      // Always look at eye level in movement direction
-      if (Math.abs(vel.current.x) > 0.1 || Math.abs(vel.current.y) > 0.1) {
-        const lookX = pos.current.x + vel.current.x * 3;
-        const lookZ = pos.current.z + vel.current.y * 3;
-        camera.lookAt(lookX, 1.8, lookZ);
+      if (showCharacter) {
+        // Back-view: camera stays behind character based on movement direction
+        if (speed > 0.2) {
+          lastBehindDir.current = {
+            x: vel.current.x / speed,
+            z: vel.current.y / speed, // vel.y maps to world Z
+          };
+        }
+        const camX = pos.current.x - lastBehindDir.current.x * BACK_DIST;
+        const camZ = pos.current.z - lastBehindDir.current.z * BACK_DIST;
+        camera.position.set(camX, pos.current.y + BACK_HEIGHT, camZ);
+        camera.lookAt(pos.current.x, pos.current.y + 0.5, pos.current.z);
       } else {
-        camera.lookAt(pos.current.x, 1.8, pos.current.z - 5);
+        camera.position.set(pos.current.x, 1.8, pos.current.z);
+        if (Math.abs(vel.current.x) > 0.1 || Math.abs(vel.current.y) > 0.1) {
+          const lookX = pos.current.x + vel.current.x * 3;
+          const lookZ = pos.current.z + vel.current.y * 3;
+          camera.lookAt(lookX, 1.8, lookZ);
+        } else {
+          camera.lookAt(pos.current.x, 1.8, pos.current.z - 5);
+        }
       }
     } else {
       // 3rd person: camera sits behind+above pos, no lag
@@ -99,9 +118,13 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, st
       camera.lookAt(pos.current.x, pos.current.y + 0.5, pos.current.z);
     }
 
-    // Mesh fixed in front of camera (character always visible)
+    // Update character mesh position + rotate to face movement direction
     if (meshRef.current) {
       meshRef.current.position.set(pos.current.x, pos.current.y, pos.current.z);
+      if (showCharacter && speed > 0.2) {
+        // atan2(x, -z): face the direction of travel
+        meshRef.current.rotation.y = Math.atan2(vel.current.x, -vel.current.y);
+      }
     }
 
     onPosition?.(pos.current.x, pos.current.z);
