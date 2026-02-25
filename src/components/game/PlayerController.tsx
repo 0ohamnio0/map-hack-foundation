@@ -30,6 +30,8 @@ interface Props {
   collisionWalls?: WallAABB[];
   onPosition?: (x: number, z: number) => void;
   startPosition?: [number, number, number];
+  /** Initial look direction as [dx, dz]. Defaults to [0, -1] (look toward -Z). */
+  initialLookDir?: [number, number];
 }
 
 const PLAYER_HALF = 0.3; // half-width of player box
@@ -44,7 +46,7 @@ function collidesWithWalls(px: number, pz: number, walls: WallAABB[]): boolean {
   return false;
 }
 
-export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, collisionWalls, onPosition, startPosition }) => {
+export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, collisionWalls, onPosition, startPosition, initialLookDir }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
   const { camera } = useThree();
@@ -55,6 +57,7 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
   const vel = useRef(new THREE.Vector2(0, 0));
   const meshRef = useRef<THREE.Mesh>(null);
   const camDir = useRef(new THREE.Vector3());
+  const lastLookDir = useRef({ x: initialLookDir?.[0] ?? 0, z: initialLookDir?.[1] ?? -1 });
 
   useFrame((_, delta) => {
     if (!shouldUpdate(delta)) return;
@@ -127,11 +130,12 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
     if (mode === '1st') {
       camera.position.set(pos.current.x, 1.8, pos.current.z);
       if (Math.abs(vel.current.x) > 0.1 || Math.abs(vel.current.y) > 0.1) {
+        lastLookDir.current = { x: vel.current.x, z: vel.current.y };
         const lookX = pos.current.x + vel.current.x * 3;
         const lookZ = pos.current.z + vel.current.y * 3;
         camera.lookAt(lookX, 1.8, lookZ);
       } else {
-        camera.lookAt(pos.current.x, 1.8, pos.current.z - 5);
+        camera.lookAt(pos.current.x + lastLookDir.current.x * 5, 1.8, pos.current.z + lastLookDir.current.z * 5);
       }
     } else {
       camera.position.set(pos.current.x, pos.current.y + 2.5, pos.current.z + 3.5);
