@@ -174,7 +174,7 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
 };
 
 export const Ch2Scene: React.FC = () => {
-  const maze = useMemo(() => generateMaze(MAZE_SIZE, MAZE_SIZE), []);
+  const maze = useMemo(() => generateMaze(MAZE_SIZE, MAZE_SIZE, undefined, CELL_SIZE), []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const [playerPos, setPlayerPos] = React.useState({ x: startWorld.x, z: startWorld.z });
 
