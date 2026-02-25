@@ -82,32 +82,24 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, st
     }
 
 
-    // Update mesh
-    if (meshRef.current) {
-      meshRef.current.position.copy(pos.current);
-    }
-
-    // Camera
+    // Camera follows pos directly (no lerp)
     if (mode === '1st') {
       camera.position.set(pos.current.x, 1.6, pos.current.z);
       camera.lookAt(pos.current.x, 1.6, pos.current.z - 5);
-      // Allow looking direction based on velocity
       if (Math.abs(vel.current.x) > 0.1 || Math.abs(vel.current.y) > 0.1) {
         const lookX = pos.current.x + vel.current.x;
         const lookZ = pos.current.z + vel.current.y;
         camera.lookAt(lookX, 1.6, lookZ);
       }
     } else {
-      // 3rd person - camera behind and above, with lag
-      const targetCamX = snap(pos.current.x, CAM_SNAP);
-      const targetCamY = snap(pos.current.y + 2, CAM_SNAP);
-      const targetCamZ = snap(pos.current.z - 3.5, CAM_SNAP);
-
-      camera.position.x += (targetCamX - camera.position.x) * CAM_LERP;
-      camera.position.y += (targetCamY - camera.position.y) * CAM_LERP;
-      camera.position.z += (targetCamZ - camera.position.z) * CAM_LERP;
-
+      // 3rd person: camera sits behind+above pos, no lag
+      camera.position.set(pos.current.x, pos.current.y + 2.5, pos.current.z + 3.5);
       camera.lookAt(pos.current.x, pos.current.y + 0.5, pos.current.z);
+    }
+
+    // Mesh fixed in front of camera (character always visible)
+    if (meshRef.current) {
+      meshRef.current.position.set(pos.current.x, pos.current.y, pos.current.z);
     }
 
     onPosition?.(pos.current.x, pos.current.z);
