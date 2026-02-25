@@ -6,8 +6,8 @@ import { PlayerController, type WallAABB } from '@/components/game/PlayerControl
 import { useGameStore } from '@/store/useGameStore';
 import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
 
-const MAZE_SIZE = 30;
-const CELL_SIZE = 2;
+const MAZE_SIZE = 20;
+const CELL_SIZE = 7;
 const WALL_HEIGHT = 3;
 
 /** InstancedMesh walls for performance */
