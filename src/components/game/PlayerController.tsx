@@ -19,15 +19,32 @@ function snap(v: number, unit: number) {
 const BACK_DIST = 1.8;
 const BACK_HEIGHT = 1.0;
 
+export interface WallAABB {
+  minX: number; maxX: number; minZ: number; maxZ: number;
+}
+
 interface Props {
   mode: '1st' | '3rd';
   showCharacter?: boolean;
   bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
+  collisionWalls?: WallAABB[];
   onPosition?: (x: number, z: number) => void;
   startPosition?: [number, number, number];
 }
 
-export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, onPosition, startPosition }) => {
+const PLAYER_HALF = 0.3; // half-width of player box
+
+function collidesWithWalls(px: number, pz: number, walls: WallAABB[]): boolean {
+  const pMinX = px - PLAYER_HALF, pMaxX = px + PLAYER_HALF;
+  const pMinZ = pz - PLAYER_HALF, pMaxZ = pz + PLAYER_HALF;
+  for (let i = 0; i < walls.length; i++) {
+    const w = walls[i];
+    if (pMaxX > w.minX && pMinX < w.maxX && pMaxZ > w.minZ && pMinZ < w.maxZ) return true;
+  }
+  return false;
+}
+
+export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds, collisionWalls, onPosition, startPosition }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
   const { camera } = useThree();
@@ -83,9 +100,27 @@ export const PlayerController: React.FC<Props> = ({ mode, showCharacter, bounds,
     const speed = vel.current.length();
     if (speed > MAX_SPEED) vel.current.multiplyScalar(MAX_SPEED / speed);
 
-    // Update position
-    pos.current.x += vel.current.x * dt;
-    pos.current.z += vel.current.y * dt;
+    // Update position with per-axis collision
+    const newX = pos.current.x + vel.current.x * dt;
+    const newZ = pos.current.z + vel.current.y * dt;
+
+    if (collisionWalls && collisionWalls.length > 0) {
+      // Try X axis
+      if (!collidesWithWalls(newX, pos.current.z, collisionWalls)) {
+        pos.current.x = newX;
+      } else {
+        vel.current.x = 0;
+      }
+      // Try Z axis
+      if (!collidesWithWalls(pos.current.x, newZ, collisionWalls)) {
+        pos.current.z = newZ;
+      } else {
+        vel.current.y = 0;
+      }
+    } else {
+      pos.current.x = newX;
+      pos.current.z = newZ;
+    }
 
     // Snap position
     pos.current.x = snap(pos.current.x, SNAP_UNIT);

@@ -2,7 +2,7 @@ import React, { useRef, useMemo, useEffect } from 'react';
 import { Minimap } from '@/components/game/Minimap';
 import { Canvas, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { PlayerController } from '@/components/game/PlayerController';
+import { PlayerController, type WallAABB } from '@/components/game/PlayerController';
 import { useGameStore } from '@/store/useGameStore';
 import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
 
@@ -135,8 +135,14 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const mazeWorldSize = MAZE_SIZE * CELL_SIZE;
 
-
-
+  const wallAABBs = useMemo<WallAABB[]>(() => {
+    return maze.wallPositions.map(w => ({
+      minX: w.x - w.scaleX / 2,
+      maxX: w.x + w.scaleX / 2,
+      minZ: w.z - w.scaleZ / 2,
+      maxZ: w.z + w.scaleZ / 2,
+    }));
+  }, [maze]);
 
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
@@ -158,6 +164,7 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
       <PlayerController
         mode="1st"
         showCharacter
+        collisionWalls={wallAABBs}
         bounds={{ minX: 0.5, maxX: mazeWorldSize - 0.5, minZ: 0.5, maxZ: mazeWorldSize - 0.5 }}
         onPosition={handlePosition}
         startPosition={[startWorld.x, 0.5, startWorld.z]}
