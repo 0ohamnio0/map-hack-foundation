@@ -21,9 +21,11 @@ interface Props {
   bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
   onPosition?: (x: number, z: number) => void;
   startPosition?: [number, number, number];
+  /** Return true if the position is walkable (no wall collision) */
+  canMoveTo?: (x: number, z: number) => boolean;
 }
 
-export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, startPosition }) => {
+export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, startPosition, canMoveTo }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
   const { camera } = useThree();
@@ -67,6 +69,10 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, st
     const speed = vel.current.length();
     if (speed > MAX_SPEED) vel.current.multiplyScalar(MAX_SPEED / speed);
 
+    // Save old position for collision rollback
+    const oldX = pos.current.x;
+    const oldZ = pos.current.z;
+
     // Update position
     pos.current.x += vel.current.x * dt;
     pos.current.z += vel.current.y * dt;
@@ -79,6 +85,24 @@ export const PlayerController: React.FC<Props> = ({ mode, bounds, onPosition, st
     if (bounds) {
       pos.current.x = Math.max(bounds.minX, Math.min(bounds.maxX, pos.current.x));
       pos.current.z = Math.max(bounds.minZ, Math.min(bounds.maxZ, pos.current.z));
+    }
+
+    // Wall collision — try each axis independently for wall sliding
+    if (canMoveTo) {
+      const RADIUS = 0.35;
+      const canX = canMoveTo(pos.current.x + RADIUS * Math.sign(vel.current.x), oldZ) &&
+                   canMoveTo(pos.current.x - RADIUS * Math.sign(vel.current.x), oldZ);
+      const canZ = canMoveTo(oldX, pos.current.z + RADIUS * Math.sign(vel.current.y)) &&
+                   canMoveTo(oldX, pos.current.z - RADIUS * Math.sign(vel.current.y));
+
+      if (!canX) {
+        pos.current.x = oldX;
+        vel.current.x = 0;
+      }
+      if (!canZ) {
+        pos.current.z = oldZ;
+        vel.current.y = 0;
+      }
     }
 
     // Update mesh
