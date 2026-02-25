@@ -135,33 +135,8 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const mazeWorldSize = MAZE_SIZE * CELL_SIZE;
 
-  // Collision check: is this world position inside a valid cell (not blocked by wall)?
-  const canMoveTo = useMemo(() => {
-    return (wx: number, wz: number): boolean => {
-      // Convert world coords to grid cell
-      const gx = Math.floor(wx / CELL_SIZE);
-      const gz = Math.floor(wz / CELL_SIZE);
 
-      // Out of bounds
-      if (gx < 0 || gx >= maze.width || gz < 0 || gz >= maze.height) return false;
 
-      const cell = maze.cells[gz][gx];
-
-      // Position within cell (0-1)
-      const lx = (wx / CELL_SIZE) - gx;
-      const lz = (wz / CELL_SIZE) - gz;
-
-      const MARGIN = 0.15; // wall margin
-
-      // Check walls
-      if (lx < MARGIN && cell.walls.west) return false;
-      if (lx > 1 - MARGIN && cell.walls.east) return false;
-      if (lz < MARGIN && cell.walls.north) return false;
-      if (lz > 1 - MARGIN && cell.walls.south) return false;
-
-      return true;
-    };
-  }, [maze]);
 
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
@@ -185,7 +160,7 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
         bounds={{ minX: 0.5, maxX: mazeWorldSize - 0.5, minZ: 0.5, maxZ: mazeWorldSize - 0.5 }}
         onPosition={handlePosition}
         startPosition={[startWorld.x, 0.5, startWorld.z]}
-        canMoveTo={canMoveTo}
+        
       />
     </>
   );
