@@ -156,7 +156,7 @@ const Ch2Inner: React.FC<{ maze: MazeData; onPlayerMove?: (pos: { x: number; z: 
       <MazeWalls maze={maze} />
       <TriggerZones playerX={posState.x} playerZ={posState.z} maze={maze} />
       <PlayerController
-        mode="3rd"
+        mode="1st"
         bounds={{ minX: 0.5, maxX: mazeWorldSize - 0.5, minZ: 0.5, maxZ: mazeWorldSize - 0.5 }}
         onPosition={handlePosition}
         startPosition={[startWorld.x, 0.5, startWorld.z]}
