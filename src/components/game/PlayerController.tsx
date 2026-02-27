@@ -44,6 +44,8 @@ interface Props {
   forwardZSign?: 1 | -1;
   /** When set, enables grid-based movement (PS1/DOS maze style). Value = cell size in world units. */
   gridCellSize?: number;
+  /** Override grid input cooldown in seconds. Default 0.22. */
+  gridInputCooldown?: number;
 }
 
 const PLAYER_HALF = 0.3;
@@ -60,7 +62,7 @@ function collidesWithWalls(px: number, pz: number, walls: WallAABB[]): boolean {
 
 export const PlayerController: React.FC<Props> = ({
   mode, showCharacter, bounds, collisionWalls, onPosition,
-  startPosition, initialLookDir, gridCellSize,
+  startPosition, initialLookDir, gridCellSize, gridInputCooldown,
 }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
@@ -97,6 +99,7 @@ export const PlayerController: React.FC<Props> = ({
 
     if (gridCellSize) {
       // ---- Grid movement mode (PS1/DOS maze style) ----
+      const cooldown = gridInputCooldown ?? GRID_INPUT_COOLDOWN;
       gridCooldown.current = Math.max(0, gridCooldown.current - dt);
 
       if (gridCooldown.current <= 0) {
@@ -110,12 +113,12 @@ export const PlayerController: React.FC<Props> = ({
         const prevBackward = prevKeys.current.has('ArrowDown') || prevKeys.current.has('KeyS');
 
         if (left && !prevLeft) {
-          gridTargetFacing.current -= Math.PI / 2;
-          gridCooldown.current = GRID_INPUT_COOLDOWN;
+          gridTargetFacing.current += Math.PI / 2;
+          gridCooldown.current = cooldown;
           if (chapter === 'CH2') addMovement('left', 1);
         } else if (right && !prevRight) {
-          gridTargetFacing.current += Math.PI / 2;
-          gridCooldown.current = GRID_INPUT_COOLDOWN;
+          gridTargetFacing.current -= Math.PI / 2;
+          gridCooldown.current = cooldown;
           if (chapter === 'CH2') addMovement('right', 1);
         } else if (forward && !prevForward) {
           const yaw = gridTargetFacing.current;
@@ -131,7 +134,7 @@ export const PlayerController: React.FC<Props> = ({
           if (!blocked) {
             gridTargetPos.current = { x: nx, z: nz };
           }
-          gridCooldown.current = GRID_INPUT_COOLDOWN;
+          gridCooldown.current = cooldown;
         } else if (backward && !prevBackward) {
           const yaw = gridTargetFacing.current;
           const fx = Math.round(Math.sin(yaw));
@@ -146,7 +149,7 @@ export const PlayerController: React.FC<Props> = ({
           if (!blocked) {
             gridTargetPos.current = { x: nx, z: nz };
           }
-          gridCooldown.current = GRID_INPUT_COOLDOWN;
+          gridCooldown.current = cooldown;
         }
       }
 
