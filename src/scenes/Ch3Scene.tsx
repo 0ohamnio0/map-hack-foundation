@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
 import { PlayerController } from '@/components/game/PlayerController';
 import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
@@ -13,7 +14,7 @@ const MEDICINES = [
 ];
 
 const FlickerLight: React.FC = () => {
-  const lightRef = useRef<any>(null);
+  const lightRef = useRef<THREE.AmbientLight>(null);
   useFrame(({ clock }) => {
     if (lightRef.current) {
       lightRef.current.intensity = 0.4 + Math.sin(clock.elapsedTime * 8) * 0.1 + Math.sin(clock.elapsedTime * 13) * 0.05;
@@ -27,7 +28,7 @@ const MedicinePickup: React.FC<{
   onPickup: () => void;
   collected: boolean;
 }> = ({ med, onPickup, collected }) => {
-  const meshRef = useRef<any>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }) => {
     if (meshRef.current && !collected) {

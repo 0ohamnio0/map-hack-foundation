@@ -15,7 +15,7 @@ export const IntroScene: React.FC = () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, []);
+  }, [goToChapter, play]);
 
   return (
     <div
