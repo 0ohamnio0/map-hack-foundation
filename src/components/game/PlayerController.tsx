@@ -123,7 +123,12 @@ export const PlayerController: React.FC<Props> = ({
           const fz = Math.round(Math.cos(yaw));
           const nx = gridTargetPos.current.x + fx * gridCellSize;
           const nz = gridTargetPos.current.z + fz * gridCellSize;
-          if (!collisionWalls || !collidesWithWalls(nx, nz, collisionWalls)) {
+          // Check midpoint (cell boundary) where maze walls actually sit
+          const mx = (gridTargetPos.current.x + nx) / 2;
+          const mz = (gridTargetPos.current.z + nz) / 2;
+          const blocked = collisionWalls &&
+            (collidesWithWalls(mx, mz, collisionWalls) || collidesWithWalls(nx, nz, collisionWalls));
+          if (!blocked) {
             gridTargetPos.current = { x: nx, z: nz };
           }
           gridCooldown.current = GRID_INPUT_COOLDOWN;
@@ -133,7 +138,12 @@ export const PlayerController: React.FC<Props> = ({
           const fz = Math.round(Math.cos(yaw));
           const nx = gridTargetPos.current.x - fx * gridCellSize;
           const nz = gridTargetPos.current.z - fz * gridCellSize;
-          if (!collisionWalls || !collidesWithWalls(nx, nz, collisionWalls)) {
+          // Check midpoint (cell boundary) where maze walls actually sit
+          const mx = (gridTargetPos.current.x + nx) / 2;
+          const mz = (gridTargetPos.current.z + nz) / 2;
+          const blocked = collisionWalls &&
+            (collidesWithWalls(mx, mz, collisionWalls) || collidesWithWalls(nx, nz, collisionWalls));
+          if (!blocked) {
             gridTargetPos.current = { x: nx, z: nz };
           }
           gridCooldown.current = GRID_INPUT_COOLDOWN;
@@ -152,6 +162,8 @@ export const PlayerController: React.FC<Props> = ({
       gridCurrentFacing.current += shortestAngleDelta(gridCurrentFacing.current, gridTargetFacing.current) * lf;
 
       if (bounds) {
+        gridTargetPos.current.x = Math.max(bounds.minX, Math.min(bounds.maxX, gridTargetPos.current.x));
+        gridTargetPos.current.z = Math.max(bounds.minZ, Math.min(bounds.maxZ, gridTargetPos.current.z));
         gridCurrentPos.current.x = Math.max(bounds.minX, Math.min(bounds.maxX, gridCurrentPos.current.x));
         gridCurrentPos.current.z = Math.max(bounds.minZ, Math.min(bounds.maxZ, gridCurrentPos.current.z));
       }
