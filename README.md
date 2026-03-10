@@ -2,6 +2,8 @@
 
 조울증 발병과 약물 치료 경험을 1인칭/3인칭 미로 탐색으로 표현하는 5~10분짜리 웹 인터랙티브 게임.
 
+![WIP](docs/readme/wip.png)
+
 ## Repo
 
 - GitHub Pages: https://0ohamnio0.github.io/map-hack-foundation/
