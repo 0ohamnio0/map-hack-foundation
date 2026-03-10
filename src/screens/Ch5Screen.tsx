@@ -9,6 +9,8 @@ export const Ch5Screen: React.FC = () => {
   const [count, setCount] = useState(0);
   const [showMessage, setShowMessage] = useState(false);
   const [showLink, setShowLink] = useState(false);
+  const [showBlog1, setShowBlog1] = useState(false);
+  const [showBlog2, setShowBlog2] = useState(false);
   const [ending, setEnding] = useState(false);
   const [endingOpacity, setEndingOpacity] = useState(0);
   const textareaRef = useRef<HTMLDivElement>(null);
@@ -22,6 +24,8 @@ export const Ch5Screen: React.FC = () => {
   useEffect(() => {
     if (count >= 5 && !showMessage) {
       setShowMessage(true);
+      setTimeout(() => setShowBlog1(true), 2000);
+      setTimeout(() => setShowBlog2(true), 3000);
       setTimeout(() => setShowLink(true), 4000);
     }
   }, [count, showMessage]);
@@ -66,7 +70,23 @@ export const Ch5Screen: React.FC = () => {
           by 송해민
         </p>
         <a
-          href="#"
+          href="https://blog.naver.com/0ohihano0/223157858485"
+          target="_blank"
+          rel="noopener"
+          style={{
+            fontFamily: 'monospace',
+            color: '#6af',
+            fontSize: '0.9rem',
+            textDecoration: 'underline',
+            marginBottom: '0.5rem',
+          }}
+        >
+          But Why?
+        </a>
+        <a
+          href="https://blog.naver.com/0ohihano0/223160793479"
+          target="_blank"
+          rel="noopener"
           style={{
             fontFamily: 'monospace',
             color: '#6af',
@@ -74,7 +94,7 @@ export const Ch5Screen: React.FC = () => {
             textDecoration: 'underline',
           }}
         >
-          화이트리버프레스
+          무서운 이야기
         </a>
       </div>
     );
@@ -170,6 +190,42 @@ export const Ch5Screen: React.FC = () => {
             }}>
               I still have ten thousand words left to say...
             </p>
+          )}
+
+          {showBlog1 && (
+            <a
+              href="https://blog.naver.com/0ohihano0/223157858485"
+              target="_blank"
+              rel="noopener"
+              style={{
+                display: 'block',
+                marginTop: 16,
+                fontFamily: 'monospace',
+                fontSize: 14,
+                color: '#0068c8',
+                textDecoration: 'underline',
+              }}
+            >
+              But Why?
+            </a>
+          )}
+
+          {showBlog2 && (
+            <a
+              href="https://blog.naver.com/0ohihano0/223160793479"
+              target="_blank"
+              rel="noopener"
+              style={{
+                display: 'block',
+                marginTop: 8,
+                fontFamily: 'monospace',
+                fontSize: 14,
+                color: '#0068c8',
+                textDecoration: 'underline',
+              }}
+            >
+              무서운 이야기
+            </a>
           )}
 
           {showLink && (
