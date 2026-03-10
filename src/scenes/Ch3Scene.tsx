@@ -9,6 +9,7 @@ import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator'
 import { useDevMode } from '@/hooks/useDevMode';
 import { Ch3Effects } from '@/components/effects/ChapterEffects';
 import { StarNestOverlay } from '@/components/effects/StarNestOverlay';
+import { ItaewonLayer } from '@/components/game/ItaewonLayer';
 
 const MAZE_SIZE = 10;
 const CELL_SIZE = 7;
@@ -598,6 +599,8 @@ const Ch3Inner: React.FC<{
     cellToWorld(elevatorCell.gx, elevatorCell.gy, CELL_SIZE),
   [elevatorCell]);
 
+  const itaewonCellWorld = useMemo(() => cellToWorld(3, 3, CELL_SIZE), []);
+
   useEffect(() => {
     const check = () => {
       const px = posState.x;
@@ -685,6 +688,13 @@ const Ch3Inner: React.FC<{
 
       {/* Space elevator — random position each playthrough */}
       <SpaceElevator worldPos={elevatorWorld} />
+
+      {/* STEP 5: Itaewon memorial layer at cell (3,3) */}
+      <ItaewonLayer
+        cellWorldPos={itaewonCellWorld}
+        cellSize={CELL_SIZE}
+        playerPos={posState}
+      />
 
       {/* Exit marker */}
       <mesh position={[exitWorld.x, 1.5, exitWorld.z]}>
