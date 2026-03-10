@@ -277,33 +277,7 @@ export const Ch4Screen: React.FC = () => {
         }}
       />
 
-      {/* Ending text overlay — shown on top of ending image */}
-      {phase === 'ending' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            animation: 'fadeIn 2s ease forwards',
-          }}
-        >
-          <p
-            style={{
-              fontFamily: 'monospace',
-              fontStyle: 'italic',
-              color: '#fff',
-              fontSize: 18,
-              textAlign: 'center',
-              padding: '0 2rem',
-              textShadow: '0 0 20px rgba(0,0,0,0.8)',
-            }}
-          >
-            기억으로 연속되는 자아로부터의 일시적인 망명.
-          </p>
-        </div>
-      )}
+      {/* Ending: clean image only, no text overlay */}
     </div>
   )
 }

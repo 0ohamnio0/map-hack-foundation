@@ -9,6 +9,7 @@ import {
 } from '@react-three/postprocessing'
 import { GlitchMode, BlendFunction } from 'postprocessing'
 import { ChannelShift } from './ChannelShiftEffect'
+import { BokehBlurEffect, type BokehBlurEffectImpl } from './BokehBlurEffect'
 import { MedicationEffect, type MedicationEffectImpl } from './MedicationEffect'
 import { OverdoseEffect, type OverdoseEffectImpl } from './OverdoseEffect'
 import { useGameStore } from '@/store/useGameStore'
@@ -54,10 +55,53 @@ export function Ch1Effects() {
 }
 
 /**
- * CH.2 Effects — 거리, 끝이 안 보이는 느낌
- * fog + Vignette + subtle Noise
+ * CH.2 NPC positions for proximity blur calculation (REF-15)
+ * Special NPC at index 4 (18, -45) gets extra strong bokeh
+ */
+const CH2_NPC_POS: [number, number][] = [
+  [-3, -8], [4, -15], [-2, -25], [18, -38],
+  [18, -45], [24, -50], [15, -63], [-4, -72], [2, -80],
+]
+const SPECIAL_NPC_IDX = 4
+
+/**
+ * CH.2 Effects — fog + Vignette + Noise + Bokeh Blur (REF-15)
+ * NPC proximity drives real bokeh disc blur
  */
 export function Ch2Effects() {
+  const bokehRef = useRef<BokehBlurEffectImpl>(null)
+
+  useFrame(({ camera }) => {
+    if (!bokehRef.current) return
+    const cx = camera.position.x
+    const cz = camera.position.z
+
+    let maxAmount = 0
+    let maxIntensity = 1
+
+    for (let i = 0; i < CH2_NPC_POS.length; i++) {
+      const [nx, nz] = CH2_NPC_POS[i]
+      const dx = nx - cx
+      const dz = nz - cz
+      const dist = Math.sqrt(dx * dx + dz * dz)
+
+      if (dist > 12) continue
+
+      const proximity = Math.max(0, 1 - dist / 12)
+
+      if (i === SPECIAL_NPC_IDX && dist < 8) {
+        maxAmount = Math.max(maxAmount, 0.2 * proximity)
+        maxIntensity = Math.max(maxIntensity, 3.0)
+      } else if (dist < 8) {
+        const amount = 0.15 * proximity
+        maxAmount = Math.max(maxAmount, amount)
+        maxIntensity = Math.max(maxIntensity, 1.5 + proximity)
+      }
+    }
+
+    bokehRef.current.setParams(maxAmount, maxIntensity)
+  })
+
   return (
     <>
       <fog attach="fog" args={['#0a0a0a', 10, 45]} />
@@ -67,6 +111,7 @@ export function Ch2Effects() {
           opacity={0.05}
           blendFunction={BlendFunction.OVERLAY}
         />
+        <BokehBlurEffect ref={bokehRef} />
       </EffectComposer>
     </>
   )
@@ -87,37 +132,75 @@ export function Ch3Effects() {
   const overdoseElapsed = useRef(0)
   const overdoseActive = useRef(false)
 
+  // Map effect names to shader type indices
+  const effectTypeMap: Record<string, number> = {
+    desaturate: 0,  // 기분안정제
+    blur: 1,        // 항정신병약
+    darken: 2,      // 수면제
+    anxiolytic: 3,  // 항불안제
+    whiteflash: 4,  // 다 먹음
+  }
+
+  // Duration per effect type (darken = persistent until next pickup → 9999)
+  const effectDuration: Record<string, number> = {
+    desaturate: 8,
+    blur: 10,
+    darken: 9999,
+    anxiolytic: 6,
+    whiteflash: 1.8,
+  }
+  const medDuration = useRef(6.5)
+
   // Trigger medication effect when activeEffect changes to a drug type
   useEffect(() => {
-    const drugEffects = ['desaturate', 'blur', 'darken', 'whiteflash']
+    const drugEffects = ['desaturate', 'blur', 'darken', 'anxiolytic', 'whiteflash']
     if (activeEffect && drugEffects.includes(activeEffect)) {
       medElapsed.current = 0
       medActive.current = true
+      medDuration.current = effectDuration[activeEffect] ?? 6.5
+      if (medRef.current) {
+        medRef.current.setEffectType(effectTypeMap[activeEffect] ?? 0)
+      }
     }
   }, [activeEffect])
 
-  // Trigger overdose when cart has 5+ items (all taken)
+  const overdoseDone = useRef(false)
+
+  // Trigger overdose when cart has 5+ unique meds collected
+  // (cartItems duplicates on pickup, so 5+ items = all meds taken)
   useEffect(() => {
-    if (cartItems.length >= 5 && !overdoseActive.current) {
+    if (cartItems.length >= 5 && !overdoseActive.current && !overdoseDone.current) {
       overdoseElapsed.current = 0
       overdoseActive.current = true
     }
   }, [cartItems])
 
+  // Overdose display duration: 15s of visible effect, then all shaders OFF
+  const OVERDOSE_DISPLAY = 15
+
   useFrame((_, delta) => {
-    // Drive MedicationEffect
-    if (medRef.current && medActive.current) {
+    // Drive MedicationEffect (skip if overdose is done — all shaders off)
+    if (medRef.current && medActive.current && !overdoseDone.current) {
       medElapsed.current += delta
-      medRef.current.setPhase(medElapsed.current)
-      if (medElapsed.current > 6.5) {
+      medRef.current.setPhase(medElapsed.current, medDuration.current)
+      if (medElapsed.current > medDuration.current) {
         medActive.current = false
         medRef.current.reset()
       }
     }
-    // Drive OverdoseEffect (no recovery)
-    if (overdoseRef.current && overdoseActive.current) {
+    // Drive OverdoseEffect — show for OVERDOSE_DISPLAY seconds then kill all
+    if (overdoseRef.current && overdoseActive.current && !overdoseDone.current) {
       overdoseElapsed.current += delta
       overdoseRef.current.setPhase(overdoseElapsed.current)
+
+      if (overdoseElapsed.current > OVERDOSE_DISPLAY) {
+        // Turn off ALL shaders
+        overdoseActive.current = false
+        overdoseDone.current = true
+        overdoseRef.current.reset()
+        if (medRef.current) medRef.current.reset()
+        medActive.current = false
+      }
     }
   })
 

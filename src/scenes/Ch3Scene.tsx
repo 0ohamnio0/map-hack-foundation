@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react'
 import { Minimap, type MinimapMarker } from '@/components/game/Minimap';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { MeshReflectorMaterial } from '@react-three/drei';
 import { PlayerController, type WallAABB } from '@/components/game/PlayerController';
 import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
@@ -46,7 +47,7 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
   }, [maze]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, maze.wallPositions.length]} material={material}>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, maze.wallPositions.length]} material={material} frustumCulled={false}>
       <boxGeometry args={[1, 1, 1]} />
     </instancedMesh>
   );
@@ -73,11 +74,11 @@ const FlickerLight: React.FC = () => {
 };
 
 const MEDICINES = [
-  { name: '기분안정제', color: '#ff3333', effect: 'desaturate', duration: 3000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 } },
-  { name: '항정신병약', color: '#3366ff', effect: 'blur', duration: 3000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 } },
-  { name: '수면제', color: '#ffcc00', effect: 'darken', duration: 5000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 } },
-  { name: '항불안제', color: '#33cc33', effect: 'desaturate', duration: 3000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 } },
-  { name: '다 먹음', color: '#ffffff', effect: 'whiteflash', duration: 2000, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 } },
+  { name: '기분안정제', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 } },
+  { name: '항정신병약', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 } },
+  { name: '수면제', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 } },
+  { name: '항불안제', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 } },
+  { name: '다 먹음', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 } },
 ];
 
 // --- Fitting room + mirror at center ---
@@ -102,7 +103,7 @@ function pickElevatorCell(): { gx: number; gy: number } {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-/** Fitting room booth + mirror in front */
+/** Fitting room booth + reflective mirror */
 const FittingRoom: React.FC<{ worldPos: { x: number; z: number } }> = ({ worldPos }) => {
   return (
     <group position={[worldPos.x, 0, worldPos.z]}>
@@ -119,15 +120,24 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number } }> = ({ worldPo
         <boxGeometry args={[0.15, 3, 1.8]} />
         <meshStandardMaterial color="#665544" />
       </mesh>
-      {/* Mirror — shiny flat surface facing the player approach (+Z) */}
-      <mesh position={[0, 1.5, 1.5]}>
-        <boxGeometry args={[1.2, 2, 0.06]} />
-        <meshStandardMaterial color="#aaccdd" metalness={0.9} roughness={0.1} />
-      </mesh>
       {/* Mirror frame */}
       <mesh position={[0, 1.5, 1.48]}>
         <boxGeometry args={[1.35, 2.15, 0.03]} />
         <meshStandardMaterial color="#333" />
+      </mesh>
+      {/* Mirror — real planar reflection using MeshReflectorMaterial */}
+      <mesh position={[0, 1.5, 1.5]} rotation={[0, Math.PI, 0]}>
+        <planeGeometry args={[1.2, 2]} />
+        <MeshReflectorMaterial
+          mirror={0.85}
+          resolution={512}
+          mixBlur={0.3}
+          mixStrength={1}
+          blur={[200, 100]}
+          color="#aaccdd"
+          metalness={0.9}
+          roughness={0.05}
+        />
       </mesh>
     </group>
   );
@@ -170,8 +180,8 @@ const SpaceElevator: React.FC<{ worldPos: { x: number; z: number } }> = ({ world
 // --- Elevator Cutscene ---
 type CutscenePhase = 'elevator' | 'space' | 'returning' | null;
 
-const ELEVATOR_DURATION = 20000; // 20s elevator interior
-const SPACE_DURATION = 30000;    // 30s space scene
+const ELEVATOR_DURATION = 10000; // 10s elevator interior
+const SPACE_DURATION = 15000;    // 15s space scene
 const RETURN_FADE = 800;        // fade back
 
 const ElevatorCutscene: React.FC<{
@@ -454,27 +464,46 @@ const ElevatorCutscene: React.FC<{
         {/* STEP 9: Star Nest shader background (REF-7) */}
         <StarNestOverlay duration={SPACE_DURATION / 1000} />
 
-        {/* Earth — crescent arc rising from bottom */}
+        {/* Character silhouette — floating in space */}
         <div style={{
           position: 'fixed',
           left: '50%',
           top: `${earthY}%`,
           transform: 'translateX(-50%)',
-          width: 400,
-          height: 400,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle at 40% 35%, #2244aa 0%, #113366 40%, #0a1a33 70%, #020810 100%)',
-          boxShadow: '0 0 60px 20px rgba(30,80,180,0.15), inset 10px -5px 40px rgba(100,180,255,0.1)',
-          transition: 'top 0.5s ease-out',
           zIndex: 1002,
           pointerEvents: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          opacity: 0.6,
+          filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.15))',
+          transition: 'top 0.5s ease-out',
         }}>
+          {/* Head */}
           <div style={{
-            position: 'absolute', inset: -8,
-            borderRadius: '50%',
-            background: 'transparent',
-            boxShadow: '0 0 30px 8px rgba(80,160,255,0.08)',
+            width: 24, height: 24, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.8)',
+            marginBottom: 4,
           }} />
+          {/* Body */}
+          <div style={{
+            width: 20, height: 40, borderRadius: '10px 10px 4px 4px',
+            background: 'rgba(255,255,255,0.7)',
+            marginBottom: 2,
+          }} />
+          {/* Arms */}
+          <div style={{
+            position: 'absolute', top: 32, width: 56, height: 6,
+            display: 'flex', justifyContent: 'space-between',
+          }}>
+            <div style={{ width: 16, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.5)', transform: 'rotate(-20deg)' }} />
+            <div style={{ width: 16, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.5)', transform: 'rotate(20deg)' }} />
+          </div>
+          {/* Legs */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ width: 8, height: 30, borderRadius: '0 0 4px 4px', background: 'rgba(255,255,255,0.6)' }} />
+            <div style={{ width: 8, height: 30, borderRadius: '0 0 4px 4px', background: 'rgba(255,255,255,0.6)' }} />
+          </div>
         </div>
 
         {/* Elevator window frame */}

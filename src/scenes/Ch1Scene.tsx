@@ -3,9 +3,8 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
-import { Ch1Effects } from '@/components/effects/ChapterEffects';
-import { FlashbackHeightfield } from '@/components/effects/FlashbackHeightfield';
 import { MultiCubeTransition } from '@/components/effects/MultiCubeTransition';
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 
 const Room: React.FC = () => {
   return (
@@ -101,18 +100,18 @@ const Ch1Inner: React.FC = () => {
 
   // Auto cutscene timeline
   useEffect(() => {
-    // 3s: hallucination glitch
+    // 7.5s: hallucination glitch (was 3s × 2.5)
     const t1 = setTimeout(() => {
       if (triggerEvent('ch1_hallucination')) {
         setActiveEffect('glitch', 2000);
       }
       setPhase(1);
-    }, 3000);
+    }, 7500);
 
-    // 5.5s: settle on door, ready for input
+    // 13.75s: settle on door, ready for input (was 5.5s × 2.5)
     const t2 = setTimeout(() => {
       setPhase(2);
-    }, 5500);
+    }, 13750);
 
     return () => {
       clearTimeout(t1);
@@ -120,18 +119,21 @@ const Ch1Inner: React.FC = () => {
     };
   }, [triggerEvent, setActiveEffect, setPhase]);
 
-  // Door interaction — any key press during phase 2
+  // Door interaction — any key press or mouse click during phase 2
   useEffect(() => {
-    const onKey = () => {
+    const openDoor = () => {
       if (phase < 2 || doorOpened.current) return;
       doorOpened.current = true;
       play('door_creak');
-      // Start Multi Cube transition instead of instant chapter change
       setCubeProgress(0);
       cubeStart.current = performance.now();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', openDoor);
+    window.addEventListener('click', openDoor);
+    return () => {
+      window.removeEventListener('keydown', openDoor);
+      window.removeEventListener('click', openDoor);
+    };
   }, [phase, play]);
 
   // Animate Multi Cube transition progress (4 seconds)
@@ -153,10 +155,11 @@ const Ch1Inner: React.FC = () => {
       <pointLight position={[0, 2.5, 0]} intensity={1.5} color="#ff0000" />
       <Room />
       <CutsceneCamera phase={phase} />
-      {/* STEP 8: Post-processing — Bloom + Vignette + Glitch + Channel Shift */}
-      <Ch1Effects />
-      {/* STEP 8: Flashback heightfield (stub — 에셋 대기) */}
-      {phase === 1 && <FlashbackHeightfield opacity={0.4} />}
+      {/* Simple post-processing for door room (main effects moved to INTRO) */}
+      <EffectComposer>
+        <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} intensity={0.8} />
+        <Vignette offset={0.3} darkness={0.7} />
+      </EffectComposer>
       {/* STEP 9: Multi Cube door transition (REF-12) */}
       {cubeProgress >= 0 && (
         <MultiCubeTransition progress={cubeProgress} onComplete={handleCubeComplete} />
@@ -170,7 +173,7 @@ const DoorPrompt: React.FC = () => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 6000);
+    const t = setTimeout(() => setVisible(true), 15000);
     return () => clearTimeout(t);
   }, []);
 

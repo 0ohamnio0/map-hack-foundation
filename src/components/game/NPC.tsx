@@ -23,6 +23,7 @@ export function NPC({ position, isSpecial = false }: NPCProps) {
   const headMatRef = useRef<THREE.MeshStandardMaterial>(null)
   const opacity = useRef(1)
   const { camera } = useThree()
+  const npcColor = isSpecial ? '#cc2222' : '#555'
   const [textOpacity, setTextOpacity] = useState(0)
   const textOpacityRef = useRef(0)
   const textTimer = useRef(0)
@@ -51,7 +52,7 @@ export function NPC({ position, isSpecial = false }: NPCProps) {
     // --- Special NPC: follow player ---
     if (isSpecial) {
       const target = new THREE.Vector3(camera.position.x, 0, camera.position.z)
-      gp.lerp(target, 0.002 * (delta / 0.016))
+      gp.lerp(target, 0.015 * (delta / 0.016))
       gp.y = 0 // stay on ground
 
       // Distance check for text
@@ -93,9 +94,11 @@ export function NPC({ position, isSpecial = false }: NPCProps) {
         <capsuleGeometry args={[0.25, 0.8, 4, 8]} />
         <meshStandardMaterial
           ref={bodyMatRef}
-          color="#555"
+          color={npcColor}
           transparent
           opacity={1}
+          emissive={isSpecial ? '#440000' : '#000000'}
+          emissiveIntensity={isSpecial ? 0.3 : 0}
         />
       </mesh>
       {/* Head: smooth sphere (no face) */}
@@ -103,9 +106,11 @@ export function NPC({ position, isSpecial = false }: NPCProps) {
         <sphereGeometry args={[0.2, 8, 8]} />
         <meshStandardMaterial
           ref={headMatRef}
-          color="#555"
+          color={npcColor}
           transparent
           opacity={1}
+          emissive={isSpecial ? '#440000' : '#000000'}
+          emissiveIntensity={isSpecial ? 0.3 : 0}
         />
       </mesh>
       {/* Special NPC floating text */}

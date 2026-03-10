@@ -212,7 +212,7 @@ const DIFFUSE_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_text
 const METALLIC_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0_metallic.png`;
 const NORMAL_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0_normal.png`;
 const ROUGHNESS_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0_roughness.png`;
-const SKY_TEX_URL = `${BASE}assets/sky/cloud_hole_upscaled_pixel.jpg`;
+// SKY_TEX_URL removed — SkyBackdrop replaced by CloudSkyBackground
 const MODEL_YAW_OFFSET = 0;
 
 // Preload key assets so first-visit and cached-visit paths stay as close as possible.
@@ -225,28 +225,7 @@ useLoader.preload(THREE.TextureLoader, DIFFUSE_URL);
 useLoader.preload(THREE.TextureLoader, METALLIC_URL);
 useLoader.preload(THREE.TextureLoader, NORMAL_URL);
 useLoader.preload(THREE.TextureLoader, ROUGHNESS_URL);
-useLoader.preload(THREE.TextureLoader, SKY_TEX_URL);
-
-const SkyBackdrop: React.FC = () => {
-  const skyTex = useLoader(THREE.TextureLoader, SKY_TEX_URL);
-
-  useEffect(() => {
-    skyTex.colorSpace = THREE.SRGBColorSpace;
-    skyTex.generateMipmaps = false;
-    skyTex.magFilter = THREE.NearestFilter;
-    skyTex.minFilter = THREE.NearestFilter;
-    skyTex.wrapS = THREE.ClampToEdgeWrapping;
-    skyTex.wrapT = THREE.ClampToEdgeWrapping;
-    skyTex.needsUpdate = true;
-  }, [skyTex]);
-
-  return (
-    <mesh scale={180}>
-      <sphereGeometry args={[1, 40, 24]} />
-      <meshBasicMaterial map={skyTex} side={THREE.BackSide} depthWrite={false} toneMapped={false} />
-    </mesh>
-  );
-};
+// SkyBackdrop removed — replaced by CloudSkyBackground (REF-9)
 
 const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }) => {
   const groupRef = useRef<THREE.Group>(null);
@@ -431,8 +410,8 @@ const TriggerWatcher: React.FC<{
       if (triggerEvent('ch2_airport')) onAirportTrigger();
     }
 
-    // Chapter exit
-    if (pz < -85) {
+    // Chapter exit (camera orbits behind character, so threshold is less negative)
+    if (pz < -80) {
       if (triggerEvent('ch2_exit')) goToChapter('CH3');
     }
   });
@@ -613,16 +592,14 @@ const Ch2Inner: React.FC<{
 }> = ({ airportActive, onAirportTrigger, freezeControls }) => {
   return (
     <>
-      {/* Three.js scene background — must be set inside Canvas */}
       <color attach="background" args={['#0a0a0a']} />
-      {/* STEP 9: Procedural cloud sky replaces static SkyBackdrop */}
+      {/* STEP 9: Procedural cloud sky (REF-9) */}
       <CloudSkyBackground
         skycolor1={[0.15, 0.2, 0.35]}
         skycolor2={[0.25, 0.35, 0.5]}
         cloudcover={0.35}
         clouddark={0.7}
       />
-      <SkyBackdrop />
 
       <FlickerLight />
       <hemisphereLight skyColor="#c7e6ff" groundColor="#6a7683" intensity={0.9} />

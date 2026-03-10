@@ -2,6 +2,69 @@
 
 ---
 
+## 2026-03-10 — QA 피드백 일괄 수정 (7건)
+
+### 요약
+
+3차 QA 피드백에서 보고된 7건의 이슈를 일괄 수정.
+
+### 수정 내역
+
+#### 1. INTRO 타이밍 3배 연장
+- 타이틀 표시: 5s → 15s
+- CH.1 전환: 12.5s → 30s
+- ChannelShift 진행도 30s에 맞춰 동기화
+- **파일**: `IntroScene.tsx`
+
+#### 2. CH.1 번쩍번쩍(글리치) 축소
+- 글리치 duration: 5000ms → 2000ms
+- **파일**: `Ch1Scene.tsx`
+
+#### 3. CH.2 하늘 셰이더 노출
+- `SkyBackdrop` (scale 180 구체 + 텍스처) 제거 — `CloudSkyBackground`(REF-9)를 가리고 있었음
+- 프로시저럴 구름 하늘만 남김
+- **파일**: `Ch2Scene.tsx`
+
+#### 4. CH.2 NPC 보케 블러 (REF-15)
+- 기존 pseudo-blur (Vignette darkness + Noise opacity 조절) → 실제 GLSL Bokeh Disc 셰이더로 교체
+- `BokehBlurEffect.tsx` 신규 생성: 2-ring disc sampling, brightness-weighted bokeh
+- NPC 8유닛 이내 접근 시 amount 0→0.15, intensity 1→2.5 (거리 반비례)
+- 특수 NPC (블랙독): amount 최대 0.2, intensity 3.0
+- **파일**: `BokehBlurEffect.tsx` (신규), `ChapterEffects.tsx`
+
+#### 5. 시착실 거울 반사
+- `meshStandardMaterial`(metalness 0.9) → drei `MeshReflectorMaterial`로 교체
+- mirror=0.85, resolution=512, mixBlur=0.3 (실제 평면 반사)
+- **파일**: `Ch3Scene.tsx`
+
+#### 6. 오버도즈 셰이더 표시 연장 + 전체 OFF
+- 오버도즈 이펙트 15초간 표시 후 OverdoseEffect + MedicationEffect 모두 reset
+- `overdoseDone` 플래그로 이후 약 이펙트 재트리거 방지
+- **파일**: `ChapterEffects.tsx`
+
+#### 7. CH.5 블로그 UI 재작성 ("앙팡 테리블" 클론)
+- 기존 초록색 네이버 블로그 메인 → 실제 블로그 "앙팡 테리블" 디자인 클론
+- 모노크롬 흑백, 5px 검정 보더, Nanum Myeongjo 세리프
+- 카테고리: "일기 (260)" 단일
+- 탭: "blog" / "guest" 만
+- 통계: Today 5, Total 60,313, 이웃 303
+- 블로그 주인: 희한 (0ohihano0)
+- **파일**: `Ch5Screen.tsx`
+
+### 변경 파일
+
+| 파일 | 변경 |
+|------|------|
+| `src/scenes/IntroScene.tsx` | 타이밍 3배 |
+| `src/scenes/Ch1Scene.tsx` | 글리치 축소 |
+| `src/scenes/Ch2Scene.tsx` | SkyBackdrop 제거 |
+| `src/scenes/Ch3Scene.tsx` | MeshReflectorMaterial 거울 |
+| `src/components/effects/BokehBlurEffect.tsx` | 신규 — REF-15 보케 블러 |
+| `src/components/effects/ChapterEffects.tsx` | Ch2 보케, Ch3 오버도즈 15s+OFF |
+| `src/screens/Ch5Screen.tsx` | 앙팡 테리블 클론 |
+
+---
+
 ## 2026-03-04 — idle 애니메이션 도입 + Rapier 프리즈 미해결
 
 ### 목표
