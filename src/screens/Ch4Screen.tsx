@@ -1,128 +1,309 @@
-import React, { useEffect, useState } from 'react';
-import { useGameStore } from '@/store/useGameStore';
-import { useSoundManager } from '@/hooks/useSoundManager';
+/**
+ * STEP 6: CH.4 사과문 — Random Freeze Canvas 2D
+ * - 8s black → ~20s Random Freeze (3 images patch-cycling) → ending image → CH.5
+ * - Canvas itself is the persistent buffer; each frame copies a random rect from current source
+ * - Source images cycle A→B→C every 3-5s, creating patchwork of all three
+ * - REF-4: ISF Random Freeze converted to Canvas 2D API
+ *
+ * Assets pending: ch4_en.png, ch4_ko.png, ch4_photo.png, ch4_ending.png
+ * Stub: generates colored placeholder canvases with text labels
+ */
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { useGameStore } from '@/store/useGameStore'
+import { useSoundManager } from '@/hooks/useSoundManager'
 
-const koreanLines = [
-  '오류가 발생했습니다.',
-  '불편을 드려서 죄송합니다.',
-  '서비스를 일시적으로 중단합니다.',
-];
+const BASE = import.meta.env.BASE_URL
 
-const englishLines = [
-  'An error has occurred.',
-  'We apologize for the inconvenience.',
-  'Service is temporarily suspended.',
-];
+const SOURCES = [
+  `${BASE}assets/images/ch4_en.png`,
+  `${BASE}assets/images/ch4_ko.png`,
+  `${BASE}assets/images/ch4_photo.png`,
+]
+const ENDING_SRC = `${BASE}assets/images/ch4_ending.png`
+
+const CYCLE_INTERVAL = 4000
+const FREEZE_DURATION = 20000
+const BLACK_DURATION = 8000
+const ENDING_HOLD = 3000
+
+type Phase = 'black' | 'freeze' | 'ending'
+
+/** Generate a stub placeholder image (colored canvas with label text) */
+function createStubImage(
+  label: string,
+  bgColor: string,
+  w: number,
+  h: number,
+): HTMLCanvasElement {
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const ctx = c.getContext('2d')!
+  ctx.fillStyle = bgColor
+  ctx.fillRect(0, 0, w, h)
+
+  // Dashed border
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'
+  ctx.setLineDash([8, 6])
+  ctx.lineWidth = 2
+  ctx.strokeRect(20, 20, w - 40, h - 40)
+
+  // Label
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.font = '24px monospace'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(`[ ${label} ]`, w / 2, h / 2)
+
+  return c
+}
 
 export const Ch4Screen: React.FC = () => {
-  const goToChapter = useGameStore(s => s.goToChapter);
-  const { play, stop } = useSoundManager();
+  const goToChapter = useGameStore((s) => s.goToChapter)
+  const { play, stop } = useSoundManager()
 
-  const [phase, setPhase] = useState<'black' | 'text' | 'ending'>('black');
-  const [visibleLines, setVisibleLines] = useState(0);
-  const [endingVisible, setEndingVisible] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [phase, setPhase] = useState<Phase>('black')
+
+  // Image sources: real images or stub fallbacks
+  const imagesRef = useRef<(HTMLImageElement | HTMLCanvasElement)[]>([])
+  const endingRef = useRef<HTMLImageElement | HTMLCanvasElement | null>(null)
+  const loadedRef = useRef<boolean[]>([false, false, false])
+  const endingLoadedRef = useRef(false)
+
+  const currentSourceRef = useRef(0)
+  const freezeStartRef = useRef(0)
+  const frameIdRef = useRef(0)
+
+  // Preload images — fall back to stub if load fails or asset missing
+  useEffect(() => {
+    const w = window.innerWidth
+    const h = window.innerHeight
+
+    const stubColors = ['#1a1a2e', '#2e1a1a', '#1a2e1a']
+    const stubLabels = ['ch4_en.png', 'ch4_ko.png', 'ch4_photo.png']
+
+    const stubs = stubLabels.map((label, i) =>
+      createStubImage(label, stubColors[i], w, h),
+    )
+    imagesRef.current = stubs
+
+    // Try loading real images
+    SOURCES.forEach((src, i) => {
+      const img = new Image()
+      img.onload = () => {
+        imagesRef.current[i] = img
+        loadedRef.current[i] = true
+      }
+      img.onerror = () => {
+        // Keep stub
+      }
+      img.src = src
+    })
+
+    // Ending image
+    const endingStub = createStubImage(
+      'ch4_ending.png',
+      '#0a0a0a',
+      w,
+      h,
+    )
+    endingRef.current = endingStub
+
+    const endImg = new Image()
+    endImg.onload = () => {
+      endingRef.current = endImg
+      endingLoadedRef.current = true
+    }
+    endImg.src = ENDING_SRC
+  }, [])
+
+  // Phase sequencing
+  useEffect(() => {
+    play('phone_ring')
+
+    const t1 = setTimeout(() => {
+      setPhase('freeze')
+    }, BLACK_DURATION)
+
+    return () => clearTimeout(t1)
+  }, [play])
 
   useEffect(() => {
-    play('phone_ring');
+    if (phase !== 'freeze') return
 
-    // Phase 1: black silence for 6s
-    const t1 = setTimeout(() => setPhase('text'), 8000); // 2s fade + 6s silence
+    const t = setTimeout(() => {
+      stop('phone_ring')
+      setPhase('ending')
+    }, FREEZE_DURATION)
 
-    return () => clearTimeout(t1);
-  }, [play]);
+    return () => clearTimeout(t)
+  }, [phase, stop])
 
   useEffect(() => {
-    if (phase !== 'text') return;
+    if (phase !== 'ending') return
 
-    // Reveal lines one by one
-    const timers: NodeJS.Timeout[] = [];
-    for (let i = 0; i < 3; i++) {
-      timers.push(setTimeout(() => setVisibleLines(i + 1), i * 800));
+    // Draw ending image full-canvas
+    const canvas = canvasRef.current
+    if (canvas && endingRef.current) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(endingRef.current, 0, 0, canvas.width, canvas.height)
+      }
     }
 
-    // After 12s show ending
-    timers.push(setTimeout(() => {
-      stop('phone_ring');
-      setPhase('ending');
-    }, 12000));
+    const t = setTimeout(() => {
+      play('screen_on')
+      goToChapter('CH5')
+    }, ENDING_HOLD)
 
-    return () => timers.forEach(clearTimeout);
-  }, [phase, stop]);
+    return () => clearTimeout(t)
+  }, [phase, goToChapter, play])
 
+  // Random Freeze animation loop
+  const animate = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas || phase !== 'freeze') return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const w = canvas.width
+    const h = canvas.height
+    const elapsed = Date.now() - freezeStartRef.current
+
+    // Cycle source image: A → B → C → A → …
+    currentSourceRef.current = Math.floor(elapsed / CYCLE_INTERVAL) % SOURCES.length
+    const src = imagesRef.current[currentSourceRef.current]
+    if (!src) {
+      frameIdRef.current = requestAnimationFrame(animate)
+      return
+    }
+
+    // maxUpdateSize grows over time: 0.3 → 0.5 over 20s
+    const progress = Math.min(elapsed / FREEZE_DURATION, 1)
+    const maxUpdateSize = 0.3 + progress * 0.2
+
+    // Draw 2-4 random patches per frame for faster coverage
+    const patchCount = 2 + Math.floor(progress * 2)
+    for (let p = 0; p < patchCount; p++) {
+      const rx = Math.random()
+      const ry = Math.random()
+      const rw = Math.random() * maxUpdateSize
+      const rh = Math.random() * maxUpdateSize
+
+      const sx = rx * w
+      const sy = ry * h
+      const sw = rw * w
+      const sh = rh * h
+
+      // Source coords (same normalized position in the source image)
+      const srcW = (src as HTMLCanvasElement).width ?? (src as HTMLImageElement).naturalWidth ?? w
+      const srcH = (src as HTMLCanvasElement).height ?? (src as HTMLImageElement).naturalHeight ?? h
+
+      ctx.drawImage(
+        src,
+        rx * srcW,
+        ry * srcH,
+        rw * srcW,
+        rh * srcH,
+        sx,
+        sy,
+        sw,
+        sh,
+      )
+    }
+
+    frameIdRef.current = requestAnimationFrame(animate)
+  }, [phase])
+
+  // Start/stop animation loop
   useEffect(() => {
-    if (phase !== 'ending') return;
-    const t1 = setTimeout(() => setEndingVisible(true), 500);
-    const t2 = setTimeout(() => {
-      play('screen_on');
-      goToChapter('CH5');
-    }, 3000);
+    if (phase === 'freeze') {
+      freezeStartRef.current = Date.now()
+
+      // Fill canvas with first source initially
+      const canvas = canvasRef.current
+      if (canvas) {
+        const ctx = canvas.getContext('2d')
+        const src = imagesRef.current[0]
+        if (ctx && src) {
+          ctx.drawImage(src, 0, 0, canvas.width, canvas.height)
+        }
+      }
+
+      frameIdRef.current = requestAnimationFrame(animate)
+    }
+
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [phase, goToChapter, play]);
+      if (frameIdRef.current) cancelAnimationFrame(frameIdRef.current)
+    }
+  }, [phase, animate])
+
+  // Resize canvas to fullscreen
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const resize = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      backgroundColor: '#0a0a0a',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 100,
-      animation: 'fadeIn 2s ease forwards',
-    }}>
-      {phase === 'text' && (
-        <div style={{ position: 'relative', width: '80%', maxWidth: 500 }}>
-          {/* Korean layer */}
-          <div style={{ position: 'relative', zIndex: 2 }}>
-            {koreanLines.map((line, i) => (
-              <p key={`ko-${i}`} style={{
-                fontFamily: 'monospace',
-                color: '#fff',
-                fontSize: 14,
-                opacity: i < visibleLines ? 1 : 0,
-                transition: 'opacity 0.8s ease',
-                marginBottom: 8,
-              }}>
-                {line}
-              </p>
-            ))}
-          </div>
-          {/* English layer - offset */}
-          <div style={{ position: 'absolute', top: 4, left: 4, zIndex: 1, opacity: 0.4 }}>
-            {englishLines.map((line, i) => (
-              <p key={`en-${i}`} style={{
-                fontFamily: 'monospace',
-                color: '#fff',
-                fontSize: 14,
-                opacity: i < visibleLines ? 1 : 0,
-                transition: 'opacity 0.8s ease',
-                marginBottom: 8,
-              }}>
-                {line}
-              </p>
-            ))}
-          </div>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: '#0a0a0a',
+        zIndex: 100,
+        animation: 'fadeIn 2s ease forwards',
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          opacity: phase === 'black' ? 0 : 1,
+          transition: 'opacity 1s ease',
+        }}
+      />
+
+      {/* Ending text overlay — shown on top of ending image */}
+      {phase === 'ending' && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            animation: 'fadeIn 2s ease forwards',
+          }}
+        >
+          <p
+            style={{
+              fontFamily: 'monospace',
+              fontStyle: 'italic',
+              color: '#fff',
+              fontSize: 18,
+              textAlign: 'center',
+              padding: '0 2rem',
+              textShadow: '0 0 20px rgba(0,0,0,0.8)',
+            }}
+          >
+            기억으로 연속되는 자아로부터의 일시적인 망명.
+          </p>
         </div>
       )}
-
-      {phase === 'ending' && (
-        <p style={{
-          fontFamily: 'monospace',
-          fontStyle: 'italic',
-          color: '#fff',
-          fontSize: 18,
-          textAlign: 'center',
-          opacity: endingVisible ? 1 : 0,
-          transition: 'opacity 2s ease',
-          padding: '0 2rem',
-        }}>
-          기억으로 연속되는 자아로부터의 일시적인 망명.
-        </p>
-      )}
     </div>
-  );
-};
+  )
+}
