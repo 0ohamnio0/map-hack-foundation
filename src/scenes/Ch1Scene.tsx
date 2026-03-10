@@ -113,7 +113,7 @@ const Ch1Inner: React.FC = () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [triggerEvent, setActiveEffect]);
+  }, [triggerEvent, setActiveEffect, setPhase]);
 
   // Door interaction — any key press during phase 2
   useEffect(() => {

@@ -17,7 +17,7 @@ export const Ch5Screen: React.FC = () => {
     play('boot_sound');
     loop('pc_fan', true);
     return () => loop('pc_fan', false);
-  }, []);
+  }, [play, loop]);
 
   useEffect(() => {
     if (count >= 5 && !showMessage) {

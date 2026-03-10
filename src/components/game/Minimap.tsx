@@ -1,17 +1,28 @@
 import React, { useEffect, useRef } from 'react';
 import type { MazeData } from '@/utils/mazeGenerator';
 
+export interface MinimapMarker {
+  /** World-space X */
+  x: number;
+  /** World-space Z */
+  z: number;
+  color: string;
+  radius?: number;
+  glow?: boolean;
+}
+
 interface Props {
   maze: MazeData;
   playerX: number;
   playerZ: number;
   cellSize?: number;
+  markers?: MinimapMarker[];
 }
 
 const MINIMAP_SIZE = 160;
 const PADDING = 12;
 
-export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2 }) => {
+export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2, markers }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -77,6 +88,23 @@ export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2 
     ctx.arc(ex, ey, 3, 0, Math.PI * 2);
     ctx.fill();
 
+    // Custom markers
+    if (markers) {
+      markers.forEach(m => {
+        const mx = m.x * scale;
+        const mz = m.z * scale;
+        if (m.glow) {
+          ctx.shadowColor = m.color;
+          ctx.shadowBlur = 5;
+        }
+        ctx.fillStyle = m.color;
+        ctx.beginPath();
+        ctx.arc(mx, mz, m.radius ?? 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+    }
+
     // Player dot
     const px = playerX * scale;
     const pz = playerZ * scale;
@@ -87,7 +115,7 @@ export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2 
     ctx.arc(px, pz, 3.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-  }, [maze, playerX, playerZ, cellSize]);
+  }, [maze, playerX, playerZ, cellSize, markers]);
 
   return (
     <div style={{

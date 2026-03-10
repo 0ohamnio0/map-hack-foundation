@@ -29,7 +29,7 @@ export const Ch4Screen: React.FC = () => {
     const t1 = setTimeout(() => setPhase('text'), 8000); // 2s fade + 6s silence
 
     return () => clearTimeout(t1);
-  }, []);
+  }, [play]);
 
   useEffect(() => {
     if (phase !== 'text') return;
@@ -47,7 +47,7 @@ export const Ch4Screen: React.FC = () => {
     }, 12000));
 
     return () => timers.forEach(clearTimeout);
-  }, [phase]);
+  }, [phase, stop]);
 
   useEffect(() => {
     if (phase !== 'ending') return;
@@ -60,7 +60,7 @@ export const Ch4Screen: React.FC = () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [phase]);
+  }, [phase, goToChapter, play]);
 
   return (
     <div style={{

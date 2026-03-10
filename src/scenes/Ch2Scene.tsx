@@ -1,0 +1,652 @@
+import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import * as THREE from 'three';
+import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@react-three/drei';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
+import Ecctrl, { EcctrlJoystick } from 'ecctrl';
+import { useGameStore } from '@/store/useGameStore';
+import { useDevMode } from '@/hooks/useDevMode';
+
+const BASE = import.meta.env.BASE_URL;
+
+const WALL_HEIGHT = 4;
+
+/*
+ * S-shaped winding street layout (top-down):
+ *
+ *  V1: x∈[-7, 7]   south from z=3 to z=-40
+ *  H1: x∈[-7, 27]  east  at z∈[-30, -40]   (turn right)
+ *  V2: x∈[13, 27]  south from z=-40 to z=-60
+ *  H2: x∈[-7, 27]  west  at z∈[-60, -70]   (turn left)
+ *  V3: x∈[-7, 7]   south from z=-70 to z=-90  (exit)
+ */
+
+// Wall segments: [centerX, centerZ, width(x), depth(z)]
+const WALL_DEFS: [number, number, number, number][] = [
+  // --- Outer perimeter ---
+  [0,      3,      14.6,  0.3],
+  [7.15,  -13.5,   0.3,   33.3],
+  [17,    -30,     20.3,  0.3],
+  [27.15, -50,     0.3,   40.3],
+  [17,    -70,     20.3,  0.3],
+  [7.15,  -80,     0.3,   20.3],
+  [0,     -90,     14.6,  0.3],
+  [-7.15, -43.5,   0.3,   93.3],
+  // --- Inner walls (S-turns) ---
+  [3,     -40,     20.3,  0.3],
+  [13,    -50,     0.3,   20.3],
+  [3,     -60,     20.3,  0.3],
+];
+
+// Decorative street objects
+const DECOR: { x: number; z: number; w: number; d: number; h: number; color: string }[] = [
+  { x: -5, z: -6,  w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
+  { x: 5,  z: -16, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
+  { x: -5, z: -26, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
+  { x: 15, z: -35, w: 1.2,  d: 1.2,  h: 1.5, color: '#777' },
+  { x: 25, z: -48, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
+  { x: 10, z: -65, w: 1.5,  d: 1.0,  h: 1.2, color: '#777' },
+  { x: -5, z: -78, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
+];
+
+const AIRPORT_TRIGGER = { x: 5, z: -16, radius: 2.5 };
+const AIRPORT_DURATION = 5200;
+const AIRPORT_FADE = 220;
+
+// Keyboard map for ecctrl
+const keyboardMap = [
+  { name: 'forward',   keys: ['ArrowUp',    'KeyW'] },
+  { name: 'backward',  keys: ['ArrowDown',  'KeyS'] },
+  { name: 'leftward',  keys: ['ArrowLeft',  'KeyA'] },
+  { name: 'rightward', keys: ['ArrowRight', 'KeyD'] },
+  { name: 'run',       keys: ['Shift'] },
+];
+
+// ecctrl animation name → FBX clip name
+const IDLE_CLIP = 'Short_Breathe_and_Look_Around'; // renamed from idle FBX at load time
+
+const WALK_CLIP = 'Walking_frame_rate_24.fbx';
+
+// ---------- FlickerLight ----------
+
+const FlickerLight: React.FC = () => {
+  const lightRef = useRef<THREE.AmbientLight>(null);
+  useFrame(({ clock }) => {
+    if (lightRef.current) {
+      lightRef.current.intensity =
+        0.7 + Math.sin(clock.elapsedTime * 8) * 0.08 + Math.sin(clock.elapsedTime * 13) * 0.04;
+    }
+  });
+  return <ambientLight ref={lightRef} intensity={0.7} color="#f0f0e8" />;
+};
+
+// ---------- Airport Cutscene (unchanged) ----------
+
+const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ active, onDone }) => {
+  const [phase, setPhase] = useState<'in' | 'show' | 'out' | null>(null);
+
+  useEffect(() => {
+    if (!active) { setPhase(null); return; }
+    setPhase('in');
+    const t1 = setTimeout(() => setPhase('show'), AIRPORT_FADE);
+    const t2 = setTimeout(() => setPhase('out'), AIRPORT_DURATION - AIRPORT_FADE);
+    const t3 = setTimeout(() => { setPhase(null); onDone(); }, AIRPORT_DURATION);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [active, onDone]);
+
+  if (!phase) return null;
+
+  const opacity = phase === 'out' ? 0 : 1;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      opacity,
+      transition: `opacity ${AIRPORT_FADE}ms ease`,
+      overflow: 'hidden',
+      pointerEvents: 'none',
+      background: 'transparent',
+      animation: 'airportCameraShake 0.18s steps(1, end) infinite',
+    }}>
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(180deg, rgba(159,208,255,0.72) 0%, rgba(125,183,243,0.6) 42%, rgba(217,231,247,0.5) 43%, rgba(240,243,248,0.4) 100%)',
+        filter: 'contrast(1.08) saturate(1.08)',
+        mixBlendMode: 'screen',
+      }} />
+      <div style={{
+        position: 'absolute', left: '8%', right: '8%', top: '12%', bottom: '20%',
+        border: '8px solid rgba(235,245,255,0.65)',
+        boxShadow: 'inset 0 0 0 1px rgba(120,160,210,0.35)',
+        background: 'linear-gradient(180deg, rgba(152,201,255,0.95) 0%, rgba(202,229,255,0.95) 65%, rgba(230,240,250,0.95) 100%)',
+        opacity: 0.72, mixBlendMode: 'screen',
+      }}>
+        {[18, 36, 54, 72].map(x => (
+          <div key={x} style={{ position: 'absolute', top: 0, bottom: 0, left: `${x}%`, width: 2, background: 'rgba(195,215,240,0.7)' }} />
+        ))}
+      </div>
+      <div style={{
+        position: 'absolute', top: '18%', left: '50%', transform: 'translateX(-50%)',
+        fontFamily: 'monospace', color: 'rgba(19,42,84,0.95)', letterSpacing: 7, fontSize: 15,
+        textShadow: '0 0 15px rgba(255,255,255,0.7)',
+        animation: 'airportPulse 0.2s steps(2, end) infinite',
+      }}>GATE 14</div>
+      <div style={{
+        position: 'absolute', left: '15%', right: '15%', bottom: '22%', height: '28%',
+        transform: 'skewY(-18deg)',
+        borderTop: '1px solid rgba(202,220,255,0.22)',
+        filter: 'blur(0.4px)',
+      }}>
+        <div style={{ position: 'absolute', left: '62%', bottom: '30%', width: 10, height: 56, background: 'rgba(244,126,126,0.82)', boxShadow: '0 0 22px rgba(255,84,84,0.7)', animation: 'airportSlide 0.9s linear infinite' }} />
+        <div style={{ position: 'absolute', left: '60%', bottom: '63%', width: 42, height: 5,  background: 'rgba(244,126,126,0.82)', boxShadow: '0 0 22px rgba(255,84,84,0.7)', animation: 'airportSlide 0.9s linear infinite' }} />
+      </div>
+      {[
+        { left: '6%',  top: '10%', rot: -8, tint: 'rgba(255,70,70,0.34)',   label: 'ANGEL' },
+        { left: '67%', top: '22%', rot:  9, tint: 'rgba(70,120,255,0.28)',  label: 'CROSS' },
+        { left: '22%', top: '58%', rot: -5, tint: 'rgba(255,255,255,0.3)',  label: 'RUNWAY' },
+      ].map((card, i) => (
+        <div key={card.label} style={{
+          position: 'absolute', left: card.left, top: card.top, width: 190, height: 108,
+          transform: `rotate(${card.rot}deg)`,
+          background: `linear-gradient(135deg, rgba(255,255,255,0.62), ${card.tint})`,
+          border: '1px solid rgba(255,255,255,0.65)',
+          boxShadow: '0 10px 24px rgba(0,0,0,0.2)',
+          mixBlendMode: 'screen',
+          animation: `airportCardFlicker ${0.65 + i * 0.1}s steps(2, end) infinite`,
+        }}>
+          <div style={{ position: 'absolute', left: 10, top: 10, fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(14,28,54,0.8)' }}>{card.label}</div>
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 40%, rgba(255,255,255,0.7) 0%, transparent 52%)' }} />
+        </div>
+      ))}
+      <div style={{
+        position: 'absolute', left: '8%', top: '12%', fontFamily: 'monospace',
+        color: 'rgba(255,255,255,0.85)', fontSize: 12, letterSpacing: 2, lineHeight: 1.8,
+        textTransform: 'uppercase',
+        animation: 'airportGlitch 0.14s steps(2, end) infinite', mixBlendMode: 'screen',
+      }}>
+        <div>boarding</div><div>departure</div><div>where are you</div>
+      </div>
+      <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 1px, transparent 3px)', mixBlendMode: 'screen', opacity: 0.24, animation: 'airportRoll 0.24s linear infinite' }} />
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.9)', mixBlendMode: 'color-dodge', animation: 'airportStrobe 0.36s steps(2, end) infinite' }} />
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(255,40,40,0.16), transparent 28%, transparent 72%, rgba(80,140,255,0.16))', mixBlendMode: 'screen', animation: 'airportGlitch 0.15s steps(2, end) infinite' }} />
+      <style>{`
+        @keyframes airportPulse { 0% { opacity:.45; transform:translateX(-50%) scale(.995); } 100% { opacity:1; transform:translateX(-50%) scale(1.025); } }
+        @keyframes airportGlitch { 0% { transform:translate(0,0); opacity:.95; } 50% { transform:translate(-2px,1px); opacity:.55; } 100% { transform:translate(2px,-1px); opacity:.95; } }
+        @keyframes airportSlide { 0% { transform:translate(0,0); opacity:.95; } 100% { transform:translate(-220px,-110px); opacity:.16; } }
+        @keyframes airportRoll { 0% { transform:translateY(0); } 100% { transform:translateY(3px); } }
+        @keyframes airportStrobe { 0%,42% { opacity:0; } 43%,56% { opacity:.35; } 57%,100% { opacity:0; } }
+        @keyframes airportCardFlicker { 0% { opacity:.2; } 50% { opacity:.62; } 100% { opacity:.28; } }
+        @keyframes airportCameraShake { 0% { transform:translate(0,0) rotate(0deg); } 25% { transform:translate(-1px,1px) rotate(-.07deg); } 50% { transform:translate(1px,-1px) rotate(.07deg); } 75% { transform:translate(-1px,0) rotate(-.05deg); } 100% { transform:translate(1px,1px) rotate(.05deg); } }
+      `}</style>
+    </div>
+  );
+};
+
+// ---------- Player Character (FBX + animations) ----------
+
+const MAIN_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Walking_frame_rate_24.fbx`;
+const IDLE_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Long_Breathe_and_Look_Around_frame_rate_24.fbx`;
+const WALK_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Walking_frame_rate_24.fbx`;
+const HEADACHE_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Headache_Relief_frame_rate_24.fbx`;
+const INJURED_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Injured_Walk_frame_rate_24.fbx`;
+const DIFFUSE_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0.png`;
+const METALLIC_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0_metallic.png`;
+const NORMAL_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0_normal.png`;
+const ROUGHNESS_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0_roughness.png`;
+const SKY_TEX_URL = `${BASE}assets/sky/cloud_hole_upscaled_pixel.jpg`;
+const MODEL_YAW_OFFSET = 0;
+
+// Preload key assets so first-visit and cached-visit paths stay as close as possible.
+useFBX.preload(MAIN_FBX_URL);
+useFBX.preload(IDLE_FBX_URL);
+useFBX.preload(WALK_FBX_URL);
+useFBX.preload(HEADACHE_FBX_URL);
+useFBX.preload(INJURED_FBX_URL);
+useLoader.preload(THREE.TextureLoader, DIFFUSE_URL);
+useLoader.preload(THREE.TextureLoader, METALLIC_URL);
+useLoader.preload(THREE.TextureLoader, NORMAL_URL);
+useLoader.preload(THREE.TextureLoader, ROUGHNESS_URL);
+useLoader.preload(THREE.TextureLoader, SKY_TEX_URL);
+
+const SkyBackdrop: React.FC = () => {
+  const skyTex = useLoader(THREE.TextureLoader, SKY_TEX_URL);
+
+  useEffect(() => {
+    skyTex.colorSpace = THREE.SRGBColorSpace;
+    skyTex.generateMipmaps = false;
+    skyTex.magFilter = THREE.NearestFilter;
+    skyTex.minFilter = THREE.NearestFilter;
+    skyTex.wrapS = THREE.ClampToEdgeWrapping;
+    skyTex.wrapT = THREE.ClampToEdgeWrapping;
+    skyTex.needsUpdate = true;
+  }, [skyTex]);
+
+  return (
+    <mesh scale={180}>
+      <sphereGeometry args={[1, 40, 24]} />
+      <meshBasicMaterial map={skyTex} side={THREE.BackSide} depthWrite={false} toneMapped={false} />
+    </mesh>
+  );
+};
+
+const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const activeActionRef = useRef<THREE.AnimationAction | null>(null);
+  const loggedActionNames = useRef(false);
+  const [, getKeys] = useKeyboardControls();
+
+  // Load main FBX with Suspense (single event — Physics mounts once, safely)
+  const fbx = useFBX(MAIN_FBX_URL);
+
+  // Load PBR textures
+  const diffuse   = useLoader(THREE.TextureLoader, DIFFUSE_URL);
+  const metallic  = useLoader(THREE.TextureLoader, METALLIC_URL);
+  const normalMap = useLoader(THREE.TextureLoader, NORMAL_URL);
+  const roughness = useLoader(THREE.TextureLoader, ROUGHNESS_URL);
+
+  // Animation setup from main FBX (walking source)
+  const { actions, mixer } = useAnimations(fbx.animations, groupRef);
+
+  // Load extra clips manually after Physics is running (NO Suspense → NO Physics remount)
+  const [idleAction, setIdleAction] = useState<THREE.AnimationAction | null>(null);
+  const [walkAction, setWalkAction] = useState<THREE.AnimationAction | null>(null);
+  const [headacheAction, setHeadacheAction] = useState<THREE.AnimationAction | null>(null);
+  const [injuredAction, setInjuredAction] = useState<THREE.AnimationAction | null>(null);
+  useEffect(() => {
+    if (!mixer) return;
+    let cancelled = false;
+    const loader = new FBXLoader();
+
+    loader.load(IDLE_FBX_URL, (idleFbx) => {
+      if (cancelled || !groupRef.current) return;
+      if (idleFbx.animations.length > 0) {
+        const clip = idleFbx.animations[0].clone();
+        clip.name = IDLE_CLIP;
+        setIdleAction(mixer.clipAction(clip, groupRef.current));
+      }
+    });
+
+    loader.load(WALK_FBX_URL, (walkFbx) => {
+      if (cancelled || !groupRef.current) return;
+      if (walkFbx.animations.length > 0) {
+        const clip = walkFbx.animations[0].clone();
+        clip.name = WALK_CLIP;
+        setWalkAction(mixer.clipAction(clip, groupRef.current));
+      }
+    });
+
+    loader.load(HEADACHE_FBX_URL, (headacheFbx) => {
+      if (cancelled || !groupRef.current) return;
+      if (headacheFbx.animations.length > 0) {
+        const clip = headacheFbx.animations[0].clone();
+        clip.name = 'Headache_Relief_frame_rate_24.fbx';
+        setHeadacheAction(mixer.clipAction(clip, groupRef.current));
+      }
+    });
+
+    loader.load(INJURED_FBX_URL, (injuredFbx) => {
+      if (cancelled || !groupRef.current) return;
+      if (injuredFbx.animations.length > 0) {
+        const clip = injuredFbx.animations[0].clone();
+        clip.name = 'Injured_Walk_frame_rate_24.fbx';
+        setInjuredAction(mixer.clipAction(clip, groupRef.current));
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [mixer]);
+
+  // Apply PBR textures to all meshes
+  useEffect(() => {
+    fbx.traverse(child => {
+      if (!(child instanceof THREE.Mesh)) return;
+      child.material = new THREE.MeshStandardMaterial({
+        map:          diffuse,
+        metalnessMap: metallic,
+        normalMap:    normalMap,
+        roughnessMap: roughness,
+        metalness:    0.25,
+        roughness:    0.72,
+      });
+      child.castShadow = true;
+    });
+  }, [fbx, diffuse, metallic, normalMap, roughness]);
+
+  const findActionByIncludes = useCallback((needle: string): THREE.AnimationAction | null => {
+    const lowerNeedle = needle.toLowerCase();
+    for (const [name, action] of Object.entries(actions)) {
+      if (!action) continue;
+      if (name.toLowerCase().includes(lowerNeedle)) return action;
+    }
+    return null;
+  }, [actions]);
+
+  useEffect(() => {
+    if (loggedActionNames.current) return;
+    const names = Object.keys(actions);
+    if (names.length === 0) return;
+    loggedActionNames.current = true;
+    console.log('[CH2][ANIM] action keys', names);
+  }, [actions]);
+
+  // Force animation state by input:
+  // no input => idle loop, input => walk loop, airport => injured walk loop.
+  useFrame(() => {
+    const { forward, backward, leftward, rightward } = getKeys() as {
+      forward?: boolean;
+      backward?: boolean;
+      leftward?: boolean;
+      rightward?: boolean;
+    };
+    const moving = !!(forward || backward || leftward || rightward);
+    const clipName = airportActive
+      ? 'Headache_Relief_frame_rate_24.fbx'
+      : (moving ? WALK_CLIP : IDLE_CLIP);
+
+    let nextAction: THREE.AnimationAction | null = null;
+    if (clipName === 'Headache_Relief_frame_rate_24.fbx') {
+      nextAction = headacheAction ?? findActionByIncludes('headache_relief_frame_rate_24') ?? walkAction ?? findActionByIncludes('walking_frame_rate_24');
+    } else if (clipName === 'Injured_Walk_frame_rate_24.fbx') {
+      nextAction = injuredAction ?? walkAction ?? findActionByIncludes('injured_walk_frame_rate_24') ?? findActionByIncludes('walking_frame_rate_24');
+    } else if (clipName === IDLE_CLIP) {
+      nextAction = idleAction ?? walkAction ?? findActionByIncludes('walking_frame_rate_24');
+    } else {
+      nextAction = walkAction ?? findActionByIncludes('walking_frame_rate_24');
+    }
+    if (!nextAction) return;
+
+    // Hard block any non-selected clip (including run-turn clips).
+    for (const action of Object.values(actions)) {
+      if (!action || action === nextAction) continue;
+      action.stop();
+      action.enabled = false;
+      action.setEffectiveWeight(0);
+    }
+
+    if (activeActionRef.current === nextAction) return;
+    if (activeActionRef.current) activeActionRef.current.fadeOut(0.1);
+    nextAction.reset();
+    nextAction.enabled = true;
+    nextAction.setEffectiveWeight(1);
+    nextAction.setLoop(THREE.LoopRepeat, Infinity);
+    nextAction.clampWhenFinished = false;
+    nextAction.fadeIn(0.15).play();
+    activeActionRef.current = nextAction;
+  });
+
+  useEffect(() => {
+    return () => {
+      if (!activeActionRef.current) return;
+      activeActionRef.current.stop();
+      activeActionRef.current = null;
+    };
+  }, []);
+
+  return (
+    <group ref={groupRef}>
+      {/* Meshy AI exports in cm — scale down to meters */}
+      <primitive object={fbx} scale={0.01} rotation={[0, MODEL_YAW_OFFSET, 0]} />
+    </group>
+  );
+};
+
+// ---------- Trigger watcher (reads camera position each frame) ----------
+// Camera follows character closely enough for zone detection
+
+const TriggerWatcher: React.FC<{
+  onAirportTrigger: () => void;
+  disabled: boolean;
+}> = ({ onAirportTrigger, disabled }) => {
+  const triggerEvent = useGameStore(s => s.triggerEvent);
+  const goToChapter  = useGameStore(s => s.goToChapter);
+
+  useFrame(({ camera }) => {
+    if (disabled) return;
+    const px = camera.position.x;
+    const pz = camera.position.z;
+
+    // Airport hallucination
+    const dx = px - AIRPORT_TRIGGER.x;
+    const dz = pz - AIRPORT_TRIGGER.z;
+    if (Math.sqrt(dx * dx + dz * dz) < AIRPORT_TRIGGER.radius) {
+      if (triggerEvent('ch2_airport')) onAirportTrigger();
+    }
+
+    // Chapter exit
+    if (pz < -85) {
+      if (triggerEvent('ch2_exit')) goToChapter('CH3');
+    }
+  });
+
+  return null;
+};
+
+// ---------- Street geometry + physics ----------
+
+const StreetScene: React.FC = () => {
+  const wallMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: '#bbb' }), []);
+
+  return (
+    <>
+      {/* Floor */}
+      <RigidBody type="fixed">
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, 0, -43]}>
+          <planeGeometry args={[50, 100]} />
+          <meshStandardMaterial color="#888" />
+        </mesh>
+        <CuboidCollider args={[25, 0.1, 50]} position={[10, -0.1, -43]} />
+      </RigidBody>
+
+      {/* Walls */}
+      {WALL_DEFS.map(([x, z, w, d], i) => (
+        <RigidBody key={i} type="fixed" position={[x, WALL_HEIGHT / 2, z]}>
+          <mesh material={wallMaterial}>
+            <boxGeometry args={[w, WALL_HEIGHT, d]} />
+          </mesh>
+          <CuboidCollider args={[w / 2, WALL_HEIGHT / 2, d / 2]} />
+        </RigidBody>
+      ))}
+
+      {/* Decorative props (no colliders needed) */}
+      {DECOR.map((obj, i) => (
+        <mesh key={i} position={[obj.x, obj.h / 2, obj.z]}>
+          <boxGeometry args={[obj.w, obj.h, obj.d]} />
+          <meshStandardMaterial color={obj.color} />
+        </mesh>
+      ))}
+
+      {/* Exit marker */}
+      <mesh position={[0, 1.5, -87]}>
+        <boxGeometry args={[3, 3, 0.3]} />
+        <meshStandardMaterial color="#4a4" emissive="#0f0" emissiveIntensity={0.2} />
+      </mesh>
+    </>
+  );
+};
+
+// ---------- Physics ready gate ----------
+// Rapier crashes when world.castRay() is called in the very first frames.
+// Let Physics step for MIN_SETTLE_FRAMES before enabling ecctrl controls.
+const MIN_SETTLE_FRAMES = 10;
+
+const PhysicsReadyGate: React.FC<{ onReady: () => void }> = ({ onReady }) => {
+  const frameCount = useRef(0);
+  const notified = useRef(false);
+  useFrame(() => {
+    if (notified.current) return;
+    frameCount.current += 1;
+    if (frameCount.current >= MIN_SETTLE_FRAMES) {
+      notified.current = true;
+      onReady();
+    }
+  });
+  return null;
+};
+
+// ---------- Physics scene (only mounts after main FBX is cached) ----------
+// useFBX here suspends at this component level, so <Suspense> above catches it.
+// When it resolves, Physics mounts once and stays mounted — no more Rapier remount crash.
+
+const Ch2PhysicsScene: React.FC<{
+  airportActive: boolean;
+  onAirportTrigger: () => void;
+  freezeControls: boolean;
+}> = ({ airportActive, onAirportTrigger, freezeControls }) => {
+  // Suspends here until main FBX is cached — Physics only mounts after this resolves.
+  // PlayerCharacter's own useFBX call then hits the warm cache and never re-suspends.
+  useFBX(MAIN_FBX_URL);
+
+  const [physicsReady, setPhysicsReady] = useState(false);
+  const handlePhysicsReady = useCallback(() => setPhysicsReady(true), []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'ArrowUp' && e.code !== 'KeyW') return;
+      console.log('[CH2][INPUT] keydown', {
+        code: e.code,
+        t: performance.now(),
+        physicsReady,
+        freezeControls,
+      });
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== 'ArrowUp' && e.code !== 'KeyW') return;
+      console.log('[CH2][INPUT] keyup', {
+        code: e.code,
+        t: performance.now(),
+        physicsReady,
+        freezeControls,
+      });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [physicsReady, freezeControls]);
+
+  useEffect(() => {
+    console.log('[CH2][STATE] physicsReady changed', {
+      physicsReady,
+      t: performance.now(),
+    });
+  }, [physicsReady]);
+
+  return (
+    <Physics>
+      <PhysicsReadyGate onReady={handlePhysicsReady} />
+      <StreetScene />
+
+      <KeyboardControls map={keyboardMap}>
+        {physicsReady && (
+          <Ecctrl
+            camInitDis={-3}
+            camMaxDis={-5}
+            camMinDis={-2}
+            camInitDir={{ x: 0.25, y: Math.PI }}
+            camTargetPos={{ x: 0, y: 0.8, z: 0 }}
+            characterInitDir={Math.PI}
+            floatHeight={0.3}
+            capsuleHalfHeight={0.5}
+            capsuleRadius={0.2}
+            maxVelLimit={5}
+            camCollision={false}
+            autoBalance={false}
+            disableControl={freezeControls}
+            position={[0, 2, -8]}
+          >
+            <PlayerCharacter airportActive={airportActive} />
+          </Ecctrl>
+        )}
+      </KeyboardControls>
+
+      <TriggerWatcher
+        onAirportTrigger={onAirportTrigger}
+        disabled={!physicsReady || freezeControls}
+      />
+    </Physics>
+  );
+};
+
+// ---------- Inner scene (inside Canvas) ----------
+
+const Ch2Inner: React.FC<{
+  airportActive: boolean;
+  onAirportTrigger: () => void;
+  freezeControls: boolean;
+}> = ({ airportActive, onAirportTrigger, freezeControls }) => {
+  return (
+    <>
+      {/* Three.js scene background — must be set inside Canvas */}
+      <color attach="background" args={['#0a0a0a']} />
+      <SkyBackdrop />
+
+      <FlickerLight />
+      <hemisphereLight skyColor="#c7e6ff" groundColor="#6a7683" intensity={0.9} />
+      <directionalLight position={[10, 15, -40]} intensity={1.15} color="#f8fbff" />
+      <directionalLight position={[-8, 10, 14]} intensity={0.75} color="#deeeff" />
+
+      {/* Suspense boundary: Physics only mounts after main FBX is cached.
+          This prevents Rapier from crashing due to cold-cache FBX load mid-flight. */}
+      <React.Suspense fallback={null}>
+        <Ch2PhysicsScene
+          airportActive={airportActive}
+          onAirportTrigger={onAirportTrigger}
+          freezeControls={freezeControls}
+        />
+      </React.Suspense>
+    </>
+  );
+};
+
+// ---------- Dev buttons ----------
+
+const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
+  <button
+    onClick={onClick}
+    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 3, color: '#ddd', fontFamily: 'monospace', fontSize: 11, padding: '4px 8px', cursor: 'pointer', textAlign: 'left' }}
+    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
+    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+  >{label}</button>
+);
+
+// ---------- Main export ----------
+
+export const Ch2Scene: React.FC = () => {
+  const [airportActive, setAirportActive] = useState(false);
+  const goToChapter = useGameStore(s => s.goToChapter);
+  const devMode     = useDevMode();
+
+  const startAirport = useCallback(() => setAirportActive(true),  []);
+  const endAirport   = useCallback(() => setAirportActive(false), []);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
+      <Canvas camera={{ fov: 75 }} style={{ background: '#0a0a0a' }}>
+        <Ch2Inner
+          airportActive={airportActive}
+          onAirportTrigger={startAirport}
+          freezeControls={airportActive}
+        />
+      </Canvas>
+
+      <AirportCutscene active={airportActive} onDone={endAirport} />
+
+      {/* Mobile joystick — touch devices only */}
+      {'ontouchstart' in window && <EcctrlJoystick />}
+
+      {devMode && !airportActive && (
+        <div style={{ position: 'fixed', top: 12, left: 12, zIndex: 9999, background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '10px 14px', fontFamily: 'monospace', fontSize: 11, color: '#ccc', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180 }}>
+          <div style={{ color: '#ff0', fontSize: 10, letterSpacing: 2, marginBottom: 2 }}>DEV MODE</div>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <DevButton label="Airport Cutscene" onClick={() => { if (!airportActive) startAirport(); }} />
+          <DevButton label="Skip → CH3" onClick={() => goToChapter('CH3')} />
+          <DevButton label="Skip → CH1" onClick={() => goToChapter('CH1')} />
+          <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>Q to close</div>
+        </div>
+      )}
+    </div>
+  );
+};
