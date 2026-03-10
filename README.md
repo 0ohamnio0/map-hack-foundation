@@ -5,7 +5,6 @@
 ## Repo
 
 - GitHub Pages: https://0ohamnio0.github.io/map-hack-foundation/
-- 로컬 경로: `/Users/songhaemin/Downloads/Archive/1. Personal Project/Map Hack (2026)/map-hack-foundation`
 
 ## Stack
 
@@ -24,9 +23,7 @@ npm run dev
 
 ## Project Notes
 
-- 작업지시서 (구현): `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/41.10.07. 에이전트 작업지시서.md`
-- 작업지시서 (SPEC): `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/41.10.08. 에이전트 작업지시서 (SPEC).md`
-- 에셋 목록: `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/41.10.06. 에셋 목록.md`
+- Internal docs are maintained separately and are not included in this public README.
 
 ## Deploy (GitHub Pages)
 
@@ -37,4 +34,3 @@ npm run deploy
 
 - 배포 브랜치: `gh-pages`
 - 배포는 수동으로만 진행 (공유 중인 외부 공개 상태 유지)
-
