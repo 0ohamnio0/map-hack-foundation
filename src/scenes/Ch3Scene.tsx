@@ -8,6 +8,7 @@ import { useSoundManager } from '@/hooks/useSoundManager';
 import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
 import { useDevMode } from '@/hooks/useDevMode';
 import { Ch3Effects } from '@/components/effects/ChapterEffects';
+import { StarNestOverlay } from '@/components/effects/StarNestOverlay';
 
 const MAZE_SIZE = 10;
 const CELL_SIZE = 7;
@@ -445,35 +446,16 @@ const ElevatorCutscene: React.FC<{
     );
   }
 
-  // --- Space scene ---
+  // --- Space scene (STEP 9: StarNest shader background) ---
   if (phase === 'space') {
     return (
       <div style={fadeStyle}>
-        {/* Deep space background */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'radial-gradient(ellipse at 30% 20%, #0c0c1a 0%, #020208 100%)',
-        }} />
-
-        {/* Stars */}
-        {stars.map((s, i) => (
-          <div key={i} style={{
-            position: 'absolute',
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            width: s.size,
-            height: s.size,
-            borderRadius: '50%',
-            background: '#fff',
-            opacity: s.opacity,
-            animation: `twinkle ${2 + s.speed * 4}s ease-in-out infinite alternate`,
-            animationDelay: `${s.speed * 3}s`,
-          }} />
-        ))}
+        {/* STEP 9: Star Nest shader background (REF-7) */}
+        <StarNestOverlay duration={SPACE_DURATION / 1000} />
 
         {/* Earth — crescent arc rising from bottom */}
         <div style={{
-          position: 'absolute',
+          position: 'fixed',
           left: '50%',
           top: `${earthY}%`,
           transform: 'translateX(-50%)',
@@ -483,8 +465,9 @@ const ElevatorCutscene: React.FC<{
           background: 'radial-gradient(circle at 40% 35%, #2244aa 0%, #113366 40%, #0a1a33 70%, #020810 100%)',
           boxShadow: '0 0 60px 20px rgba(30,80,180,0.15), inset 10px -5px 40px rgba(100,180,255,0.1)',
           transition: 'top 0.5s ease-out',
+          zIndex: 1002,
+          pointerEvents: 'none',
         }}>
-          {/* Atmosphere glow */}
           <div style={{
             position: 'absolute', inset: -8,
             borderRadius: '50%',
@@ -495,40 +478,39 @@ const ElevatorCutscene: React.FC<{
 
         {/* Elevator window frame */}
         <div style={{
-          position: 'absolute', inset: 0,
+          position: 'fixed', inset: 0,
           border: '60px solid #0e0e12',
           borderRadius: 8,
           boxShadow: 'inset 0 0 80px 30px rgba(0,0,0,0.6)',
           pointerEvents: 'none',
+          zIndex: 1003,
         }} />
 
         {/* Thin window bezel */}
         <div style={{
-          position: 'absolute',
+          position: 'fixed',
           inset: 56,
           border: '2px solid rgba(255,255,255,0.08)',
           borderRadius: 4,
           pointerEvents: 'none',
+          zIndex: 1003,
         }} />
 
         {/* Text */}
         <div style={{
-          position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
           fontFamily: "'Courier New', monospace",
           fontSize: 14,
           color: 'rgba(255,255,255,0.3)',
           letterSpacing: 6,
           animation: 'fadeInSlow 2s ease-in forwards',
           textAlign: 'center',
+          zIndex: 1004,
         }}>
           . . .
         </div>
 
         <style>{`
-          @keyframes twinkle {
-            0% { opacity: 0.2; }
-            100% { opacity: 0.9; }
-          }
           @keyframes fadeInSlow {
             0% { opacity: 0; }
             100% { opacity: 1; }

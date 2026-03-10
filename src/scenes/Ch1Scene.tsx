@@ -5,6 +5,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
 import { Ch1Effects } from '@/components/effects/ChapterEffects';
 import { FlashbackHeightfield } from '@/components/effects/FlashbackHeightfield';
+import { MultiCubeTransition } from '@/components/effects/MultiCubeTransition';
 
 const Room: React.FC = () => {
   return (
@@ -95,6 +96,8 @@ const Ch1Inner: React.FC = () => {
   const { play } = useSoundManager();
   const [phase, setPhase] = useState(0);
   const doorOpened = useRef(false);
+  const [cubeProgress, setCubeProgress] = useState(-1); // -1 = not started
+  const cubeStart = useRef(0);
 
   // Auto cutscene timeline
   useEffect(() => {
@@ -119,16 +122,30 @@ const Ch1Inner: React.FC = () => {
 
   // Door interaction — any key press during phase 2
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = () => {
       if (phase < 2 || doorOpened.current) return;
       doorOpened.current = true;
       play('door_creak');
-      setActiveEffect('glitch', 300);
-      setTimeout(() => goToChapter('CH2'), 400);
+      // Start Multi Cube transition instead of instant chapter change
+      setCubeProgress(0);
+      cubeStart.current = performance.now();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [phase, goToChapter, setActiveEffect, play]);
+  }, [phase, play]);
+
+  // Animate Multi Cube transition progress (4 seconds)
+  const TRANSITION_DURATION = 4000;
+  useFrame(() => {
+    if (cubeProgress < 0) return;
+    const elapsed = performance.now() - cubeStart.current;
+    const p = Math.min(elapsed / TRANSITION_DURATION, 1);
+    setCubeProgress(p);
+  });
+
+  const handleCubeComplete = () => {
+    goToChapter('CH2');
+  };
 
   return (
     <>
@@ -140,6 +157,10 @@ const Ch1Inner: React.FC = () => {
       <Ch1Effects />
       {/* STEP 8: Flashback heightfield (stub — 에셋 대기) */}
       {phase === 1 && <FlashbackHeightfield opacity={0.4} />}
+      {/* STEP 9: Multi Cube door transition (REF-12) */}
+      {cubeProgress >= 0 && (
+        <MultiCubeTransition progress={cubeProgress} onComplete={handleCubeComplete} />
+      )}
     </>
   );
 };

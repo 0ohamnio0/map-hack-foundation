@@ -8,6 +8,7 @@ import Ecctrl, { EcctrlJoystick } from 'ecctrl';
 import { useGameStore } from '@/store/useGameStore';
 import { useDevMode } from '@/hooks/useDevMode';
 import { Ch2Effects } from '@/components/effects/ChapterEffects';
+import { CloudSkyBackground } from '@/components/effects/CloudSkyBackground';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -582,6 +583,13 @@ const Ch2Inner: React.FC<{
     <>
       {/* Three.js scene background — must be set inside Canvas */}
       <color attach="background" args={['#0a0a0a']} />
+      {/* STEP 9: Procedural cloud sky replaces static SkyBackdrop */}
+      <CloudSkyBackground
+        skycolor1={[0.15, 0.2, 0.35]}
+        skycolor2={[0.25, 0.35, 0.5]}
+        cloudcover={0.35}
+        clouddark={0.7}
+      />
       <SkyBackdrop />
 
       <FlickerLight />

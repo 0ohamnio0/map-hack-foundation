@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
   EffectComposer,
@@ -9,6 +9,9 @@ import {
 } from '@react-three/postprocessing'
 import { GlitchMode, BlendFunction } from 'postprocessing'
 import { ChannelShift } from './ChannelShiftEffect'
+import { MedicationEffect, type MedicationEffectImpl } from './MedicationEffect'
+import { OverdoseEffect, type OverdoseEffectImpl } from './OverdoseEffect'
+import { useGameStore } from '@/store/useGameStore'
 
 /**
  * CH.1 Effects — 조증 피크
@@ -70,10 +73,54 @@ export function Ch2Effects() {
 }
 
 /**
- * CH.3 Effects — 마트 형광등 불안정
- * Vignette + subtle Noise
+ * CH.3 Effects — 마트 형광등 불안정 + 약 복용 GLSL 이펙트
+ * Vignette + Noise + MedicationEffect + OverdoseEffect
  */
 export function Ch3Effects() {
+  const medRef = useRef<MedicationEffectImpl>(null)
+  const overdoseRef = useRef<OverdoseEffectImpl>(null)
+  const activeEffect = useGameStore((s) => s.activeEffect)
+  const cartItems = useGameStore((s) => s.cartItems)
+
+  const medElapsed = useRef(0)
+  const medActive = useRef(false)
+  const overdoseElapsed = useRef(0)
+  const overdoseActive = useRef(false)
+
+  // Trigger medication effect when activeEffect changes to a drug type
+  useEffect(() => {
+    const drugEffects = ['desaturate', 'blur', 'darken', 'whiteflash']
+    if (activeEffect && drugEffects.includes(activeEffect)) {
+      medElapsed.current = 0
+      medActive.current = true
+    }
+  }, [activeEffect])
+
+  // Trigger overdose when cart has 5+ items (all taken)
+  useEffect(() => {
+    if (cartItems.length >= 5 && !overdoseActive.current) {
+      overdoseElapsed.current = 0
+      overdoseActive.current = true
+    }
+  }, [cartItems])
+
+  useFrame((_, delta) => {
+    // Drive MedicationEffect
+    if (medRef.current && medActive.current) {
+      medElapsed.current += delta
+      medRef.current.setPhase(medElapsed.current)
+      if (medElapsed.current > 6.5) {
+        medActive.current = false
+        medRef.current.reset()
+      }
+    }
+    // Drive OverdoseEffect (no recovery)
+    if (overdoseRef.current && overdoseActive.current) {
+      overdoseElapsed.current += delta
+      overdoseRef.current.setPhase(overdoseElapsed.current)
+    }
+  })
+
   return (
     <EffectComposer>
       <Vignette offset={0.25} darkness={0.7} />
@@ -81,6 +128,9 @@ export function Ch3Effects() {
         opacity={0.04}
         blendFunction={BlendFunction.OVERLAY}
       />
+      {/* STEP 9: Drug effects (REF-8, REF-11) */}
+      <MedicationEffect ref={medRef} />
+      <OverdoseEffect ref={overdoseRef} />
     </EffectComposer>
   )
 }
