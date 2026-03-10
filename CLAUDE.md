@@ -34,6 +34,30 @@
 - 한 STEP 내에서도 의미 단위로 나눠서 커밋 (한꺼번에 몰아서 X)
 - 에셋 미도착 항목은 stub으로 구현, 커밋 메시지에 `(stub)` 표기
 
+## 브랜치 규칙
+
+- `main`은 안정 상태만 유지 (배포/공유 가능한 상태)
+- 작업은 새 브랜치에서 진행: `feature/*` 또는 `dev/*`
+- 작업 완료 후에만 `main`으로 머지
+- `gh-pages`는 배포 스냅샷 전용 (수동/자동 배포 시에만 갱신)
+
+**네이밍 예시**
+- `feature/ch2-signpost`
+- `feature/ch2-npc`
+- `feature/ch3-cart`
+- `docs/agent-handbook`
+- `hotfix/<issue>`
+
+**기본 흐름**
+```bash
+git checkout main
+git pull
+git checkout -b feature/ch2-signpost
+# 작업 → 커밋 → 푸시
+git push -u origin feature/ch2-signpost
+# 완료 후 PR 또는 main 머지
+```
+
 ## 작업 원칙
 
 - 작업지시서의 STEP 순서와 Acceptance Criteria를 따를 것

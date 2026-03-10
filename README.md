@@ -1,73 +1,40 @@
-# Welcome to your Lovable project
+# Map Hack
 
-## Project info
+조울증 발병과 약물 치료 경험을 1인칭/3인칭 미로 탐색으로 표현하는 5~10분짜리 웹 인터랙티브 게임.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Repo
 
-## How can I edit this code?
+- GitHub Pages: https://0ohamnio0.github.io/map-hack-foundation/
+- 로컬 경로: `/Users/songhaemin/Downloads/Archive/1. Personal Project/Map Hack (2026)/map-hack-foundation`
 
-There are several ways of editing your application.
+## Stack
 
-**Use Lovable**
+- Vite 6
+- React 19 + TypeScript
+- React Three Fiber
+- Zustand
+- @react-three/rapier + ecctrl
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Quick Start
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
+```bash
 npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Project Notes
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- 작업지시서 (구현): `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/41.10.07. 에이전트 작업지시서.md`
+- 작업지시서 (SPEC): `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/41.10.08. 에이전트 작업지시서 (SPEC).md`
+- 에셋 목록: `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/41.10.06. 에셋 목록.md`
 
-**Use GitHub Codespaces**
+## Deploy (GitHub Pages)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+npm run build
+npm run deploy
+```
 
-## What technologies are used for this project?
+- 배포 브랜치: `gh-pages`
+- 배포는 수동으로만 진행 (공유 중인 외부 공개 상태 유지)
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
