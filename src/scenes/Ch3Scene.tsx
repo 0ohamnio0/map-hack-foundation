@@ -714,6 +714,8 @@ export const Ch3Scene: React.FC = () => {
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
   const [cutscenePhase, setCutscenePhase] = useState<CutscenePhase>(null);
   const cartItems = useGameStore(s => s.cartItems);
+  const removeFromCart = useGameStore(s => s.removeFromCart);
+  const setNotification = useGameStore(s => s.setNotification);
   const notification = useGameStore(s => s.notification);
   const goToChapter = useGameStore(s => s.goToChapter);
   const devMode = useDevMode();
@@ -788,28 +790,43 @@ export const Ch3Scene: React.FC = () => {
         </div>
       )}
 
-      {/* Cart UI */}
-      {!cutscenePhase && (
+      {/* STEP 4: Cart UI — clickable items, discard → replace */}
+      {!cutscenePhase && cartItems.length > 0 && (
         <div style={{
           position: 'fixed',
           bottom: 20,
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',
-          gap: 8,
+          gap: 6,
           zIndex: 200,
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          maxWidth: '90vw',
         }}>
           {cartItems.map((item, i) => (
-            <div key={i} style={{
-              padding: '4px 12px',
-              fontFamily: 'monospace',
-              fontSize: 12,
-              color: '#fff',
-              backgroundColor: 'rgba(0,0,0,0.7)',
-              border: '1px solid rgba(255,255,255,0.2)',
-            }}>
+            <button
+              key={`${i}-${item}`}
+              onClick={() => {
+                removeFromCart(i);
+                setNotification('버려도 또 담겨 있다');
+                setTimeout(() => setNotification(null), 2000);
+              }}
+              style={{
+                padding: '4px 10px',
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: '#fff',
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                cursor: 'pointer',
+                transition: 'transform 0.15s, opacity 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.6'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            >
               {item}
-            </div>
+            </button>
           ))}
         </div>
       )}

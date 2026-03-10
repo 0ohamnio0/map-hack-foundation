@@ -15,6 +15,7 @@ interface GameState {
   triggerEvent: (id: string) => boolean;
   addMovement: (direction: 'left' | 'right', amount: number) => void;
   addToCart: (medicine: string) => void;
+  removeFromCart: (index: number) => void;
   setActiveEffect: (effect: string | null, duration?: number) => void;
   setNotification: (text: string | null) => void;
   /** directionScore = rightMovement - leftMovement */
@@ -62,10 +63,21 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   addToCart: (medicine: string) => {
+    // STEP 4: 약 1개 픽업 → 카트에 2개 (복제)
     const { cartItems } = get();
-    if (cartItems.length < 5) {
-      set({ cartItems: [...cartItems, medicine] });
-    }
+    set({ cartItems: [...cartItems, medicine, medicine] });
+  },
+
+  removeFromCart: (index: number) => {
+    // STEP 4: 약 버리기 시도 → 다른 약으로 교체 (약은 줄지 않음)
+    const { cartItems } = get();
+    const removed = cartItems[index];
+    const ALL_MEDS = ['기분안정제', '항정신병약', '수면제', '항불안제', '다 먹음'];
+    const others = ALL_MEDS.filter((m) => m !== removed);
+    const replacement = others[Math.floor(Math.random() * others.length)];
+    const newItems = [...cartItems];
+    newItems[index] = replacement;
+    set({ cartItems: newItems });
   },
 
   setActiveEffect: (effect, duration) => {
