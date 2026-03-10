@@ -10,6 +10,7 @@ import { useDevMode } from '@/hooks/useDevMode';
 import { Ch2Effects } from '@/components/effects/ChapterEffects';
 import { CloudSkyBackground } from '@/components/effects/CloudSkyBackground';
 import { NPC } from '@/components/game/NPC';
+import { SignpostManager, MovementTracker } from '@/components/game/SignpostManager';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -563,6 +564,10 @@ const Ch2PhysicsScene: React.FC<{
           isSpecial={npc.isSpecial}
         />
       ))}
+
+      {/* STEP 1: Signposts + movement tracking */}
+      <MovementTracker />
+      <SignpostManager />
 
       <KeyboardControls map={keyboardMap}>
         {physicsReady && (

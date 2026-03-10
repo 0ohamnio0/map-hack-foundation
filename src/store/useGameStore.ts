@@ -17,6 +17,8 @@ interface GameState {
   addToCart: (medicine: string) => void;
   setActiveEffect: (effect: string | null, duration?: number) => void;
   setNotification: (text: string | null) => void;
+  /** directionScore = rightMovement - leftMovement */
+  getDirectionScore: () => number;
 }
 
 let effectTimeoutId: number | null = null;
@@ -79,6 +81,11 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setNotification: (notification) => {
     set({ notification });
+  },
+
+  getDirectionScore: () => {
+    const { rightMovement, leftMovement } = get();
+    return rightMovement - leftMovement;
   },
 }));
 
