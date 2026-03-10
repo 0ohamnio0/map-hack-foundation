@@ -9,6 +9,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useDevMode } from '@/hooks/useDevMode';
 import { Ch2Effects } from '@/components/effects/ChapterEffects';
 import { CloudSkyBackground } from '@/components/effects/CloudSkyBackground';
+import { NPC } from '@/components/game/NPC';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -53,6 +54,19 @@ const DECOR: { x: number; z: number; w: number; d: number; h: number; color: str
 ];
 
 const AIRPORT_TRIGGER = { x: 5, z: -16, radius: 2.5 };
+
+// STEP 2: NPC positions along the S-curve
+const NPC_POSITIONS: { x: number; z: number; isSpecial?: boolean }[] = [
+  { x: -3, z: -8 },
+  { x: 4,  z: -15 },
+  { x: -2, z: -25 },
+  { x: 18, z: -38 },
+  { x: 18, z: -45, isSpecial: true },  // "살아있는 척" 특수 NPC
+  { x: 24, z: -50 },
+  { x: 15, z: -63 },
+  { x: -4, z: -72 },
+  { x: 2,  z: -80 },
+];
 const AIRPORT_DURATION = 5200;
 const AIRPORT_FADE = 220;
 
@@ -540,6 +554,15 @@ const Ch2PhysicsScene: React.FC<{
     <Physics>
       <PhysicsReadyGate onReady={handlePhysicsReady} />
       <StreetScene />
+
+      {/* STEP 2: NPCs along the S-curve */}
+      {NPC_POSITIONS.map((npc, i) => (
+        <NPC
+          key={i}
+          position={[npc.x, 0, npc.z]}
+          isSpecial={npc.isSpecial}
+        />
+      ))}
 
       <KeyboardControls map={keyboardMap}>
         {physicsReady && (
