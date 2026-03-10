@@ -7,6 +7,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
 import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
 import { useDevMode } from '@/hooks/useDevMode';
+import { Ch3Effects } from '@/components/effects/ChapterEffects';
 
 const MAZE_SIZE = 10;
 const CELL_SIZE = 7;
@@ -681,6 +682,8 @@ const Ch3Inner: React.FC<{
     <>
       <FlickerLight />
       <directionalLight position={[mazeWorldSize / 2, 20, mazeWorldSize / 2]} intensity={0.3} />
+      {/* STEP 8: Post-processing — Vignette + Noise */}
+      <Ch3Effects />
 
       <MazeFloor />
       <MazeWalls maze={maze} />

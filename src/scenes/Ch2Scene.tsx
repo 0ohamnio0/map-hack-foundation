@@ -7,6 +7,7 @@ import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import Ecctrl, { EcctrlJoystick } from 'ecctrl';
 import { useGameStore } from '@/store/useGameStore';
 import { useDevMode } from '@/hooks/useDevMode';
+import { Ch2Effects } from '@/components/effects/ChapterEffects';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -587,6 +588,9 @@ const Ch2Inner: React.FC<{
       <hemisphereLight skyColor="#c7e6ff" groundColor="#6a7683" intensity={0.9} />
       <directionalLight position={[10, 15, -40]} intensity={1.15} color="#f8fbff" />
       <directionalLight position={[-8, 10, 14]} intensity={0.75} color="#deeeff" />
+
+      {/* STEP 8: Post-processing — fog + Vignette + Noise */}
+      <Ch2Effects />
 
       {/* Suspense boundary: Physics only mounts after main FBX is cached.
           This prevents Rapier from crashing due to cold-cache FBX load mid-flight. */}

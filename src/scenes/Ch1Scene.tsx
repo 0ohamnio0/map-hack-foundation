@@ -3,6 +3,8 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
+import { Ch1Effects } from '@/components/effects/ChapterEffects';
+import { FlashbackHeightfield } from '@/components/effects/FlashbackHeightfield';
 
 const Room: React.FC = () => {
   return (
@@ -134,6 +136,10 @@ const Ch1Inner: React.FC = () => {
       <pointLight position={[0, 2.5, 0]} intensity={1.5} color="#ff0000" />
       <Room />
       <CutsceneCamera phase={phase} />
+      {/* STEP 8: Post-processing — Bloom + Vignette + Glitch + Channel Shift */}
+      <Ch1Effects />
+      {/* STEP 8: Flashback heightfield (stub — 에셋 대기) */}
+      {phase === 1 && <FlashbackHeightfield opacity={0.4} />}
     </>
   );
 };
