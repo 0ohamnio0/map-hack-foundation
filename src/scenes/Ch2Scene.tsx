@@ -11,6 +11,7 @@ import { Ch2Effects } from '@/components/effects/ChapterEffects';
 import { CloudSkyBackground } from '@/components/effects/CloudSkyBackground';
 import { NPC } from '@/components/game/NPC';
 import { SignpostManager, MovementTracker } from '@/components/game/SignpostManager';
+import { Ch2SoundManager } from '@/components/game/Ch2SoundManager';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -568,6 +569,9 @@ const Ch2PhysicsScene: React.FC<{
       {/* STEP 1: Signposts + movement tracking */}
       <MovementTracker />
       <SignpostManager />
+
+      {/* STEP 3: Distance-based spatial sound */}
+      <Ch2SoundManager />
 
       <KeyboardControls map={keyboardMap}>
         {physicsReady && (
