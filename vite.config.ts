@@ -16,6 +16,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Force single Three.js instance — prevents ecctrl / R3F dual-import conflict
+      "three": path.resolve(__dirname, "./node_modules/three"),
     },
   },
 }));
