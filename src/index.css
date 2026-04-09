@@ -1,3 +1,5 @@
+/* Oceanside Typewriter — loaded dynamically in PretextTypography to ensure Canvas access */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
