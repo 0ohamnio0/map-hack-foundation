@@ -164,16 +164,29 @@ type Props = {
   sourceCanvas: HTMLCanvasElement;
   /** Called when user stops the effect */
   onStop: () => void;
+  /** Called once when the roughness ramp reaches 1.0 (scene 4 end trigger) */
+  onRampComplete?: () => void;
+  /** Hide the dev tuning panel (for exhibit mode) */
+  hideTuning?: boolean;
 };
 
-const DEFAULTS = { spread: 1.0, noiseScale: 6.5, roughness: 1.0, feed: 0.205 };
+/**
+ * Ink bleed parameters.
+ * - roughness is the RAMP TARGET — the shader value is interpolated
+ *   from 0 → roughness over rampMs using smoothstep easing.
+ */
+const DEFAULTS = { spread: 0.5, noiseScale: 40, roughness: 5.0, feed: 0.07, rampMs: 20500 };
 
-export function InkBleed({ sourceCanvas, onStop }: Props) {
+export function InkBleed({ sourceCanvas, onStop, onRampComplete, hideTuning = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const paramsRef = useRef({ ...DEFAULTS });
   const [params, setParams] = useState({ ...DEFAULTS });
   const seedRef = useRef<(() => void) | null>(null);
+  const rampStartRef = useRef<number>(0);
+  const rampCompleteFiredRef = useRef<boolean>(false);
+  const onRampCompleteRef = useRef(onRampComplete);
+  onRampCompleteRef.current = onRampComplete;
 
   const updateParam = useCallback(<K extends keyof typeof DEFAULTS>(key: K, val: number) => {
     paramsRef.current[key] = val;
@@ -250,8 +263,10 @@ export function InkBleed({ sourceCanvas, onStop }: Props) {
 
     let pp = 0;
     const t0 = performance.now();
+    rampStartRef.current = t0;
+    rampCompleteFiredRef.current = false;
 
-    // Expose seed/reset
+    // Expose seed/reset — also restarts the roughness ramp
     seedRef.current = () => {
       for (let i = 0; i < 3; i++) {
         gl!.bindFramebuffer(gl!.FRAMEBUFFER, fbos[i].fbo);
@@ -262,12 +277,26 @@ export function InkBleed({ sourceCanvas, onStop }: Props) {
         gl!.uniform1i(U(copyProg, 'u_tex'), 0);
         drawQuad(copyProg);
       }
+      rampStartRef.current = performance.now();
+      rampCompleteFiredRef.current = false;
     };
 
     function render() {
-      const time = (performance.now() - t0) * 0.001;
+      const now = performance.now();
+      const time = (now - t0) * 0.001;
       const P = paramsRef.current;
       const read = pp, write = 1 - pp;
+
+      // Roughness ramp: smoothstep 0 → 1 over rampMs, scaled to target
+      const rampRaw = Math.max(0, Math.min(1, (now - rampStartRef.current) / Math.max(1, P.rampMs)));
+      const rampT = rampRaw * rampRaw * (3 - 2 * rampRaw);
+      const activeRoughness = P.roughness * rampT;
+
+      // Fire onRampComplete once when ramp finishes
+      if (rampRaw >= 1 && !rampCompleteFiredRef.current) {
+        rampCompleteFiredRef.current = true;
+        onRampCompleteRef.current?.();
+      }
 
       // Pass 1: Spread
       gl!.bindFramebuffer(gl!.FRAMEBUFFER, fbos[2].fbo);
@@ -282,7 +311,7 @@ export function InkBleed({ sourceCanvas, onStop }: Props) {
       gl!.uniform2f(U(spreadProg, 'u_res'), W, H);
       gl!.uniform1f(U(spreadProg, 'u_spread'), P.spread);
       gl!.uniform1f(U(spreadProg, 'u_noiseScale'), P.noiseScale);
-      gl!.uniform1f(U(spreadProg, 'u_roughness'), P.roughness);
+      gl!.uniform1f(U(spreadProg, 'u_roughness'), activeRoughness);
       gl!.uniform1f(U(spreadProg, 'u_feed'), P.feed);
       gl!.uniform1f(U(spreadProg, 'u_time'), time);
       drawQuad(spreadProg);
@@ -338,7 +367,7 @@ export function InkBleed({ sourceCanvas, onStop }: Props) {
         }}
       />
       {/* Tuning panel */}
-      <div style={{
+      {!hideTuning && <div style={{
         position: 'absolute',
         top: 12,
         right: 12,
@@ -358,8 +387,9 @@ export function InkBleed({ sourceCanvas, onStop }: Props) {
         {([
           { key: 'spread' as const, label: 'spread', min: 0.5, max: 25, step: 0.1 },
           { key: 'noiseScale' as const, label: 'noise scale', min: 0.5, max: 40, step: 0.5 },
-          { key: 'roughness' as const, label: 'roughness', min: 0, max: 5, step: 0.05 },
+          { key: 'roughness' as const, label: 'roughness (target)', min: 0, max: 5, step: 0.05 },
           { key: 'feed' as const, label: 'feed', min: 0, max: 0.3, step: 0.005 },
+          { key: 'rampMs' as const, label: 'ramp (ms)', min: 1000, max: 60000, step: 500 },
         ] as const).map(({ key, label, min, max, step }) => (
           <div key={key} style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
@@ -417,7 +447,7 @@ export function InkBleed({ sourceCanvas, onStop }: Props) {
         >
           stop
         </button>
-      </div>
+      </div>}
     </>
   );
 }

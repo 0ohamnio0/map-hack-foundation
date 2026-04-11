@@ -9,15 +9,171 @@
  * - Export JSON
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   PretextTypography,
   DEFAULT_CONFIG,
   DEFAULT_POLYGONS,
   type TypographyConfig,
   type TextPolygon,
+  type KoOverride,
+  type GlitchSubstitution,
 } from '@/components/effects/PretextTypography';
 import { InkBleed } from '@/components/effects/InkBleed';
+
+// ── Typing / language helpers ──
+
+interface TypingParams {
+  /** ms per character */
+  charInterval: number;
+  /** ms delay between polygons */
+  polyDelay: number;
+}
+
+const DEFAULT_TYPING_PARAMS: TypingParams = {
+  charInterval: 25,
+  polyDelay: 300,
+};
+
+/**
+ * Resolve a polygon for the current cycle. EN: returns as-is.
+ * KO: merges koOverride and swaps text to textKo (falling back to text).
+ */
+function resolvePolygon(poly: TextPolygon, cycleIdx: number): TextPolygon {
+  const useKo = cycleIdx % 2 === 1;
+  if (!useKo) return poly;
+
+  const koText =
+    poly.textKo && poly.textKo.length > 0 ? poly.textKo : poly.text;
+  const ko = poly.koOverride;
+  if (!ko) {
+    return { ...poly, text: koText };
+  }
+  return {
+    ...poly,
+    text: koText,
+    font: ko.font ?? poly.font,
+    lineHeight: ko.lineHeight ?? poly.lineHeight,
+    padding: ko.padding ?? poly.padding,
+    rotation: ko.rotation ?? poly.rotation,
+    rotationEnd: ko.rotationEnd ?? poly.rotationEnd,
+    fanPivot: ko.fanPivot ?? poly.fanPivot,
+    mode: ko.mode ?? poly.mode,
+    color: ko.color ?? poly.color,
+  };
+}
+
+/** Shortcut: current-cycle text content. */
+function resolveText(poly: TextPolygon, cycleIdx: number): string {
+  return resolvePolygon(poly, cycleIdx).text;
+}
+
+/** Extract the px size from a CSS font string (e.g. '20px "X", Y' → '20px'). */
+function extractFontSize(font: string): string {
+  const m = font.match(/(\d+(?:\.\d+)?px)/);
+  return m ? m[1] : '20px';
+}
+
+/** Build a DXTypeB font string matching the polygon's EN size. */
+function deriveKoFont(enFont: string): string {
+  return `${extractFontSize(enFont)} "DXTypeB", sans-serif`;
+}
+
+// ── Exhibit mode helpers ──
+
+/** Split a string into [word, whitespace, word, whitespace, ...] parts. */
+function splitWordParts(s: string): string[] {
+  return s.split(/(\s+)/);
+}
+
+/** Count actual words (non-whitespace parts at even indices) in a split result. */
+function countWords(parts: string[]): number {
+  let count = 0;
+  for (let i = 0; i < parts.length; i += 2) {
+    if (parts[i].length > 0) count++;
+  }
+  return count;
+}
+
+/**
+ * Build a word-level mapping from EN slots to KO substitutions.
+ * - KO >= EN: concatenate grouped KO words into each EN slot (uses all KO, no loss)
+ * - EN > KO: distribute KO uniquely across EN slots; surplus EN slots get null (never swap)
+ * Guarantees no KO word repetition.
+ */
+function buildWordMapping(
+  enCount: number,
+  koWords: string[],
+): (string | null)[] {
+  const result: (string | null)[] = new Array(enCount).fill(null);
+  const koCount = koWords.length;
+  if (koCount === 0 || enCount === 0) return result;
+
+  if (koCount >= enCount) {
+    // Group KO words into EN slots
+    for (let i = 0; i < enCount; i++) {
+      const start = Math.floor((i * koCount) / enCount);
+      const end = Math.max(start + 1, Math.floor(((i + 1) * koCount) / enCount));
+      result[i] = koWords.slice(start, end).join(' ');
+    }
+  } else {
+    // Distribute KO across EN slots with no repetition
+    for (let k = 0; k < koCount; k++) {
+      const enIdx = Math.floor((k * enCount) / koCount);
+      result[enIdx] = koWords[k];
+    }
+  }
+  return result;
+}
+
+/**
+ * Mix EN and KO text at word level using a swap mask + pre-built mapping.
+ * For each EN word i, if mask[i] && mapping[i] exists, substitute with mapping[i].
+ */
+function glitchMixText(
+  enText: string,
+  mapping: (string | null)[],
+  mask: boolean[],
+): string {
+  const enParts = splitWordParts(enText);
+  let wordIdx = 0;
+  return enParts
+    .map((part, i) => {
+      if (i % 2 === 1) return part; // whitespace
+      if (part.length === 0) return part;
+      const ki = wordIdx;
+      wordIdx++;
+      if (!mask[ki]) return part;
+      const ko = mapping[ki];
+      return ko !== null ? ko : part;
+    })
+    .join('');
+}
+
+type ExhibitPhase = 'idle' | 'running' | 'settling' | 'inkBleed';
+
+const EXHIBIT_CHAR_INTERVAL = 62;
+const EXHIBIT_POLY_DELAY = 0;
+/** ms for a single polygon's glitch progress to reach full after typing completes */
+const EXHIBIT_GLITCH_RAMP = 8000;
+/** Glitch re-roll interval — lower = calmer */
+const EXHIBIT_GLITCH_TICK = 400; // ms
+/** Peak KO probability per word (fewer = less reflow) */
+const EXHIBIT_GLITCH_PEAK = 0.35;
+/** Settle phase duration — glitch fades back to EN before ink bleed */
+const EXHIBIT_SETTLE_DURATION = 2000;
+
+/** Sort polygons by typingOrder (undefined ⇒ fallback to array index, appended). */
+function computeTypingSequence(polygons: TextPolygon[]): TextPolygon[] {
+  return polygons
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => {
+      const oa = a.p.typingOrder ?? a.i + 10000;
+      const ob = b.p.typingOrder ?? b.i + 10000;
+      return oa - ob;
+    })
+    .map((x) => x.p);
+}
 
 const BASE = import.meta.env.BASE_URL;
 const COLORS = ['#ff4444', '#4488ff', '#44bb44', '#ff8800', '#cc44cc', '#44cccc', '#ffcc00', '#ff66aa'];
@@ -36,6 +192,7 @@ function makeNewPolygon(cx: number, cy: number): TextPolygon {
       [cx - size, cy + size * 0.6],
     ],
     text: 'Type your text here.',
+    textKo: '',
     font: '14px "Oceanside Typewriter", Georgia',
     lineHeight: 18,
     color: '#000',
@@ -70,11 +227,290 @@ export default function PretextDemo() {
   const [inkBleedActive, setInkBleedActive] = useState(false);
   const pretextCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // ── Language + typewriter state ──
+  const [cycle, setCycle] = useState(0);
+  const [typingParams, setTypingParams] = useState<TypingParams>(
+    saved.current?.typingParams ?? { ...DEFAULT_TYPING_PARAMS },
+  );
+  const [typingProg, setTypingProg] = useState<Record<string, number>>({});
+  const [typingDone, setTypingDone] = useState(false);
+  const [playKey, setPlayKey] = useState(0);
+  const [typingEnabled, setTypingEnabled] = useState(
+    saved.current?.typingEnabled ?? false,
+  );
+
+  // ── Exhibit mode state ──
+  const [exhibitMode, setExhibitMode] = useState(false);
+  const [exhibitPhase, setExhibitPhase] = useState<ExhibitPhase>('idle');
+  const [glitchMasks, setGlitchMasks] = useState<Record<string, boolean[]>>({});
+  // Per-word glitch start time: { [polyId]: { [wordIdx]: startMs } }
+  const polyWordStartsRef = useRef<Record<string, Record<number, number>>>({});
+  const settleStartRef = useRef<number>(0);
+
+  // Refs so the typewriter / glitch loops read latest params and state
+  const typingParamsRef = useRef(typingParams);
+  typingParamsRef.current = typingParams;
+  const typingProgRef = useRef(typingProg);
+  typingProgRef.current = typingProg;
+  const exhibitPhaseRef = useRef(exhibitPhase);
+  exhibitPhaseRef.current = exhibitPhase;
+
   // 자동 저장 — 상태 변경 시 localStorage에 저장
   useEffect(() => {
-    const state = { polygons, config, bgAlpha, useBg };
+    const state = { polygons, config, bgAlpha, useBg, typingParams, typingEnabled };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [polygons, config, bgAlpha, useBg]);
+  }, [polygons, config, bgAlpha, useBg, typingParams, typingEnabled]);
+
+  // ── Typewriter effect ──
+  // Reruns when user clicks replay (playKey) or flips language (cycle) or toggles typing on.
+  useEffect(() => {
+    if (!typingEnabled) {
+      // Typing disabled — show everything fully typed
+      const full: Record<string, number> = {};
+      for (const p of polygons) {
+        full[p.id] = resolveText(p, cycle).length;
+      }
+      setTypingProg(full);
+      setTypingDone(true);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: number | undefined;
+
+    // Snapshot polygons + sequence at effect start — editing during typing won't disrupt flow
+    const sequence = computeTypingSequence(polygons);
+
+    setTypingProg({});
+    setTypingDone(false);
+
+    const step = (seqIdx: number, charIdx: number) => {
+      if (cancelled) return;
+      if (seqIdx >= sequence.length) {
+        setTypingDone(true);
+        return;
+      }
+      const poly = sequence[seqIdx];
+      const text = resolveText(poly, cycle);
+
+      if (charIdx < text.length) {
+        setTypingProg((prev) => ({ ...prev, [poly.id]: charIdx + 1 }));
+        timer = window.setTimeout(
+          () => step(seqIdx, charIdx + 1),
+          typingParamsRef.current.charInterval,
+        );
+      } else if (seqIdx + 1 < sequence.length) {
+        timer = window.setTimeout(
+          () => step(seqIdx + 1, 0),
+          typingParamsRef.current.polyDelay,
+        );
+      } else {
+        setTypingDone(true);
+      }
+    };
+
+    timer = window.setTimeout(() => step(0, 0), 200);
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playKey, cycle, typingEnabled]);
+
+  // ── Rendered polygons — apply cycle language (+ overrides) + typing slice ──
+  const renderedPolygons = useMemo(() => {
+    // Exhibit mode: pass full EN text as-is. PretextTypography handles
+    // per-word typing clip + glitch substitution via props — layout stays frozen.
+    if (exhibitMode) return polygons;
+
+    // Normal mode: cycle + typing slice
+    return polygons.map((p) => {
+      const resolved = resolvePolygon(p, cycle);
+      const full = resolved.text;
+      const typed = typingEnabled
+        ? (typingDone ? full.length : (typingProg[p.id] ?? 0))
+        : full.length;
+      return { ...resolved, text: full.slice(0, typed) };
+    });
+  }, [polygons, cycle, typingProg, typingDone, typingEnabled, exhibitMode]);
+
+  // Build per-polygon GlitchSubstitution objects for PretextTypography
+  const exhibitSubstitutions = useMemo(() => {
+    if (!exhibitMode) return undefined;
+    const subs: Record<string, GlitchSubstitution> = {};
+    for (const p of polygons) {
+      const enWordCount = countWords(splitWordParts(p.text));
+      const koWordsRaw = splitWordParts(p.textKo ?? '').filter(
+        (part, i) => i % 2 === 0 && part.length > 0,
+      );
+      const mapping = buildWordMapping(enWordCount, koWordsRaw);
+      const mask = glitchMasks[p.id] ?? new Array(enWordCount).fill(false);
+      subs[p.id] = { mask, mapping };
+    }
+    return subs;
+  }, [exhibitMode, polygons, glitchMasks]);
+
+  // ── Typing order preview (for UI) ──
+  const typingSequenceView = useMemo(() => computeTypingSequence(polygons), [polygons]);
+  const totalTypingChars = useMemo(
+    () => typingSequenceView.reduce((s, p) => s + resolveText(p, cycle).length, 0),
+    [typingSequenceView, cycle],
+  );
+  const estimatedTypingMs =
+    totalTypingChars * typingParams.charInterval +
+    Math.max(0, typingSequenceView.length - 1) * typingParams.polyDelay;
+
+  const replayTyping = useCallback(() => {
+    setTypingProg({});
+    setTypingDone(false);
+    setPlayKey((k) => k + 1);
+  }, []);
+
+  const cycleLanguage = useCallback(() => {
+    setCycle((c) => c + 1);
+  }, []);
+
+  // ── Exhibit mode handlers ──
+  const enterExhibit = useCallback(() => {
+    setExhibitMode(true);
+    setExhibitPhase('running');
+    setEditMode(false);
+    setInkBleedActive(false);
+    setCycle(0); // Force EN
+    setGlitchMasks({});
+    polyWordStartsRef.current = {};
+    setTypingParams({
+      charInterval: EXHIBIT_CHAR_INTERVAL,
+      polyDelay: EXHIBIT_POLY_DELAY,
+    });
+    setTypingEnabled(true);
+    setTypingProg({});
+    setTypingDone(false);
+    setPlayKey((k) => k + 1);
+  }, []);
+
+  const exitExhibit = useCallback(() => {
+    setExhibitMode(false);
+    setExhibitPhase('idle');
+    setInkBleedActive(false);
+    setGlitchMasks({});
+    polyWordStartsRef.current = {};
+    settleStartRef.current = 0;
+  }, []);
+
+  // Phase: running → settling (when all 14 polygons finish typing)
+  useEffect(() => {
+    if (exhibitMode && exhibitPhase === 'running' && typingDone) {
+      settleStartRef.current = performance.now();
+      setExhibitPhase('settling');
+    }
+  }, [exhibitMode, exhibitPhase, typingDone]);
+
+  // Continuous glitch tick — runs as long as exhibit is on.
+  // **Per-word timing**: each word starts glitching the moment that word
+  // finishes typing (not when the whole polygon is done).
+  // Phase 'settling': all per-word glitches fade to 0 over EXHIBIT_SETTLE_DURATION, then → 'inkBleed'.
+  useEffect(() => {
+    if (!exhibitMode) return;
+
+    // Pre-compute per-poly word ranges (wordEnds)
+    const polyWordEnds: Record<string, number[]> = {};
+    for (const p of polygons) {
+      const parts = splitWordParts(p.text);
+      const ends: number[] = [];
+      let charIdx = 0;
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (i % 2 === 0 && part.length > 0) {
+          ends.push(charIdx + part.length);
+        }
+        charIdx += part.length;
+      }
+      polyWordEnds[p.id] = ends;
+    }
+
+    const tick = window.setInterval(() => {
+      const now = performance.now();
+      const phase = exhibitPhaseRef.current;
+      if (phase === 'idle' || phase === 'inkBleed') return;
+
+      const typedNow = typingProgRef.current;
+      const starts = polyWordStartsRef.current;
+
+      // Settling: compute global fade factor (1 → 0 over SETTLE_DURATION)
+      let settleFade = 1;
+      if (phase === 'settling') {
+        const settleElapsed = now - settleStartRef.current;
+        const raw = Math.min(1, settleElapsed / EXHIBIT_SETTLE_DURATION);
+        const smoothed = raw * raw * (3 - 2 * raw);
+        settleFade = 1 - smoothed;
+        if (raw >= 1) {
+          // Fully settled → clear masks and trigger ink bleed
+          window.clearInterval(tick);
+          setGlitchMasks({});
+          setExhibitPhase('inkBleed');
+          return;
+        }
+      }
+
+      setGlitchMasks(() => {
+        const next: Record<string, boolean[]> = {};
+        for (const p of polygons) {
+          const wordEnds = polyWordEnds[p.id] ?? [];
+          const n = wordEnds.length;
+          if (n === 0) continue;
+
+          const typed = typedNow[p.id] ?? 0;
+          const polyStarts = starts[p.id] ?? {};
+          starts[p.id] = polyStarts;
+
+          const mask = new Array(n).fill(false);
+          for (let wi = 0; wi < n; wi++) {
+            if (typed < wordEnds[wi]) continue; // word not yet fully typed
+            if (!polyStarts[wi]) polyStarts[wi] = now;
+            const elapsed = now - polyStarts[wi];
+            const raw = Math.min(1, elapsed / EXHIBIT_GLITCH_RAMP);
+            const rampProgress = raw * raw * (3 - 2 * raw); // smoothstep
+            const base = rampProgress * EXHIBIT_GLITCH_PEAK;
+            const effective = Math.max(0, base * settleFade);
+            mask[wi] = Math.random() < effective;
+          }
+          next[p.id] = mask;
+        }
+        return next;
+      });
+    }, EXHIBIT_GLITCH_TICK);
+
+    return () => window.clearInterval(tick);
+  }, [exhibitMode, polygons]);
+
+  // Phase: inkBleed — trigger the ink bleed overlay
+  useEffect(() => {
+    if (exhibitMode && exhibitPhase === 'inkBleed' && !inkBleedActive) {
+      const canvas = wrapperRef.current?.querySelector('canvas');
+      if (canvas) {
+        pretextCanvasRef.current = canvas;
+        setInkBleedActive(true);
+      }
+    }
+  }, [exhibitMode, exhibitPhase, inkBleedActive]);
+
+  // ESC to exit exhibit mode
+  useEffect(() => {
+    if (!exhibitMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitExhibit();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [exhibitMode, exitExhibit]);
+
+  const updateTypingParam = useCallback(
+    <K extends keyof TypingParams>(key: K, val: TypingParams[K]) => {
+      setTypingParams((prev) => ({ ...prev, [key]: val }));
+    },
+    [],
+  );
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<{
@@ -207,10 +643,34 @@ export default function PretextDemo() {
     });
   }, []);
 
+  // KO 오버라이드 필드 업데이트 — undefined/빈 값이면 해당 키 제거
+  const updateKoOverride = useCallback(
+    <K extends keyof KoOverride>(idx: number, key: K, val: KoOverride[K] | undefined) => {
+      setPolygons(prev => {
+        const next = [...prev];
+        const curr = next[idx].koOverride ?? {};
+        const updated: KoOverride = { ...curr };
+        if (val === undefined || val === '' || (typeof val === 'number' && Number.isNaN(val))) {
+          delete updated[key];
+        } else {
+          updated[key] = val;
+        }
+        const cleaned: KoOverride | undefined =
+          Object.keys(updated).length === 0 ? undefined : updated;
+        next[idx] = { ...next[idx], koOverride: cleaned };
+        return next;
+      });
+    },
+    [],
+  );
+
   // Export
   const exportJSON = useCallback(() => {
     const json = JSON.stringify(polygons.map(p => ({
       id: p.id, vertices: p.vertices, text: p.text,
+      ...(p.textKo && p.textKo.length > 0 ? { textKo: p.textKo } : {}),
+      ...(p.koOverride && Object.keys(p.koOverride).length > 0 ? { koOverride: p.koOverride } : {}),
+      ...(p.typingOrder !== undefined ? { typingOrder: p.typingOrder } : {}),
       font: p.font, lineHeight: p.lineHeight, color: p.color, padding: p.padding,
       ...(p.rotation !== undefined && p.rotation !== 0 ? { rotation: p.rotation } : {}),
       ...(p.rotationEnd !== undefined ? { rotationEnd: p.rotationEnd } : {}),
@@ -223,14 +683,25 @@ export default function PretextDemo() {
   }, [polygons]);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#f0f0f0' }}>
+    <div style={{ display: 'flex', height: '100vh', background: exhibitMode ? '#fff' : '#f0f0f0' }}>
       {/* ── 좌측 패널 ── */}
-      <div style={{
+      {!exhibitMode && <div style={{
         width: 310, padding: 12, background: '#1a1a1a', color: '#fff',
         display: 'flex', flexDirection: 'column', gap: 4, overflow: 'auto',
         fontFamily: 'monospace', fontSize: 11,
       }}>
         <h3 style={{ margin: 0, fontSize: 14 }}>Polygon Editor</h3>
+
+        <button
+          onClick={enterExhibit}
+          style={{
+            background: '#222', color: '#e8a030', border: '1px solid #e8a030',
+            padding: '8px 12px', borderRadius: 3, cursor: 'pointer', fontSize: 12,
+            fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase',
+            marginTop: 4,
+          }}>
+          ▶ Enter Exhibit
+        </button>
 
         {/* 글로벌 컨트롤 */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -260,6 +731,86 @@ export default function PretextDemo() {
             }} style={{ flex: 1 }} />
           <span style={{ width: 55, fontSize: 9 }}>{config.canvasWidth}×{config.canvasHeight}</span>
         </div>
+
+        <hr style={{ border: 'none', borderTop: '1px solid #333', margin: '4px 0' }} />
+
+        {/* ── Language + Typewriter ── */}
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>Language / Typewriter</div>
+
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={cycleLanguage} style={{
+            background: '#4a9eff', color: '#fff', border: 'none',
+            padding: '4px 10px', borderRadius: 3, cursor: 'pointer', fontSize: 11,
+          }}>
+            cycle {cycle % 2 === 0 ? 'en→ko' : 'ko→en'}
+          </button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <input type="checkbox" checked={typingEnabled}
+              onChange={e => setTypingEnabled(e.target.checked)} />
+            typing
+          </label>
+          <button onClick={replayTyping}
+            disabled={!typingEnabled}
+            style={{
+              background: typingEnabled ? '#333' : '#222',
+              color: typingEnabled ? '#ccc' : '#555',
+              border: '1px solid #444',
+              padding: '4px 10px', borderRadius: 3,
+              cursor: typingEnabled ? 'pointer' : 'default', fontSize: 11,
+            }}>
+            replay
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ width: 50, fontSize: 9 }}>ms/char</span>
+          <input type="range" min={1} max={200} step={1} value={typingParams.charInterval}
+            onChange={e => updateTypingParam('charInterval', Number(e.target.value))}
+            style={{ flex: 1 }} />
+          <span style={{ width: 30, fontSize: 9 }}>{typingParams.charInterval}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ width: 50, fontSize: 9 }}>ms/poly</span>
+          <input type="range" min={0} max={3000} step={50} value={typingParams.polyDelay}
+            onChange={e => updateTypingParam('polyDelay', Number(e.target.value))}
+            style={{ flex: 1 }} />
+          <span style={{ width: 30, fontSize: 9 }}>{typingParams.polyDelay}</span>
+        </div>
+        <div style={{ fontSize: 9, color: '#666', marginBottom: 2 }}>
+          {typingSequenceView.length} polys · {totalTypingChars} chars
+          · est {(estimatedTypingMs / 1000).toFixed(1)}s
+          {typingEnabled && !typingDone && (
+            <span style={{ color: '#4a9eff' }}> · running</span>
+          )}
+          {typingEnabled && typingDone && (
+            <span style={{ color: '#4a9' }}> · done</span>
+          )}
+        </div>
+
+        {/* Sequence preview — clickable IDs jump to selection */}
+        <details style={{ fontSize: 9 }}>
+          <summary style={{ cursor: 'pointer', color: '#888' }}>
+            sequence ({typingSequenceView.length})
+          </summary>
+          <ol style={{ margin: '4px 0 0 0', padding: '0 0 0 18px', color: '#999' }}>
+            {typingSequenceView.map((p, i) => {
+              const order = p.typingOrder ?? i;
+              const charsNow = typingProg[p.id] ?? 0;
+              const total = resolveText(p, cycle).length;
+              return (
+                <li key={p.id} style={{
+                  cursor: 'pointer',
+                  color: selectedPoly === p.id ? '#4a9eff' : undefined,
+                }}
+                  onClick={() => setSelectedPoly(p.id)}>
+                  <span style={{ color: '#666' }}>#{order}</span>{' '}
+                  {p.id}{' '}
+                  <span style={{ color: '#555' }}>{charsNow}/{total}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </details>
 
         <hr style={{ border: 'none', borderTop: '1px solid #333', margin: '4px 0' }} />
 
@@ -302,12 +853,22 @@ export default function PretextDemo() {
               {/* 확장 시 상세 편집 */}
               {isSel && (
                 <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {/* ID */}
+                  {/* ID + typing order */}
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <span style={{ width: 24, color: '#888' }}>id</span>
                     <input type="text" value={p.id}
                       onChange={e => updatePoly(pi, { id: e.target.value })}
                       style={inputStyle} />
+                    <span style={{ color: '#888', fontSize: 9 }}>#</span>
+                    <input type="number"
+                      value={p.typingOrder ?? ''}
+                      placeholder={String(pi)}
+                      onChange={e => {
+                        const v = e.target.value;
+                        updatePoly(pi, { typingOrder: v === '' ? undefined : Number(v) });
+                      }}
+                      title="typing order (lower = earlier)"
+                      style={{ ...inputStyle, width: 36, flex: 'none' }} />
                   </div>
 
                   {/* Font */}
@@ -376,15 +937,85 @@ export default function PretextDemo() {
                     </>)}
                   </div>
 
-                  {/* Text */}
+                  {/* Text (en + ko) */}
                   <button onClick={() => setExpandedText(expandedText === p.id ? null : p.id)}
                     style={{ ...btnSmall, width: '100%', textAlign: 'left' }}>
-                    {expandedText === p.id ? '▼ Close text' : '▶ Edit text'}
+                    {expandedText === p.id ? '▼ Close text' : '▶ Edit text (en/ko)'}
                   </button>
                   {expandedText === p.id && (
-                    <textarea value={p.text} rows={5}
-                      onChange={e => updatePoly(pi, { text: e.target.value })}
-                      style={{ ...inputStyle, resize: 'vertical', width: '100%', minHeight: 60 }} />
+                    <>
+                      <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>text (en)</div>
+                      <textarea value={p.text} rows={4}
+                        onChange={e => updatePoly(pi, { text: e.target.value })}
+                        style={{ ...inputStyle, resize: 'vertical', width: '100%', minHeight: 50 }} />
+                      <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>textKo (한국어)</div>
+                      <textarea value={p.textKo ?? ''} rows={4}
+                        placeholder="(fallback: en)"
+                        onChange={e => updatePoly(pi, { textKo: e.target.value })}
+                        style={{ ...inputStyle, resize: 'vertical', width: '100%', minHeight: 50 }} />
+
+                      {/* KO layout overrides */}
+                      <div style={{ fontSize: 9, color: '#888', marginTop: 6, marginBottom: 2 }}>
+                        KO layout overrides <span style={{ color: '#555' }}>(blank = use en)</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <span style={{ width: 24, color: '#888' }}>font</span>
+                        <input type="text"
+                          value={p.koOverride?.font ?? ''}
+                          placeholder={p.font}
+                          onChange={e => updateKoOverride(pi, 'font', e.target.value || undefined)}
+                          style={inputStyle} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <span style={{ color: '#888' }}>lh</span>
+                        <input type="number"
+                          value={p.koOverride?.lineHeight ?? ''}
+                          placeholder={String(p.lineHeight)}
+                          onChange={e => updateKoOverride(pi, 'lineHeight',
+                            e.target.value === '' ? undefined : Number(e.target.value))}
+                          style={{ ...inputStyle, width: 36, flex: 'none' }} />
+                        <span style={{ color: '#888' }}>pad</span>
+                        <input type="number"
+                          value={p.koOverride?.padding ?? ''}
+                          placeholder={String(p.padding ?? 0)}
+                          onChange={e => updateKoOverride(pi, 'padding',
+                            e.target.value === '' ? undefined : Number(e.target.value))}
+                          style={{ ...inputStyle, width: 36, flex: 'none' }} />
+                        <span style={{ color: '#888' }}>rot</span>
+                        <input type="number"
+                          value={p.koOverride?.rotation ?? ''}
+                          placeholder={String(p.rotation ?? 0)}
+                          onChange={e => updateKoOverride(pi, 'rotation',
+                            e.target.value === '' ? undefined : Number(e.target.value))}
+                          style={{ ...inputStyle, width: 42, flex: 'none' }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <span style={{ color: '#888', width: 24 }}>rotE</span>
+                        <input type="number"
+                          value={p.koOverride?.rotationEnd ?? ''}
+                          placeholder={p.rotationEnd !== undefined ? String(p.rotationEnd) : '—'}
+                          onChange={e => updateKoOverride(pi, 'rotationEnd',
+                            e.target.value === '' ? undefined : Number(e.target.value))}
+                          style={{ ...inputStyle, width: 42, flex: 'none' }} />
+                        <span style={{ color: '#888' }}>piv</span>
+                        <input type="number"
+                          value={p.koOverride?.fanPivot ?? ''}
+                          placeholder={p.fanPivot !== undefined ? String(p.fanPivot) : '—'}
+                          onChange={e => updateKoOverride(pi, 'fanPivot',
+                            e.target.value === '' ? undefined : Number(e.target.value))}
+                          style={{ ...inputStyle, width: 32, flex: 'none' }} />
+                        <span style={{ color: '#888' }}>mode</span>
+                        <select
+                          value={p.koOverride?.mode ?? ''}
+                          onChange={e => updateKoOverride(pi, 'mode',
+                            (e.target.value || undefined) as 'fill' | 'outline' | undefined)}
+                          style={{ background: '#222', color: '#fff', border: '1px solid #444', fontSize: 9, padding: 1 }}>
+                          <option value="">(en)</option>
+                          <option value="fill">fill</option>
+                          <option value="outline">outline</option>
+                        </select>
+                      </div>
+                    </>
                   )}
 
                   {/* Vertices */}
@@ -411,6 +1042,19 @@ export default function PretextDemo() {
 
         <hr style={{ border: 'none', borderTop: '1px solid #333', margin: '4px 0' }} />
 
+        <button
+          onClick={() => {
+            setPolygons(prev => prev.map(p => ({
+              ...p,
+              koOverride: {
+                ...(p.koOverride ?? {}),
+                font: deriveKoFont(p.font),
+              },
+            })));
+          }}
+          style={{ background: '#4a4', color: '#fff', border: 'none', padding: 6, borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
+          Apply DXTypeB to all KO
+        </button>
         <button onClick={exportJSON}
           style={{ background: '#4a9eff', color: '#fff', border: 'none', padding: 6, borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
           Export JSON (clipboard)
@@ -429,27 +1073,33 @@ export default function PretextDemo() {
           style={{ background: '#333', color: '#888', border: 'none', padding: 6, borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
           Clear All
         </button>
-      </div>
+      </div>}
 
       {/* ── 캔버스 + 오버레이 ── */}
       <div ref={wrapperRef} style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        overflow: 'auto', padding: 20, background: '#e8e8e8',
+        overflow: 'auto', padding: exhibitMode ? 0 : 20,
+        background: exhibitMode ? '#fff' : '#e8e8e8',
       }}>
         <div
           style={{ position: 'relative', display: 'inline-block' }}
-          onDoubleClick={handleDoubleClick}
+          onDoubleClick={exhibitMode ? undefined : handleDoubleClick}
         >
           <PretextTypography
-            backgroundSrc={useBg ? `${BASE}assets/ch4/outline.png` : undefined}
+            backgroundSrc={useBg && !exhibitMode ? `${BASE}assets/ch4/outline.png` : undefined}
             backgroundAlpha={bgAlpha}
-            polygons={polygons}
+            polygons={renderedPolygons}
             config={config}
-            style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'block' }}
+            typingProgress={exhibitMode ? typingProg : undefined}
+            glitchSubstitutions={exhibitSubstitutions}
+            style={{
+              boxShadow: exhibitMode ? 'none' : '0 4px 20px rgba(0,0,0,0.15)',
+              display: 'block',
+            }}
           />
 
           {/* SVG 핸들 오버레이 — 3레이어: fill → outlines → handles */}
-          {editMode && (
+          {!exhibitMode && editMode && (
             <svg style={{
               position: 'absolute', inset: 0, width: '100%', height: '100%',
               pointerEvents: 'none',
@@ -564,11 +1214,12 @@ export default function PretextDemo() {
             <InkBleed
               sourceCanvas={pretextCanvasRef.current}
               onStop={() => setInkBleedActive(false)}
+              hideTuning={exhibitMode}
             />
           )}
 
-          {/* Ink Bleed run button */}
-          {!inkBleedActive && (
+          {/* Ink Bleed run button — 일반 모드에서만 */}
+          {!exhibitMode && !inkBleedActive && (
             <button
               onClick={() => {
                 const canvas = wrapperRef.current?.querySelector('canvas');
@@ -599,6 +1250,44 @@ export default function PretextDemo() {
           )}
         </div>
       </div>
+
+      {/* ── Exhibit exit + phase indicator ── */}
+      {exhibitMode && (
+        <>
+          <button
+            onClick={exitExhibit}
+            style={{
+              position: 'fixed', top: 16, right: 16, zIndex: 1000,
+              padding: '6px 14px',
+              background: 'rgba(0,0,0,0.6)',
+              color: '#fff',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 3,
+              fontFamily: 'monospace',
+              fontSize: 11,
+              cursor: 'pointer',
+              letterSpacing: 1,
+            }}
+          >
+            exit (esc)
+          </button>
+          <div
+            style={{
+              position: 'fixed', top: 16, left: 16, zIndex: 1000,
+              padding: '4px 10px',
+              background: 'rgba(0,0,0,0.4)',
+              color: '#888',
+              fontFamily: 'monospace',
+              fontSize: 10,
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+              borderRadius: 2,
+            }}
+          >
+            exhibit · {exhibitPhase}
+          </div>
+        </>
+      )}
     </div>
   );
 }
