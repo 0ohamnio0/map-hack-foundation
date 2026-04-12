@@ -168,6 +168,8 @@ type Props = {
   onRampComplete?: () => void;
   /** Hide the dev tuning panel (for exhibit mode) */
   hideTuning?: boolean;
+  /** Fill the entire viewport instead of the source canvas bounds */
+  fullscreen?: boolean;
 };
 
 /**
@@ -177,7 +179,7 @@ type Props = {
  */
 const DEFAULTS = { spread: 0.5, noiseScale: 40, roughness: 5.0, feed: 0.07, rampMs: 20500 };
 
-export function InkBleed({ sourceCanvas, onStop, onRampComplete, hideTuning = false }: Props) {
+export function InkBleed({ sourceCanvas, onStop, onRampComplete, hideTuning = false, fullscreen = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const paramsRef = useRef({ ...DEFAULTS });
@@ -197,8 +199,25 @@ export function InkBleed({ sourceCanvas, onStop, onRampComplete, hideTuning = fa
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const W = canvas.width = sourceCanvas.width;
-    const H = canvas.height = sourceCanvas.height;
+    const W = canvas.width = fullscreen ? window.innerWidth : sourceCanvas.width;
+    const H = canvas.height = fullscreen ? window.innerHeight : sourceCanvas.height;
+
+    // Fullscreen: composite source onto a viewport-sized white canvas
+    // so ink bleeds outward from the building into the surrounding space
+    let effectiveSource: HTMLCanvasElement | OffscreenCanvas;
+    if (fullscreen) {
+      const composite = document.createElement('canvas');
+      composite.width = W;
+      composite.height = H;
+      const cctx = composite.getContext('2d')!;
+      cctx.fillStyle = '#ffffff';
+      cctx.fillRect(0, 0, W, H);
+      const rect = sourceCanvas.getBoundingClientRect();
+      cctx.drawImage(sourceCanvas, rect.left, rect.top, rect.width, rect.height);
+      effectiveSource = composite;
+    } else {
+      effectiveSource = sourceCanvas;
+    }
 
     const gl = canvas.getContext('webgl2');
     if (!gl) { alert('WebGL 2 required'); return; }
@@ -244,7 +263,7 @@ export function InkBleed({ sourceCanvas, onStop, onRampComplete, hideTuning = fa
     // Upload source canvas as texture
     const sourceTex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, sourceTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, effectiveSource);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -359,10 +378,10 @@ export function InkBleed({ sourceCanvas, onStop, onRampComplete, hideTuning = fa
       <canvas
         ref={canvasRef}
         style={{
-          position: 'absolute',
+          position: fullscreen ? 'fixed' : 'absolute',
           inset: 0,
-          width: '100%',
-          height: '100%',
+          width: fullscreen ? '100vw' : '100%',
+          height: fullscreen ? '100vh' : '100%',
           zIndex: 10,
         }}
       />

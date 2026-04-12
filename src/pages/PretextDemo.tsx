@@ -150,16 +150,98 @@ function glitchMixText(
     .join('');
 }
 
+/**
+ * Build sentence-level mapping: each EN sentence group maps to the
+ * corresponding KO sentence. First word of group → full KO sentence,
+ * remaining words → '' (suppressed). This way the entire KO sentence
+ * renders from the first word's position with no EN/KO interleaving.
+ */
+function buildSentenceMapping(
+  enText: string,
+  koText: string | undefined,
+): (string | null)[] {
+  const enWordCount = countWords(splitWordParts(enText));
+  const result: (string | null)[] = new Array(enWordCount).fill(null);
+  if (!koText || enWordCount === 0) return result;
+
+  const enGroups = computeWordGroups(enText);
+  // Split KO by sentence-ending punctuation
+  const koSentences = koText.split(/(?<=[.!?。])\s*/).filter(s => s.trim().length > 0);
+  if (enGroups.length === 0 || koSentences.length === 0) return result;
+
+  for (let gi = 0; gi < enGroups.length; gi++) {
+    const group = enGroups[gi];
+    if (group.length === 0) continue;
+
+    let koForGroup: string;
+    if (enGroups.length >= koSentences.length) {
+      if (gi < koSentences.length) koForGroup = koSentences[gi];
+      else continue;
+    } else {
+      // More KO sentences than EN groups — distribute proportionally
+      const start = Math.floor((gi * koSentences.length) / enGroups.length);
+      const end = Math.floor(((gi + 1) * koSentences.length) / enGroups.length);
+      koForGroup = koSentences.slice(start, end).join(' ');
+    }
+
+    // First word → full KO sentence, rest → '' (suppress EN)
+    result[group[0]] = koForGroup;
+    for (let i = 1; i < group.length; i++) {
+      result[group[i]] = '';
+    }
+  }
+  return result;
+}
+
+/**
+ * Split word indices into semantic groups based on sentence-ending punctuation.
+ * Words within a group glitch together for readability.
+ * Groups > 8 words are split into ~4-word chunks.
+ */
+function computeWordGroups(text: string): number[][] {
+  const parts = splitWordParts(text);
+  const groups: number[][] = [];
+  let currentGroup: number[] = [];
+  let wordIdx = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (i % 2 === 0 && part.length > 0) {
+      currentGroup.push(wordIdx);
+      wordIdx++;
+      // Sentence-ending punctuation → close this group
+      if (/[.!?]\s*$/.test(part)) {
+        groups.push(currentGroup);
+        currentGroup = [];
+      }
+    }
+  }
+  if (currentGroup.length > 0) groups.push(currentGroup);
+
+  // Cap oversized groups into ~4-word chunks
+  const capped: number[][] = [];
+  for (const g of groups) {
+    if (g.length > 8) {
+      for (let i = 0; i < g.length; i += 4) {
+        capped.push(g.slice(i, Math.min(i + 4, g.length)));
+      }
+    } else {
+      capped.push(g);
+    }
+  }
+  return capped;
+}
+
 type ExhibitPhase = 'idle' | 'running' | 'settling' | 'inkBleed';
 
 const EXHIBIT_CHAR_INTERVAL = 62;
 const EXHIBIT_POLY_DELAY = 0;
 /** ms for a single polygon's glitch progress to reach full after typing completes */
-const EXHIBIT_GLITCH_RAMP = 8000;
-/** Glitch re-roll interval — lower = calmer */
-const EXHIBIT_GLITCH_TICK = 400; // ms
+const EXHIBIT_GLITCH_RAMP = 10000;
+/** Glitch re-roll interval — 800ms for 0.5x speed (was 400ms) */
+const EXHIBIT_GLITCH_TICK = 800; // ms (0.5x speed)
 /** Peak KO probability per word (fewer = less reflow) */
-const EXHIBIT_GLITCH_PEAK = 0.35;
+const EXHIBIT_GLITCH_PEAK = 0.2;
 /** Settle phase duration — glitch fades back to EN before ink bleed */
 const EXHIBIT_SETTLE_DURATION = 2000;
 
@@ -319,8 +401,7 @@ export default function PretextDemo() {
 
   // ── Rendered polygons — apply cycle language (+ overrides) + typing slice ──
   const renderedPolygons = useMemo(() => {
-    // Exhibit mode: pass full EN text as-is. PretextTypography handles
-    // per-word typing clip + glitch substitution via props — layout stays frozen.
+    // Exhibit mode: frozen EN layout — PretextTypography handles glitch via props
     if (exhibitMode) return polygons;
 
     // Normal mode: cycle + typing slice
@@ -332,23 +413,88 @@ export default function PretextDemo() {
         : full.length;
       return { ...resolved, text: full.slice(0, typed) };
     });
-  }, [polygons, cycle, typingProg, typingDone, typingEnabled, exhibitMode]);
+  }, [polygons, cycle, typingProg, typingDone, typingEnabled, exhibitMode, glitchMasks]);
 
-  // Build per-polygon GlitchSubstitution objects for PretextTypography
+  // Precompute sentence-aware word mapping from sentenceMap
+  // Each sentence's KO words are distributed across that sentence's EN word slots
+  const sentenceWordInfo = useMemo(() => {
+    const defaultSMap = new Map(DEFAULT_POLYGONS.map(dp => [dp.id, dp.sentenceMap]));
+    const info: Record<string, {
+      mapping: (string | null)[];
+      sentenceWordRanges: [number, number][];
+      totalWords: number;
+    }> = {};
+
+    for (const p of polygons) {
+      const sMap = p.sentenceMap ?? defaultSMap.get(p.id) ?? [];
+      const parts = splitWordParts(p.text);
+
+      // Word char start positions
+      const wordCharStarts: number[] = [];
+      let ci = 0;
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 0 && parts[i].length > 0) wordCharStarts.push(ci);
+        ci += parts[i].length;
+      }
+
+      const totalWords = wordCharStarts.length;
+      const mapping: (string | null)[] = new Array(totalWords).fill(null);
+      const sentenceWordRanges: [number, number][] = [];
+
+      for (const [enSent, koSent] of sMap) {
+        const sentStart = p.text.indexOf(enSent);
+        if (sentStart < 0) { sentenceWordRanges.push([-1, -1]); continue; }
+        const sentEnd = sentStart + enSent.length;
+
+        // Find word indices belonging to this sentence
+        const wordsInSent: number[] = [];
+        for (let wi = 0; wi < totalWords; wi++) {
+          if (wordCharStarts[wi] >= sentStart && wordCharStarts[wi] < sentEnd) {
+            wordsInSent.push(wi);
+          }
+        }
+        sentenceWordRanges.push(
+          wordsInSent.length > 0
+            ? [wordsInSent[0], wordsInSent[wordsInSent.length - 1] + 1]
+            : [-1, -1],
+        );
+
+        // Always full-sentence: first word → full KO, rest → '' (no overlap)
+        // Polygon clip handles overflow for narrow polygons
+        if (wordsInSent.length > 0 && koSent.length > 0) {
+          mapping[wordsInSent[0]] = koSent;
+          for (let i = 1; i < wordsInSent.length; i++) mapping[wordsInSent[i]] = '';
+        }
+      }
+      info[p.id] = { mapping, sentenceWordRanges, totalWords };
+    }
+    return info;
+  }, [polygons]);
+
+  // Build GlitchSubstitution: sentence mask → word mask + sentence-aware word mapping
   const exhibitSubstitutions = useMemo(() => {
     if (!exhibitMode) return undefined;
     const subs: Record<string, GlitchSubstitution> = {};
     for (const p of polygons) {
-      const enWordCount = countWords(splitWordParts(p.text));
-      const koWordsRaw = splitWordParts(p.textKo ?? '').filter(
-        (part, i) => i % 2 === 0 && part.length > 0,
-      );
-      const mapping = buildWordMapping(enWordCount, koWordsRaw);
-      const mask = glitchMasks[p.id] ?? new Array(enWordCount).fill(false);
-      subs[p.id] = { mask, mapping };
+      const wi = sentenceWordInfo[p.id];
+      if (!wi) continue;
+      const sentMask = glitchMasks[p.id] ?? [];
+
+      // Expand sentence mask to word mask
+      const wordMask = new Array(wi.totalWords).fill(false);
+      const shiftFactors = new Array(wi.totalWords).fill(0);
+      for (let si = 0; si < sentMask.length; si++) {
+        if (!sentMask[si]) continue;
+        const [start, end] = wi.sentenceWordRanges[si] ?? [-1, -1];
+        if (start < 0) continue;
+        for (let w = start; w < end; w++) wordMask[w] = true;
+        // Random alignment for this sentence (re-rolls each tick)
+        shiftFactors[start] = Math.random();
+      }
+      subs[p.id] = { mask: wordMask, mapping: wi.mapping, shiftFactors };
     }
     return subs;
-  }, [exhibitMode, polygons, glitchMasks]);
+  }, [exhibitMode, polygons, glitchMasks, sentenceWordInfo]);
 
   // ── Typing order preview (for UI) ──
   const typingSequenceView = useMemo(() => computeTypingSequence(polygons), [polygons]);
@@ -413,20 +559,18 @@ export default function PretextDemo() {
   useEffect(() => {
     if (!exhibitMode) return;
 
-    // Pre-compute per-poly word ranges (wordEnds)
-    const polyWordEnds: Record<string, number[]> = {};
+    // Pre-compute per-polygon sentence end positions (char index where EN sentence ends in poly.text)
+    // Look up sentenceMap from DEFAULT_POLYGONS (state may lack it due to HMR)
+    const defaultMap = new Map(DEFAULT_POLYGONS.map(p => [p.id, p.sentenceMap]));
+    const polySentenceEnds: Record<string, number[]> = {};
     for (const p of polygons) {
-      const parts = splitWordParts(p.text);
+      const map = p.sentenceMap ?? defaultMap.get(p.id) ?? [];
       const ends: number[] = [];
-      let charIdx = 0;
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (i % 2 === 0 && part.length > 0) {
-          ends.push(charIdx + part.length);
-        }
-        charIdx += part.length;
+      for (const [enSentence] of map) {
+        const idx = p.text.indexOf(enSentence);
+        ends.push(idx >= 0 ? idx + enSentence.length : p.text.length);
       }
-      polyWordEnds[p.id] = ends;
+      polySentenceEnds[p.id] = ends;
     }
 
     const tick = window.setInterval(() => {
@@ -445,7 +589,6 @@ export default function PretextDemo() {
         const smoothed = raw * raw * (3 - 2 * raw);
         settleFade = 1 - smoothed;
         if (raw >= 1) {
-          // Fully settled → clear masks and trigger ink bleed
           window.clearInterval(tick);
           setGlitchMasks({});
           setExhibitPhase('inkBleed');
@@ -456,8 +599,8 @@ export default function PretextDemo() {
       setGlitchMasks(() => {
         const next: Record<string, boolean[]> = {};
         for (const p of polygons) {
-          const wordEnds = polyWordEnds[p.id] ?? [];
-          const n = wordEnds.length;
+          const sentenceEnds = polySentenceEnds[p.id] ?? [];
+          const n = sentenceEnds.length;
           if (n === 0) continue;
 
           const typed = typedNow[p.id] ?? 0;
@@ -465,15 +608,17 @@ export default function PretextDemo() {
           starts[p.id] = polyStarts;
 
           const mask = new Array(n).fill(false);
-          for (let wi = 0; wi < n; wi++) {
-            if (typed < wordEnds[wi]) continue; // word not yet fully typed
-            if (!polyStarts[wi]) polyStarts[wi] = now;
-            const elapsed = now - polyStarts[wi];
+          for (let si = 0; si < n; si++) {
+            if (typed < sentenceEnds[si]) continue;
+
+            if (!polyStarts[si]) polyStarts[si] = now + Math.random() * 3000; // 0~3s random delay
+            const elapsed = now - polyStarts[si];
+            if (elapsed < 0) continue; // still waiting for delayed start
             const raw = Math.min(1, elapsed / EXHIBIT_GLITCH_RAMP);
-            const rampProgress = raw * raw * (3 - 2 * raw); // smoothstep
+            const rampProgress = raw * raw * (3 - 2 * raw);
             const base = rampProgress * EXHIBIT_GLITCH_PEAK;
             const effective = Math.max(0, base * settleFade);
-            mask[wi] = Math.random() < effective;
+            mask[si] = Math.random() < effective;
           }
           next[p.id] = mask;
         }
@@ -1092,6 +1237,7 @@ export default function PretextDemo() {
             config={config}
             typingProgress={exhibitMode ? typingProg : undefined}
             glitchSubstitutions={exhibitSubstitutions}
+            svgOpacity={exhibitPhase === 'inkBleed' ? 0 : 1}
             style={{
               boxShadow: exhibitMode ? 'none' : '0 4px 20px rgba(0,0,0,0.15)',
               display: 'block',
@@ -1215,6 +1361,7 @@ export default function PretextDemo() {
               sourceCanvas={pretextCanvasRef.current}
               onStop={() => setInkBleedActive(false)}
               hideTuning={exhibitMode}
+              fullscreen={exhibitMode}
             />
           )}
 

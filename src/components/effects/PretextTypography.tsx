@@ -71,6 +71,8 @@ export type TextPolygon = {
   fanPivot?: number;
   /** 텍스트 반복: true면 텍스트 끝나도 처음부터 다시 채움 */
   repeat?: boolean;
+  /** Sentence-level EN↔KO mapping for exhibit glitch. Each pair: [enSentence, koSentence] */
+  sentenceMap?: [string, string][];
 };
 
 // ── 폴리곤 ↔ 스캔라인 교차 계산 ──
@@ -127,25 +129,40 @@ function getPolygonYRange(vertices: [number, number][], canvasH: number): { top:
   return { top: minY, bottom: maxY };
 }
 
-// ── Outline 모드: 폴리곤 외곽선을 따라 텍스트 렌더링 ──
+// ── Outline 모드: word-level glitch + frozen layout cache ──
 
-function renderOutlineText(
-  ctx: CanvasRenderingContext2D,
-  poly: TextPolygon,
+/** Perimeter segment in canvas coordinates. */
+type Seg = { x1: number; y1: number; x2: number; y2: number; len: number; angle: number };
+
+/** Cached word position along polygon perimeter (frozen EN layout). */
+interface OutlineLayoutWord {
+  wordIdx: number;
+  text: string;        // EN word
+  charStart: number;   // char index in full poly.text (inclusive)
+  charEnd: number;     // char index in full poly.text (exclusive)
+  perimStart: number;  // perimeter offset where this word begins
+}
+
+/** Frozen outline layout — cached per polygon to skip per-tick recomputation. */
+interface OutlineLayoutEntry {
+  key: string;
+  segs: Seg[];
+  totalLen: number;
+  words: OutlineLayoutWord[];
+}
+
+/** Build perimeter segments from polygon vertices (canvas coordinates). */
+function buildPerimeterSegments(
+  vertices: [number, number][],
   cw: number,
   ch: number,
-) {
-  const verts = poly.vertices;
-  const n = verts.length;
-
-  // 1. 폴리곤 둘레 선분 구축 (캔버스 좌표)
-  type Seg = { x1: number; y1: number; x2: number; y2: number; len: number; angle: number };
+): { segs: Seg[]; totalLen: number } {
   const segs: Seg[] = [];
   let totalLen = 0;
-
+  const n = vertices.length;
   for (let i = 0; i < n; i++) {
-    const [ax, ay] = verts[i];
-    const [bx, by] = verts[(i + 1) % n];
+    const [ax, ay] = vertices[i];
+    const [bx, by] = vertices[(i + 1) % n];
     const x1 = ax * cw, y1 = ay * ch;
     const x2 = bx * cw, y2 = by * ch;
     const dx = x2 - x1, dy = y2 - y1;
@@ -153,62 +170,161 @@ function renderOutlineText(
     segs.push({ x1, y1, x2, y2, len, angle: Math.atan2(dy, dx) });
     totalLen += len;
   }
+  return { segs, totalLen };
+}
 
-  // 2. 텍스트를 둘레를 따라 배치 — 텍스트 반복으로 전체 둘레 채움
+/** Convert global perimeter offset to canvas position + edge angle. */
+function perimOffsetToPos(
+  segs: Seg[],
+  offset: number,
+): { px: number; py: number; angle: number } | null {
+  let remaining = offset;
+  for (const seg of segs) {
+    if (remaining <= seg.len) {
+      const t = Math.min(remaining / seg.len, 1);
+      return {
+        px: seg.x1 + (seg.x2 - seg.x1) * t,
+        py: seg.y1 + (seg.y2 - seg.y1) * t,
+        angle: seg.angle,
+      };
+    }
+    remaining -= seg.len;
+  }
+  return null;
+}
+
+/**
+ * Compute frozen outline layout: walk EN text along perimeter,
+ * recording each word's perimeter start offset. Whitespace advances
+ * the offset but is not recorded (gap between words).
+ */
+function computeOutlineLayout(
+  ctx: CanvasRenderingContext2D,
+  poly: TextPolygon,
+  segs: Seg[],
+  totalLen: number,
+  cacheKey: string,
+): OutlineLayoutEntry {
   ctx.save();
   ctx.font = poly.font;
+
+  const parts = poly.text.split(/(\s+)/);
+  const words: OutlineLayoutWord[] = [];
+  let perimOffset = 0;
+  let charIdx = 0;
+  let wordIdx = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.length === 0) continue;
+
+    if (i % 2 === 0) {
+      words.push({
+        wordIdx,
+        text: part,
+        charStart: charIdx,
+        charEnd: charIdx + part.length,
+        perimStart: perimOffset,
+      });
+      wordIdx++;
+    }
+
+    // Advance perimeter by per-char widths (matches original char walker spacing)
+    for (const c of part) {
+      perimOffset += ctx.measureText(c).width + 0.3;
+    }
+    charIdx += part.length;
+  }
+
+  ctx.restore();
+  return { key: cacheKey, segs, totalLen, words };
+}
+
+/**
+ * Render outline text from cached layout with word-level glitch substitution.
+ * Each word starts at its frozen EN perimeter position. Glitched words render
+ * KO chars from the same start (natural overflow/gap, no global reflow).
+ */
+function renderOutlineFromLayout(
+  ctx: CanvasRenderingContext2D,
+  layout: OutlineLayoutEntry,
+  poly: TextPolygon,
+  sub: GlitchSubstitution | null,
+  typedLimit: number,
+  koFont: string | undefined,
+) {
+  ctx.save();
   ctx.fillStyle = poly.color;
   ctx.textBaseline = 'middle';
 
-  const text = poly.text;
-  let textIdx = 0;
+  for (const word of layout.words) {
+    // Typing clip: skip words not yet reached
+    if (word.charStart >= typedLimit) continue;
 
-  let si = 0;
-  let offset = 0;
-  let traveled = 0;
+    // Check glitch mask
+    const swap = sub?.mask?.[word.wordIdx] ?? false;
+    const koText = (swap ? sub?.mapping?.[word.wordIdx] : null) ?? null;
 
-  while (traveled < totalLen) {
-    if (si >= segs.length) break;
-    // 텍스트 끝나면 멈춤 (반복 안 함)
-    if (textIdx >= text.length) break;
+    let renderText: string;
+    let renderFont: string;
 
-    const ch_ = text[textIdx];
-    textIdx++;
-
-    const charW = ctx.measureText(ch_).width;
-    if (charW <= 0) continue;
-
-    // 현재 위치 (선분 내 offset + charW/2 지점)
-    let drawOffset = offset + charW / 2;
-
-    // 선분 끝을 넘으면 다음 선분으로
-    while (si < segs.length && drawOffset > segs[si].len) {
-      drawOffset -= segs[si].len;
-      offset = 0;
-      si++;
+    if (koText !== null && word.charEnd <= typedLimit) {
+      // Fully typed + glitched → render KO at frozen EN position
+      renderText = koText;
+      renderFont = koFont ?? poly.font;
+    } else if (word.charEnd > typedLimit) {
+      // Partially typed → render partial EN (no glitch for incomplete words)
+      const partialLen = Math.max(0, Math.floor(typedLimit) - word.charStart);
+      renderText = word.text.slice(0, partialLen);
+      renderFont = poly.font;
+    } else {
+      // Fully typed, not glitched → render EN
+      renderText = word.text;
+      renderFont = poly.font;
     }
-    if (si >= segs.length) break;
 
-    const s = segs[si];
-    const t = Math.min(drawOffset / s.len, 1);
-    const px = s.x1 + (s.x2 - s.x1) * t;
-    const py = s.y1 + (s.y2 - s.y1) * t;
+    if (renderText.length === 0) continue;
 
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.rotate(s.angle);
-    ctx.fillText(ch_, 0, 0);
-    ctx.restore();
+    // Compute perimeter shift for KO alignment
+    ctx.font = renderFont;
+    let perimShift = 0;
+    if (koText && koText.length > 0 && sub?.shiftFactors) {
+      const shift = sub.shiftFactors[word.wordIdx] ?? 0;
+      if (shift > 0) {
+        // Look ahead: sum EN perimeter widths for consecutive '' words
+        let enPerimSpan = 0;
+        ctx.font = poly.font;
+        for (const c of word.text) enPerimSpan += ctx.measureText(c).width + 0.3;
+        for (const w2 of layout.words) {
+          if (w2.wordIdx <= word.wordIdx) continue;
+          if (sub.mapping?.[w2.wordIdx] !== '') break;
+          for (const c of w2.text) enPerimSpan += ctx.measureText(c).width + 0.3;
+        }
+        // KO text perimeter width
+        ctx.font = renderFont;
+        let koPerimW = 0;
+        for (const c of renderText) koPerimW += ctx.measureText(c).width + 0.3;
+        perimShift = shift * Math.max(0, enPerimSpan - koPerimW);
+        ctx.font = renderFont;
+      }
+    }
 
-    // 전진
-    const advance = charW + 0.3;
-    offset = drawOffset - charW / 2 + advance;
-    traveled += advance;
+    // Render chars along perimeter from word's frozen start position + shift
+    ctx.font = renderFont;
+    let offset = word.perimStart + perimShift;
 
-    // offset이 현재 선분을 넘으면 다음으로
-    while (si < segs.length && offset >= segs[si].len) {
-      offset -= segs[si].len;
-      si++;
+    for (const c of renderText) {
+      const charW = ctx.measureText(c).width;
+      const pos = perimOffsetToPos(layout.segs, offset + charW / 2);
+      if (!pos) break;
+
+      ctx.save();
+      ctx.translate(pos.px, pos.py);
+      ctx.rotate(pos.angle);
+      ctx.fillText(c, 0, 0);
+      ctx.restore();
+
+      offset += charW + 0.3;
     }
   }
 
@@ -221,84 +337,137 @@ const DEFAULT_POLYGONS: TextPolygon[] = [
   { id: 'roofline', vertices: [[0.904,0.232],[0.723,0.006],[0.675,0.005],[0.356,0.182],[0.339,0.627],[0.676,0.635],[0.911,0.669]],
     text: "I want to build a madman's world out of matter. A sealed world. A room packed with delusion. It will not be understood, but its density will do the work of persuading. Or perhaps it has always been this way, perhaps every room I have ever made was a room like this. ",
     textKo: '미친 사람의 세계를 물질적으로 재현하고 싶다. 닫힌 우주. 방 안에 포진된 망상. 그것은 납득되지 않을 것이지만 그 밀도는 설득적일 것이다. 아니 언제나 그래왔을지도 모른다. 내가 만들어온 것들에 대해서 생각해보면, 나는 그때도 미쳐있었다. 오히려 그것을 모사해야하는 지금이야말로 제일 제정신이다. 다만 내가 믿지 않는 세계를 믿을 수 있게 만들 수 있을까?',
+    sentenceMap: [
+      ["I want to build a madman's world out of matter.", "미친 사람의 세계를 물질적으로 재현하고 싶다."],
+      ["A sealed world.", "닫힌 우주."],
+      ["A room packed with delusion.", "방 안에 포진된 망상."],
+      ["It will not be understood, but its density will do the work of persuading.", "그것은 납득되지 않을 것이지만 그 밀도는 설득적일 것이다."],
+      ["Or perhaps it has always been this way, perhaps every room I have ever made was a room like this.", "아니 언제나 그래왔을지도 모른다. 내가 만들어온 것들에 대해서 생각해보면, 나는 그때도 미쳐있었다. 오히려 그것을 모사해야하는 지금이야말로 제일 제정신이다. 다만 내가 믿지 않는 세계를 믿을 수 있게 만들 수 있을까?"],
+    ],
     koOverride: { font: '22.3px "DXTypeB", sans-serif' },
     typingOrder: 1,
     font: '22.3px "Oceanside Typewriter", Georgia', lineHeight: 10, color: '#333', padding: 4, mode: 'outline' },
   { id: 'front-title', vertices: [[0.356,0.144],[0.659,0.07],[0.636,0.257],[0.356,0.346]],
     text: 'I Belive in Madness.',
     textKo: '나는 광기를 믿는다.',
+    sentenceMap: [["I Belive in Madness.", "나는 광기를 믿는다."]],
     koOverride: { font: '53px "DXTypeB", sans-serif', rotation: -8, rotationEnd: -3, mode: 'fill', fanPivot: -1 },
     typingOrder: 3,
     font: '53px "Oceanside Typewriter", Georgia', lineHeight: 100, color: '#000', padding: 0, rotation: -12 },
   { id: 'front-subtitle', vertices: [[0.353,0.516],[0.632,0.483],[0.631,0.572],[0.352,0.588]],
     text: '29 October 2022. \nThe Annihilation happened three years ago.',
     textKo: '2022년 10월 29일.\n멸망은 삼년 전 일이었다.',
+    sentenceMap: [
+      ["29 October 2022.", "2022년 10월 29일."],
+      ["The Annihilation happened three years ago.", "멸망은 삼년 전 일이었다."],
+    ],
     koOverride: { font: '23px "DXTypeB", sans-serif' },
     typingOrder: 6,
     font: '23px "Oceanside Typewriter", Georgia', lineHeight: 32, color: '#000', padding: 0, rotation: -3 },
   { id: 'right-wall-top', vertices: [[0.74,0.093],[0.895,0.233],[0.894,0.268],[0.74,0.142]],
     text: 'Three years back.',
     textKo: '3년 전.',
+    sentenceMap: [["Three years back.", "3년 전."]],
     koOverride: { font: '20px "DXTypeB", sans-serif' },
     typingOrder: 9,
     font: '20px "Oceanside Typewriter", Georgia', lineHeight: 18, color: '#000', padding: 12, rotation: 25 },
   { id: 'right-wall-bottom', vertices: [[0.684,0.074],[0.728,0.084],[0.727,0.57],[0.688,0.566],[0.648,0.565],[0.647,0.09]],
     text: "Look at the things I built. I was mad then, too. It is only now, now that I have been asked to copy the madness down, that I am most sane.\nThe trouble is, can I make a world I don't believe in believable?",
     textKo: '공항에 도착한 나는 뚜렷한 환상을 보기 시작했다. 죽은 영혼들이 눈 앞에 보이고 그들의 목소리가 들렸다. 공항 안에 이상한 인물들이 나타나기 시작했다. 예를 들면 빨간 십자가를 든 예수천국 불신지옥 아저씨라거나 내 주변으로 몰려든 천사들. 아픈 사람들. ',
+    sentenceMap: [
+      ["Look at the things I built. I was mad then, too. It is only now, now that I have been asked to copy the madness down, that I am most sane.\nThe trouble is, can I make a world I don't believe in believable?", "공항에 도착한 나는 뚜렷한 환상을 보기 시작했다. 죽은 영혼들이 눈 앞에 보이고 그들의 목소리가 들렸다. 공항 안에 이상한 인물들이 나타나기 시작했다. 예를 들면 빨간 십자가를 든 예수천국 불신지옥 아저씨라거나 내 주변으로 몰려든 천사들. 아픈 사람들."],
+    ],
     koOverride: { font: '13.1px "DXTypeB", sans-serif' },
     typingOrder: 2,
     font: '12.1px "Oceanside Typewriter", Georgia', lineHeight: 13, color: '#000', padding: 6, mode: 'outline' },
   { id: 'ground', vertices: [[0.008,0.854],[0.41,1.015],[0.279,1.069],[0.008,0.967]],
     text: '2 February 2023. \nThat I saved the world that day, \nnobody needs to know.',
     textKo: '2023년 2월 2일. \n그때 내가 세상을 구했다는 사실은 아무도 알 필요 없다.',
+    sentenceMap: [
+      ["2 February 2023.", "2023년 2월 2일."],
+      ["That I saved the world that day, \nnobody needs to know.", "그때 내가 세상을 구했다는 사실은 아무도 알 필요 없다."],
+    ],
     koOverride: { font: '19.5px "DXTypeB", sans-serif', lineHeight: 29 },
     typingOrder: 13,
     font: '20px "Oceanside Typewriter", Georgia', lineHeight: 27, color: '#000', padding: 5, rotation: 12, rotationEnd: 12, fanPivot: 0 },
   { id: 'right-wall-top-copy-100', vertices: [[0.738,0.325],[0.9,0.43],[0.901,0.532],[0.735,0.456]],
     text: 'The lift at Yeongang Cham Hospital, across from the Ora-1-dong bus terminal, rises all the way into space. ',
-    textKo: '오라일동 버스터미널 맞은편 연강참병원 엘리베이터는 우주로 향한다.',
+    textKo: '오라일동 버스터미널 맞은편 연강참\n병원 엘리베이터는 우주로 향한다.',
+    sentenceMap: [["The lift at Yeongang Cham Hospital, across from the Ora-1-dong bus terminal, rises all the way into space.", "오라일동 버스터미널 맞은편 연강참\n병원 엘리베이터는 우주로 향한다."]],
     koOverride: { font: '20px "DXTypeB", sans-serif', lineHeight: 34 },
     typingOrder: 11,
     font: '20px "Oceanside Typewriter", Georgia', lineHeight: 23, color: '#000', padding: 12, rotation: 19, rotationEnd: -1 },
   { id: 'right-wall-top-copy-101', vertices: [[0.739,0.153],[0.896,0.281],[0.896,0.412],[0.736,0.31]],
     text: 'The Earth Patrol fished me out of my drift through outer space and delivered me to Jeju. \nJeju is the secret base of the magical girls.',
-    textKo: '지구방범대는 우주미아가 된 나를 수거해 제주도로 보냈다. 제주도는 마법소녀 비밀기지다.',
+    textKo: '지구방범대는 우주미아가 된\n나를 수거해 제주도로 보냈다.\n제주도는 마법소녀 비밀기지다.',
+    sentenceMap: [
+      ["The Earth Patrol fished me out of my drift through outer space and delivered me to Jeju.", "지구방범대는 우주미아가 된\n나를 수거해 제주도로 보냈다."],
+      ["Jeju is the secret base of the magical girls.", "제주도는 마법소녀 비밀기지다."],
+    ],
     koOverride: { font: '20px "DXTypeB", sans-serif', lineHeight: 34 },
     typingOrder: 10,
     font: '20px "Oceanside Typewriter", Georgia', lineHeight: 23, color: '#000', padding: 12, rotation: 22, rotationEnd: -2 },
   { id: 'right-wall-top-copy-100-copy-102', vertices: [[0.734,0.466],[0.901,0.529],[0.904,0.651],[0.732,0.606]],
     text: 'On the fifth floor, a Space President who looks like Park Geun-hye walks the corridors dressed in purple uniform.',
-    textKo: '5층에는 박근혜 닮은 우주대통령이 보라색 가운을 입고 복도를 돌아다닌다.',
+    textKo: '5층에는 박근혜 닮은 우주대통령이 \n보라색 가운을 입고 복도를 돌아다닌다.',
+    sentenceMap: [["On the fifth floor, a Space President who looks like Park Geun-hye walks the corridors dressed in purple uniform.", "5층에는 박근혜 닮은 우주대통령이 \n보라색 가운을 입고 복도를 돌아다닌다."]],
     koOverride: { font: '20px "DXTypeB", sans-serif', lineHeight: 34 },
     typingOrder: 12,
     font: '20px "Oceanside Typewriter", Georgia', lineHeight: 23, color: '#000', padding: 12, rotation: 11 },
   { id: 'ground-copy-103', vertices: [[0.008,0.733],[0.008,0.85],[0.277,1.012],[0.716,1.011],[0.888,0.869]],
     text: "My grandmother's house, the second floor, the rooftop terrace. A camping chair set out in one corner, and in front of it a tin of coffee capsules doing its duty as an ashtray. Here where I am writing, beside the chair where I sit, a bug is crossing the floor. It comes closer. Closer. \nIt seems to be looking at me. Then, reading some signal I cannot name, it turns on itself and moves off. \nSunlight. A cigarette. I have been looking through the old photographs.\nI lean toward them, then away, sickened. Like the bug…",
     textKo: '할머니집 이층 옥탑방 테라스. 한 켠에 캠핑의자를 펴 놓고, 그 앞에는 캡슐커피통을 재떨이로 쓰고 있다. 이것을 쓰고 있는 테라스에, 내가 앉아 있는 캠핑의자 옆에, 벌레가 지나가고 있다.\n점점 내 쪽으로 온다. 나를 쳐다보는 듯하다. 위험 신호를 감지했는지 다시 유턴해서 나에게서 멀어진다. \n햇빛과 담배. 그간의 사진들을 들여다보았다. 그것들에 가까워졌다가 역겨움을 느끼며 멀어진다. 벌레처럼…',
+    sentenceMap: [
+      ["My grandmother's house, the second floor, the rooftop terrace.", "할머니집 이층 옥탑방 테라스."],
+      ["A camping chair set out in one corner, and in front of it a tin of coffee capsules doing its duty as an ashtray.", "한 켠에 캠핑의자를 펴 놓고, 그 앞에는 캡슐커피통을 재떨이로 쓰고 있다."],
+      ["Here where I am writing, beside the chair where I sit, a bug is crossing the floor.", "이것을 쓰고 있는 테라스에, 내가 앉아 있는 캠핑의자 옆에, 벌레가 지나가고 있다."],
+      ["It comes closer. Closer.", "점점 내 쪽으로 온다."],
+      ["It seems to be looking at me.", "나를 쳐다보는 듯하다."],
+      ["Then, reading some signal I cannot name, it turns on itself and moves off.", "위험 신호를 감지했는지 다시 유턴해서 나에게서 멀어진다."],
+      ["Sunlight. A cigarette.", "햇빛과 담배."],
+      ["I have been looking through the old photographs.", "그간의 사진들을 들여다보았다."],
+      ["I lean toward them, then away, sickened. Like the bug…", "그것들에 가까워졌다가 역겨움을 느끼며 멀어진다. 벌레처럼…"],
+    ],
     koOverride: { font: '20px "DXTypeB", sans-serif', rotationEnd: 21, lineHeight: 35 },
     typingOrder: 8,
     font: '20px "Oceanside Typewriter", Georgia', lineHeight: 23, color: '#000', padding: 5, rotation: 5, rotationEnd: 21, fanPivot: 1 },
   { id: 'ground-copy-103-copy-106', vertices: [[0.013,0.696],[0.014,0.719],[0.894,0.856],[0.984,0.79]],
     text: 'Write anything. A promise is a promise. There is only one reason I put up with this tiresome life. Because I gave my word. I prove it by staying alive.',
     textKo: '무엇이라도 쓰자. 약속은 지켜야 하니까. 지긋지긋한 생을 버티는 이유는 단 하나다. 약속이니까. 나는 삶으로써 증명한다.',
+    sentenceMap: [
+      ["Write anything.", "무엇이라도 쓰자."],
+      ["A promise is a promise.", "약속은 지켜야 하니까."],
+      ["There is only one reason I put up with this tiresome life.", "지긋지긋한 생을 버티는 이유는 단 하나다."],
+      ["Because I gave my word.", "약속이니까."],
+      ["I prove it by staying alive.", "나는 삶으로써 증명한다."],
+    ],
     koOverride: { font: '20px "DXTypeB", sans-serif' },
     typingOrder: 7,
     font: '20px "Oceanside Typewriter", Georgia', lineHeight: 13, color: '#000', padding: 5, rotation: 3, rotationEnd: 14, fanPivot: 1 },
   { id: 'front-title-copy-100', vertices: [[0.365,0.242],[0.643,0.197],[0.644,0.363],[0.359,0.44]],
     text: "I don't believe.",
     textKo: '믿지 않는다.',
+    sentenceMap: [["I don't believe.", "믿지 않는다."]],
     koOverride: { font: '60px "DXTypeB", sans-serif', rotation: -6, rotationEnd: 1 },
     typingOrder: 4,
     font: '60px "Oceanside Typewriter", Georgia', lineHeight: 100, color: '#000', padding: 0, rotation: -8 },
   { id: 'front-title-copy-100-copy-101', vertices: [[0.361,0.347],[0.645,0.316],[0.64,0.463],[0.352,0.544]],
     text: 'Be lie —-ve?.',
     textKo: '믿?.',
+    sentenceMap: [["Be lie —-ve?.", "믿?."]],
     koOverride: { font: '65px "DXTypeB", sans-serif' },
     typingOrder: 5,
     font: '65px "Oceanside Typewriter", Georgia', lineHeight: 100, color: '#000', padding: 0, rotation: -5 },
   { id: 'box-101', vertices: [[0.018,0.477],[0.308,0.394],[0.299,0.679],[0.008,0.67]],
     text: 'Jeju is an island of myths. The moment I got off the plane, I knew I had come to where I was meant to be. The world was falling to pieces. A great earthquake had hit Türkiye and Syria. And the honeybees were going missing, in their thousands.',
     textKo: '제주도는 신화의 섬. 내리자마자 내가 있어야 할 곳에 왔다는 사실을 알았다. 세상은 무너지고 있었다. 튀르키예와 시리아에는 대지진이 일어났고. 꿀벌들은 대규모 실종되고 있었다.',
+    sentenceMap: [
+      ["Jeju is an island of myths.", "제주도는 신화의 섬."],
+      ["The moment I got off the plane, I knew I had come to where I was meant to be.", "내리자마자 내가 있어야 할 곳에 왔다는 사실을 알았다."],
+      ["The world was falling to pieces.", "세상은 무너지고 있었다."],
+      ["A great earthquake had hit Türkiye and Syria.", "튀르키예와 시리아에는 대지진이 일어났고."],
+      ["And the honeybees were going missing, in their thousands.", "꿀벌들은 대규모 실종되고 있었다."],
+    ],
     koOverride: { font: '20px "DXTypeB", sans-serif' },
     typingOrder: 14,
     font: '20px "Oceanside Typewriter", Georgia', lineHeight: 32, color: '#000', padding: 8, rotation: -10, rotationEnd: 14 },
@@ -340,6 +509,8 @@ type Props = {
    * KO substitutions render at the EN word position (overflow or gap natural).
    */
   glitchSubstitutions?: Record<string, GlitchSubstitution>;
+  /** SVG overlay opacity (0~1). Fade to 0 during ink bleed phase. Default 1. */
+  svgOpacity?: number;
 };
 
 /** SVG selectable overlay — one entry per rendered line (fill mode). */
@@ -375,11 +546,15 @@ interface CachedWord {
 
 /** A single pretext-computed line within a polygon. */
 interface CachedLine {
+  text: string;           // Line text from materializeLineRange
   drawX: number;          // In local frame (inside group transform if present)
   drawY: number;
+  globalWordIdxStart: number;  // Starting global word index for drawLineByWords
   words: CachedWord[];
-  /** Fan mode: additional rotation (deg) around fanPivot applied per line */
-  fanRotateDeg?: number;
+  /** Fan mode: total rotation (rad) around fanPivot for this line */
+  fanRotateRad?: number;
+  /** SVG transform string for this line */
+  svgTransform?: string;
 }
 
 /** Frozen layout for a single fill-mode polygon. */
@@ -389,6 +564,7 @@ interface CachedPolygon {
   font: string;           // EN font
   koFont?: string;        // KO font (from koOverride)
   color: string;
+  lineHeight: number;
   lines: CachedLine[];
   /** Non-fan rotated fill */
   groupTransform?: { pivX: number; pivY: number; rotDeg: number };
@@ -402,6 +578,8 @@ export interface GlitchSubstitution {
   mask: boolean[];
   /** mapping[wordIdx] = KO substitution string, or null if no KO available for that slot */
   mapping: (string | null)[];
+  /** Per-word shift factor 0~1 (0=left, 0.5=center, 1=right). KO text shifts within EN slack. */
+  shiftFactors?: number[];
 }
 
 /** Pre-compute char range for each word (whitespace-split) in full text. */
@@ -437,6 +615,7 @@ function drawLineByWords(
   wordRanges: { start: number; end: number }[] | null,
   sub: GlitchSubstitution | null,
   typedLimit: number,
+  lineHeight: number = 20,
 ): number {
   const parts = lineText.split(/(\s+)/);
   let xOffset = 0;
@@ -462,12 +641,36 @@ function drawLineByWords(
         const swap = sub?.mask?.[wIdx] ?? false;
         const koText = swap ? sub?.mapping?.[wIdx] ?? null : null;
         if (koText !== null && koText !== undefined) {
-          // KO substitution — draw with KO font at EN position
-          ctx.save();
-          if (koFont) ctx.font = koFont;
-          ctx.fillText(koText, drawX + xOffset, drawY);
-          ctx.restore();
-          ctx.font = baseFont;
+          if (koText.length > 0) {
+            // KO substitution — draw with KO font + random alignment shift
+            ctx.save();
+            if (koFont) ctx.font = koFont;
+            // Look ahead: sum EN widths for consecutive '' words (same sentence)
+            let enSlack = partWidth;
+            ctx.font = baseFont;
+            let tw = wIdx + 1;
+            for (let j = i + 1; j < parts.length; j++) {
+              const lp = parts[j];
+              if (lp.length === 0) continue;
+              const lpW = ctx.measureText(lp).width;
+              if (j % 2 === 0) {
+                if (sub?.mapping?.[tw] === '') { enSlack += lpW; tw++; } else break;
+              } else { enSlack += lpW; }
+            }
+            if (koFont) ctx.font = koFont;
+            const shift = sub?.shiftFactors?.[wIdx] ?? 0;
+            // Handle \n in KO text — render each line separately
+            const koLines = koText.split('\n');
+            const koFirstWidth = ctx.measureText(koLines[0]).width;
+            const slack = enSlack - koFirstWidth;
+            const shiftPx = shift * Math.max(0, slack);
+            for (let li = 0; li < koLines.length; li++) {
+              ctx.fillText(koLines[li], drawX + xOffset + shiftPx, drawY + li * lineHeight);
+            }
+            ctx.restore();
+            ctx.font = baseFont;
+          }
+          // koText === '' → suppressed word, draw nothing
         } else {
           ctx.fillText(part, drawX + xOffset, drawY);
         }
@@ -535,6 +738,74 @@ function splitLineWords(
   return { words, nextGlobalWordIdx: globalWordIdx, nextCharIdx: charIdx };
 }
 
+/** Count words in a line text (matches drawLineByWords splitting logic). */
+function countLineWords(text: string): number {
+  return text.split(/(\s+)/).filter((p, i) => i % 2 === 0 && p.length > 0).length;
+}
+
+/**
+ * Render fill-mode polygon from cached layout. Each line is drawn at its
+ * frozen position. Glitch substitution and typing clip applied via drawLineByWords.
+ */
+function renderFillFromCache(
+  ctx: CanvasRenderingContext2D,
+  cache: CachedPolygon,
+  poly: TextPolygon,
+  sub: GlitchSubstitution | null,
+  wordRanges: { start: number; end: number }[] | null,
+  typedLimit: number,
+  koFont: string | undefined,
+  perWordMode: boolean,
+  collected: SvgLine[],
+) {
+  ctx.save();
+  ctx.fillStyle = cache.color;
+  ctx.font = cache.font;
+  ctx.textBaseline = 'top';
+
+  if (cache.groupTransform) {
+    const { pivX, pivY, rotDeg } = cache.groupTransform;
+    ctx.translate(pivX, pivY);
+    ctx.rotate((rotDeg * Math.PI) / 180);
+  }
+
+  for (const line of cache.lines) {
+    const isFan = line.fanRotateRad !== undefined && cache.fanPivot !== undefined;
+
+    if (isFan) {
+      ctx.save();
+      ctx.translate(cache.fanPivot!.pivX, cache.fanPivot!.pivY);
+      ctx.rotate(line.fanRotateRad!);
+    }
+
+    if (perWordMode) {
+      drawLineByWords(
+        ctx, line.text, line.drawX, line.drawY,
+        cache.font, koFont,
+        line.globalWordIdxStart,
+        wordRanges, sub, typedLimit, cache.lineHeight,
+      );
+    } else {
+      ctx.fillText(line.text, line.drawX, line.drawY);
+    }
+
+    collected.push({
+      key: `${poly.id}-${collected.length}`,
+      text: line.text,
+      x: line.drawX,
+      y: line.drawY,
+      font: cache.font,
+      transform: line.svgTransform,
+    });
+
+    if (isFan) {
+      ctx.restore();
+    }
+  }
+
+  ctx.restore();
+}
+
 export function PretextTypography({
   backgroundSrc,
   backgroundAlpha = 0.2,
@@ -544,6 +815,7 @@ export function PretextTypography({
   style,
   typingProgress,
   glitchSubstitutions,
+  svgOpacity = 1,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bgImg = useRef<HTMLImageElement | null>(null);
@@ -551,6 +823,10 @@ export function PretextTypography({
   const [fontReady, setFontReady] = useState(false);
   const [svgLines, setSvgLines] = useState<SvgLine[]>([]);
   const [svgOutlines, setSvgOutlines] = useState<SvgOutline[]>([]);
+  /** Outline layout cache — frozen EN perimeter positions, survives glitch ticks */
+  const outlineCacheRef = useRef<Map<string, OutlineLayoutEntry>>(new Map());
+  /** Fill layout cache — frozen Pretext line positions, survives glitch ticks */
+  const fillCacheRef = useRef<Map<string, CachedPolygon>>(new Map());
   const ready = bgReady && fontReady;
 
   // 커스텀 폰트 로드 — @font-face CSS + FontFace API 병행
@@ -683,17 +959,24 @@ export function PretextTypography({
         ctx.restore();
       }
 
-      // outline 모드: 외곽선을 따라 텍스트
+      // outline 모드: word-level glitch + frozen layout cache
       if (poly.mode === 'outline') {
-        // Typing clip: slice to typedLimit (chars already typed).
-        // Outline walker is char-by-char so slicing preserves per-char positions.
+        // Build or retrieve cached layout (frozen EN perimeter positions)
+        const cacheKey = buildCacheKey(poly, cw, ch);
+        let layout = outlineCacheRef.current.get(poly.id);
+        if (!layout || layout.key !== cacheKey) {
+          const { segs, totalLen } = buildPerimeterSegments(poly.vertices, cw, ch);
+          layout = computeOutlineLayout(ctx, poly, segs, totalLen, cacheKey);
+          outlineCacheRef.current.set(poly.id, layout);
+        }
+        // Render from cached positions with glitch substitution
+        renderOutlineFromLayout(ctx, layout, poly, sub, typedLimit, koFont);
+
+        // SVG: polygon perimeter path + textPath for native browser selection
         const effText =
           typedLimit < poly.text.length
             ? poly.text.slice(0, Math.max(0, Math.floor(typedLimit)))
             : poly.text;
-        const effPoly = effText === poly.text ? poly : { ...poly, text: effText };
-        renderOutlineText(ctx, effPoly, cw, ch);
-        // SVG: polygon perimeter path + textPath for native browser selection
         if (poly.vertices.length >= 2 && effText.length > 0) {
           const pathD =
             poly.vertices
@@ -712,7 +995,29 @@ export function PretextTypography({
         continue;
       }
 
-      // fill 모드: 수평 / 회전 / 방사형 텍스트 + 폴리곤 가변 마진
+      // Clip fill rendering to polygon bounds (prevents KO sentence overflow)
+      ctx.save();
+      ctx.beginPath();
+      poly.vertices.forEach(([x, y], i) => {
+        const px = x * cw, py = y * ch;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.clip();
+
+      // fill 모드: layout cache — Pretext 라인 위치 캐시
+      const fillCacheKey = buildCacheKey(poly, cw, ch);
+      const existingFill = fillCacheRef.current.get(poly.id);
+      if (existingFill && existingFill.key === fillCacheKey) {
+        renderFillFromCache(ctx, existingFill, poly, sub, wordRanges, typedLimit, koFont, perWordMode, collected);
+        ctx.restore(); // polygon clip
+        continue;
+      }
+      // Cache miss — compute Pretext layout, render, and store
+      const fillLines: CachedLine[] = [];
+      let fillFanPivot: CachedPolygon['fanPivot'];
+      let fillGroupTransform: CachedPolygon['groupTransform'];
+
       const paragraphs = poly.text.split('\n');
       const padding = poly.padding ?? 0;
       const rotDeg = poly.rotation ?? 0;
@@ -732,6 +1037,7 @@ export function PretextTypography({
         if (!pivVert) continue;
         const pivX = pivVert[0] * cw;
         const pivY = pivVert[1] * ch;
+        fillFanPivot = { pivX, pivY };
 
         // rot 각도로 역회전한 폴리곤 (피벗 기준, 픽셀 좌표)
         const cosB = Math.cos(-baseRad), sinB = Math.sin(-baseRad);
@@ -805,7 +1111,7 @@ export function PretextTypography({
                 ctx, line.text, drawX, ry,
                 poly.font, koFont,
                 globalWordIdxRef.current,
-                wordRanges, sub, typedLimit,
+                wordRanges, sub, typedLimit, poly.lineHeight,
               );
             } else {
               ctx.fillText(line.text, drawX, ry);
@@ -814,13 +1120,20 @@ export function PretextTypography({
 
             // SVG: fan 모드 — per-line 회전 + 피벗 이동
             const totalDegFan = ((baseRad + spreadRad) * 180) / Math.PI;
+            const fanSvgXform = `translate(${pivX} ${pivY}) rotate(${totalDegFan})`;
             collected.push({
               key: `${poly.id}-${rep}-${collected.length}`,
               text: line.text,
               x: drawX,
               y: ry,
               font: poly.font,
-              transform: `translate(${pivX} ${pivY}) rotate(${totalDegFan})`,
+              transform: fanSvgXform,
+            });
+            fillLines.push({
+              text: line.text, drawX, drawY: ry,
+              globalWordIdxStart: 0, words: [],
+              fanRotateRad: baseRad + spreadRad,
+              svgTransform: fanSvgXform,
             });
 
             cursor = range.end;
@@ -829,7 +1142,16 @@ export function PretextTypography({
         }
         } // repeat loop
 
+        // Store fill cache (fan mode)
+        let wordIdx = 0;
+        for (const fl of fillLines) { fl.globalWordIdxStart = wordIdx; wordIdx += countLineWords(fl.text); }
+        fillCacheRef.current.set(poly.id, {
+          key: fillCacheKey, font: poly.font, koFont: poly.koOverride?.font,
+          color: poly.color, lineHeight: poly.lineHeight, lines: fillLines, fanPivot: fillFanPivot,
+        });
+
         ctx.restore();
+        ctx.restore(); // polygon clip
         continue;
       }
 
@@ -886,6 +1208,7 @@ export function PretextTypography({
         ctx.translate(pivX, pivY);
         ctx.rotate(rotRad);
         svgTransform = `translate(${pivX} ${pivY}) rotate(${rotDeg})`;
+        fillGroupTransform = { pivX, pivY, rotDeg };
       }
 
       ctx.fillStyle = poly.color;
@@ -928,7 +1251,7 @@ export function PretextTypography({
               ctx, line.text, drawX, y,
               poly.font, koFont,
               globalWordIdxRef.current,
-              wordRanges, sub, typedLimit,
+              wordRanges, sub, typedLimit, poly.lineHeight,
             );
           } else {
             ctx.fillText(line.text, drawX, y);
@@ -943,6 +1266,11 @@ export function PretextTypography({
             font: poly.font,
             transform: svgTransform,
           });
+          fillLines.push({
+            text: line.text, drawX, drawY: y,
+            globalWordIdxStart: 0, words: [],
+            svgTransform,
+          });
 
           cursor = range.end;
           y += poly.lineHeight;
@@ -950,7 +1278,16 @@ export function PretextTypography({
       }
       } // repeat loop
 
+      // Store fill cache (horizontal/rotated mode)
+      let wordIdx = 0;
+      for (const fl of fillLines) { fl.globalWordIdxStart = wordIdx; wordIdx += countLineWords(fl.text); }
+      fillCacheRef.current.set(poly.id, {
+        key: fillCacheKey, font: poly.font, koFont: poly.koOverride?.font,
+        color: poly.color, lineHeight: poly.lineHeight, lines: fillLines, groupTransform: fillGroupTransform,
+      });
+
       ctx.restore();
+      ctx.restore(); // polygon clip
     }
 
     // Commit collected lines to SVG overlay state
@@ -995,7 +1332,9 @@ export function PretextTypography({
           height: '100%',
           userSelect: 'text',
           WebkitUserSelect: 'text',
-          pointerEvents: 'auto',
+          pointerEvents: svgOpacity > 0 ? 'auto' : 'none',
+          opacity: svgOpacity,
+          transition: 'opacity 1.5s ease-out',
         }}
       >
         <defs>
