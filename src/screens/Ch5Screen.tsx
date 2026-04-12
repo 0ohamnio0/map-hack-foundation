@@ -25,7 +25,12 @@ const BLOG_POSTS = [
   },
 ]
 
-export const Ch5Screen: React.FC = () => {
+type Props = {
+  /** Overlay mode: transparent bg + inverted colors (white on black ink bleed) */
+  overlayMode?: boolean;
+};
+
+export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   const { play, loop } = useSoundManager()
   const [text, setText] = useState('')
   const [count, setCount] = useState(0)
@@ -35,15 +40,34 @@ export const Ch5Screen: React.FC = () => {
   const [showLink, setShowLink] = useState(false)
   const [ending, setEnding] = useState(false)
   const [endingOpacity, setEndingOpacity] = useState(0)
+  const [mountOpacity, setMountOpacity] = useState(overlayMode ? 0 : 1)
   const textareaRef = useRef<HTMLDivElement>(null)
 
+  // Theme colors — inverted for overlay mode
+  const fg = overlayMode ? '#fff' : '#000';
+  const bg = overlayMode ? 'transparent' : '#fff';
+  const border = overlayMode ? '#fff' : '#000';
+  const borderSub = overlayMode ? '#444' : '#ddd';
+  const borderFaint = overlayMode ? '#333' : '#eee';
+  const muted = overlayMode ? '#888' : '#bbb';
+  const mutedDark = overlayMode ? '#aaa' : '#999';
+  const cardBg = overlayMode ? 'rgba(255,255,255,0.05)' : '#fff';
+  const cardHover = overlayMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5';
+  const inputBg = overlayMode ? 'rgba(255,255,255,0.03)' : '#fafafa';
+
   useEffect(() => {
-    play('boot_sound')
-    loop('pc_fan', true)
+    if (!overlayMode) {
+      play('boot_sound')
+      loop('pc_fan', true)
+    }
     // Auto focus typing area
-    setTimeout(() => textareaRef.current?.focus(), 500)
-    return () => { loop('pc_fan', false) }
-  }, [play, loop])
+    setTimeout(() => textareaRef.current?.focus(), overlayMode ? 2000 : 500)
+    // Fade-in for overlay mode
+    if (overlayMode) {
+      requestAnimationFrame(() => setMountOpacity(1));
+    }
+    return () => { if (!overlayMode) loop('pc_fan', false) }
+  }, [play, loop, overlayMode])
 
   useEffect(() => {
     if (count >= 5 && !showMessage) {
@@ -80,7 +104,7 @@ export const Ch5Screen: React.FC = () => {
       <div style={{
         position: 'fixed', inset: 0, backgroundColor: '#000',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        zIndex: 100, opacity: endingOpacity, transition: 'opacity 2s ease', gap: 12,
+        zIndex: overlayMode ? 20 : 100, opacity: endingOpacity, transition: 'opacity 2s ease', gap: 12,
       }}>
         <h1 style={{ fontFamily: "'Nanum Myeongjo', serif", color: '#fff', fontSize: '2rem', marginBottom: '0.5rem' }}>
           Map Hack
@@ -104,12 +128,14 @@ export const Ch5Screen: React.FC = () => {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      backgroundColor: '#fff',
+      backgroundColor: bg,
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      zIndex: 100,
+      zIndex: overlayMode ? 20 : 100,
       fontFamily: "'Nanum Myeongjo', 'Batang', serif",
-      fontSize: 14, color: '#000',
+      fontSize: 14, color: fg,
       overflowY: 'auto',
+      opacity: mountOpacity,
+      transition: overlayMode ? 'opacity 2s ease' : 'none',
     }}>
       {/* Google Fonts link for Nanum Myeongjo */}
       <style>{`
@@ -124,19 +150,19 @@ export const Ch5Screen: React.FC = () => {
       <div style={{
         width: '100%', maxWidth: 960,
         minHeight: '100vh',
-        border: '5px solid #000',
-        backgroundColor: '#fff',
+        border: `5px solid ${border}`,
+        backgroundColor: bg,
         display: 'flex', flexDirection: 'column',
       }}>
 
         {/* === Blog title / header area === */}
         <div style={{
           padding: '40px 30px 20px',
-          borderBottom: '1px solid #000',
+          borderBottom: `1px solid ${border}`,
         }}>
           <h1 style={{
             fontFamily: "'Nanum Myeongjo', serif",
-            fontSize: 28, fontWeight: 800, color: '#000',
+            fontSize: 28, fontWeight: 800, color: fg,
             letterSpacing: 2, margin: 0,
           }}>
             앙팡 테리블
@@ -153,16 +179,16 @@ export const Ch5Screen: React.FC = () => {
         {/* === Navigation tabs === */}
         <div style={{
           display: 'flex', gap: 0,
-          borderBottom: '1px solid #000',
+          borderBottom: `1px solid ${border}`,
         }}>
           {['blog', 'guest'].map((tab, i) => (
             <div key={tab} style={{
               padding: '10px 24px',
               fontSize: 13,
               fontFamily: "'Nanum Myeongjo', serif",
-              color: i === 0 ? '#000' : '#999',
+              color: i === 0 ? fg : mutedDark,
               fontWeight: i === 0 ? 700 : 400,
-              borderRight: '1px solid #ddd',
+              borderRight: `1px solid ${borderSub}`,
               cursor: 'default',
               letterSpacing: 1,
             }}>
@@ -177,38 +203,38 @@ export const Ch5Screen: React.FC = () => {
           {/* Sidebar — category + stats */}
           <div style={{
             width: 180, flexShrink: 0,
-            borderRight: '1px solid #ddd',
+            borderRight: `1px solid ${borderSub}`,
             padding: '20px 0',
           }}>
             {/* Category */}
             <div style={{
               padding: '8px 16px', fontSize: 12, fontWeight: 700,
-              color: '#000', borderBottom: '1px solid #eee', marginBottom: 8,
+              color: fg, borderBottom: `1px solid ${borderFaint}`, marginBottom: 8,
               letterSpacing: 1,
             }}>
               카테고리
             </div>
             <div style={{
-              padding: '6px 16px', fontSize: 12, color: '#000',
+              padding: '6px 16px', fontSize: 12, color: fg,
               fontWeight: 700, cursor: 'default',
             }}>
-              일기 <span style={{ color: '#999', fontWeight: 400 }}>(260)</span>
+              일기 <span style={{ color: mutedDark, fontWeight: 400 }}>(260)</span>
             </div>
 
             {/* Stats */}
             <div style={{
               marginTop: 30, padding: '0 16px',
-              fontSize: 11, color: '#aaa', lineHeight: 2,
+              fontSize: 11, color: muted, lineHeight: 2,
             }}>
-              <div>Today <span style={{ color: '#000' }}>5</span></div>
-              <div>Total <span style={{ color: '#000' }}>60,313</span></div>
-              <div>이웃 <span style={{ color: '#000' }}>303</span></div>
+              <div>Today <span style={{ color: fg }}>5</span></div>
+              <div>Total <span style={{ color: fg }}>60,313</span></div>
+              <div>이웃 <span style={{ color: fg }}>303</span></div>
             </div>
 
             {/* Blog info */}
             <div style={{
               marginTop: 30, padding: '0 16px',
-              fontSize: 11, color: '#bbb', lineHeight: 1.8,
+              fontSize: 11, color: muted, lineHeight: 1.8,
             }}>
               <div>희한</div>
               <div style={{ fontSize: 10 }}>0ohihano0</div>
@@ -220,18 +246,18 @@ export const Ch5Screen: React.FC = () => {
 
             {/* Post header — writing area */}
             <div style={{
-              borderBottom: '1px solid #eee', paddingBottom: 16, marginBottom: 24,
+              borderBottom: `1px solid ${borderFaint}`, paddingBottom: 16, marginBottom: 24,
             }}>
               <h2 style={{
                 fontFamily: "'Nanum Myeongjo', serif",
-                fontSize: 22, fontWeight: 700, color: '#000', marginBottom: 6, margin: 0,
+                fontSize: 22, fontWeight: 700, color: fg, marginBottom: 6, margin: 0,
               }}>
                 새 글 쓰기
               </h2>
-              <div style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: muted, marginTop: 8 }}>
                 {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                 {' · '}
-                <span style={{ color: '#999' }}>일기</span>
+                <span style={{ color: mutedDark }}>일기</span>
               </div>
             </div>
 
@@ -242,11 +268,11 @@ export const Ch5Screen: React.FC = () => {
               onKeyDown={handleKeyDown}
               style={{
                 minHeight: 160, padding: 16,
-                border: '1px solid #ddd',
+                border: `1px solid ${borderSub}`,
                 fontFamily: "'Nanum Myeongjo', serif",
-                fontSize: 15, color: '#000', lineHeight: 2,
+                fontSize: 15, color: fg, lineHeight: 2,
                 outline: 'none', cursor: 'text',
-                wordBreak: 'break-all', background: '#fafafa',
+                wordBreak: 'break-all', background: inputBg,
               }}
             >
               {text || (
@@ -259,7 +285,7 @@ export const Ch5Screen: React.FC = () => {
               <p style={{
                 marginTop: 24,
                 fontFamily: "'Nanum Myeongjo', serif",
-                fontSize: 15, color: '#666', fontStyle: 'italic', lineHeight: 2,
+                fontSize: 15, color: overlayMode ? '#aaa' : '#666', fontStyle: 'italic', lineHeight: 2,
               }}>
                 I still have ten thousand words left to say...
               </p>
@@ -269,17 +295,17 @@ export const Ch5Screen: React.FC = () => {
             {showBlog1 && (
               <a href={BLOG_POSTS[0].href} target="_blank" rel="noopener" style={{
                 display: 'block', marginTop: 24, padding: '16px 20px',
-                border: '1px solid #000', textDecoration: 'none', background: '#fff',
+                border: `1px solid ${border}`, textDecoration: 'none', background: cardBg,
                 transition: 'background 0.2s',
               }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f5' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
+                onMouseEnter={e => { e.currentTarget.style.background = cardHover }}
+                onMouseLeave={e => { e.currentTarget.style.background = cardBg }}
               >
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#000', marginBottom: 4, fontFamily: "'Nanum Myeongjo', serif" }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: fg, marginBottom: 4, fontFamily: "'Nanum Myeongjo', serif" }}>
                   {BLOG_POSTS[0].title}
                 </div>
-                <div style={{ fontSize: 11, color: '#bbb' }}>{BLOG_POSTS[0].date} · {BLOG_POSTS[0].category}</div>
-                <div style={{ fontSize: 13, color: '#555', marginTop: 8, lineHeight: 1.8, fontFamily: "'Nanum Myeongjo', serif" }}>
+                <div style={{ fontSize: 11, color: muted }}>{BLOG_POSTS[0].date} · {BLOG_POSTS[0].category}</div>
+                <div style={{ fontSize: 13, color: overlayMode ? '#bbb' : '#555', marginTop: 8, lineHeight: 1.8, fontFamily: "'Nanum Myeongjo', serif" }}>
                   {BLOG_POSTS[0].preview}
                 </div>
               </a>
@@ -288,17 +314,17 @@ export const Ch5Screen: React.FC = () => {
             {showBlog2 && (
               <a href={BLOG_POSTS[1].href} target="_blank" rel="noopener" style={{
                 display: 'block', marginTop: 12, padding: '16px 20px',
-                border: '1px solid #000', textDecoration: 'none', background: '#fff',
+                border: `1px solid ${border}`, textDecoration: 'none', background: cardBg,
                 transition: 'background 0.2s',
               }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f5' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
+                onMouseEnter={e => { e.currentTarget.style.background = cardHover }}
+                onMouseLeave={e => { e.currentTarget.style.background = cardBg }}
               >
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#000', marginBottom: 4, fontFamily: "'Nanum Myeongjo', serif" }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: fg, marginBottom: 4, fontFamily: "'Nanum Myeongjo', serif" }}>
                   {BLOG_POSTS[1].title}
                 </div>
-                <div style={{ fontSize: 11, color: '#bbb' }}>{BLOG_POSTS[1].date} · {BLOG_POSTS[1].category}</div>
-                <div style={{ fontSize: 13, color: '#555', marginTop: 8, lineHeight: 1.8, fontFamily: "'Nanum Myeongjo', serif" }}>
+                <div style={{ fontSize: 11, color: muted }}>{BLOG_POSTS[1].date} · {BLOG_POSTS[1].category}</div>
+                <div style={{ fontSize: 13, color: overlayMode ? '#bbb' : '#555', marginTop: 8, lineHeight: 1.8, fontFamily: "'Nanum Myeongjo', serif" }}>
                   {BLOG_POSTS[1].preview}
                 </div>
               </a>
@@ -307,7 +333,7 @@ export const Ch5Screen: React.FC = () => {
             {/* 작가노트 transition */}
             {showLink && (
               <p onClick={handleEndClick} style={{
-                marginTop: 30, fontSize: 13, color: '#000',
+                marginTop: 30, fontSize: 13, color: fg,
                 cursor: 'pointer', textDecoration: 'underline',
                 fontWeight: 700, fontFamily: "'Nanum Myeongjo', serif",
               }}>
@@ -319,8 +345,8 @@ export const Ch5Screen: React.FC = () => {
 
         {/* === Footer === */}
         <div style={{
-          borderTop: '1px solid #000', padding: '12px 30px',
-          fontSize: 10, color: '#bbb', display: 'flex', justifyContent: 'space-between',
+          borderTop: `1px solid ${border}`, padding: '12px 30px',
+          fontSize: 10, color: muted, display: 'flex', justifyContent: 'space-between',
           fontFamily: "'Nanum Myeongjo', serif",
         }}>
           <span>앙팡 테리블 · 희한</span>

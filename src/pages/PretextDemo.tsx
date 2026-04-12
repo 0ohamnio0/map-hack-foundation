@@ -20,6 +20,7 @@ import {
   type GlitchSubstitution,
 } from '@/components/effects/PretextTypography';
 import { InkBleed } from '@/components/effects/InkBleed';
+import { Ch5Screen } from '@/screens/Ch5Screen';
 
 // ── Typing / language helpers ──
 
@@ -535,10 +536,13 @@ export default function PretextDemo() {
     setPlayKey((k) => k + 1);
   }, []);
 
+  const [showCh5Overlay, setShowCh5Overlay] = useState(false);
+
   const exitExhibit = useCallback(() => {
     setExhibitMode(false);
     setExhibitPhase('idle');
     setInkBleedActive(false);
+    setShowCh5Overlay(false);
     setGlitchMasks({});
     polyWordStartsRef.current = {};
     settleStartRef.current = 0;
@@ -1360,10 +1364,14 @@ export default function PretextDemo() {
             <InkBleed
               sourceCanvas={pretextCanvasRef.current}
               onStop={() => setInkBleedActive(false)}
+              onRampComplete={() => { if (exhibitMode) setShowCh5Overlay(true); }}
               hideTuning={exhibitMode}
               fullscreen={exhibitMode}
             />
           )}
+
+          {/* CH.5 overlay — mounts after ink bleed ramp completes */}
+          {showCh5Overlay && <Ch5Screen overlayMode />}
 
           {/* Ink Bleed run button — 일반 모드에서만 */}
           {!exhibitMode && !inkBleedActive && (
