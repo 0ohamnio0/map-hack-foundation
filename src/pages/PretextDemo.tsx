@@ -293,7 +293,12 @@ function loadSaved() {
   return null;
 }
 
-export default function PretextDemo() {
+type PretextDemoProps = {
+  /** Game mode: auto-start exhibit, hide all editor UI */
+  autoExhibit?: boolean;
+};
+
+export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
   const saved = useRef(loadSaved());
 
   const [config, setConfig] = useState<TypographyConfig>(
@@ -537,6 +542,16 @@ export default function PretextDemo() {
   }, []);
 
   const [showCh5Overlay, setShowCh5Overlay] = useState(false);
+
+  // Auto-exhibit: enter exhibit mode on mount (game mode)
+  useEffect(() => {
+    if (autoExhibit) {
+      // Delay slightly to ensure fonts and canvas are ready
+      const t = setTimeout(() => enterExhibit(), 500);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoExhibit]);
 
   const exitExhibit = useCallback(() => {
     setExhibitMode(false);
@@ -1406,8 +1421,8 @@ export default function PretextDemo() {
         </div>
       </div>
 
-      {/* ── Exhibit exit + phase indicator ── */}
-      {exhibitMode && (
+      {/* ── Exhibit exit + phase indicator (hidden in game mode) ── */}
+      {exhibitMode && !autoExhibit && (
         <>
           <button
             onClick={exitExhibit}
