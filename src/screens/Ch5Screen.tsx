@@ -6,10 +6,9 @@
  * guest 탭: 방명록 — 게임 완료 유저가 고유 해시 닉네임으로 글 남김
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { Canvas } from '@react-three/fiber'
 import { useSoundManager } from '@/hooks/useSoundManager'
 import { getVisitorNickname } from '@/utils/fingerprint'
-import { RetroPC } from '@/components/ch5/RetroPC'
+import { RetroPCScene } from '@/components/ch5/RetroPCScene'
 
 const TARGET = 'mahn_mal'
 
@@ -390,54 +389,6 @@ const BrowserPopup: React.FC<{
   )
 }
 
-/* ─── CRT-styled snapshot ─── */
-const CRTSnapshot: React.FC<{
-  src: string
-  left: number; top: number; width: number; height: number
-  opacity: number
-  zIndex: number
-  position: 'fixed' | 'absolute'
-}> = ({ src, left, top, width, height, opacity, zIndex, position }) => {
-  const scanlinePeriod = Math.max(2, Math.round(height / 220)) // adapt density to size
-  return (
-    <div style={{
-      position, left, top, width, height, opacity, zIndex,
-      overflow: 'hidden',
-      borderRadius: '3% / 5%', // CRT curvature hint
-      pointerEvents: 'none', userSelect: 'none',
-      boxShadow: 'inset 0 0 12px rgba(0,0,0,0.5), inset 0 0 60px rgba(0,0,0,0.3)',
-    }}>
-      <img src={src} alt="" style={{
-        position: 'absolute', inset: 0,
-        width: '100%', height: '100%', objectFit: 'fill',
-        filter: 'contrast(1.05) saturate(0.85) brightness(0.97)',
-      }} />
-      {/* Scanlines */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: `repeating-linear-gradient(0deg, transparent 0, transparent ${scanlinePeriod}px, rgba(0,0,0,0.22) ${scanlinePeriod + 0.5}px, transparent ${scanlinePeriod + 1}px)`,
-        mixBlendMode: 'multiply',
-      }} />
-      {/* Phosphor tint */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(180,255,210,0.05)',
-        mixBlendMode: 'screen',
-      }} />
-      {/* Vignette */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.45) 100%)',
-      }} />
-      {/* Top glass highlight */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(to bottom, rgba(255,255,255,0.08) 0%, transparent 22%)',
-      }} />
-    </div>
-  )
-}
-
 /* ─── Main component ─── */
 type Props = {
   /** Overlay mode: transparent bg + inverted colors (white on black ink bleed) */
@@ -464,16 +415,9 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   // Dolly-out: 0 = play view (fullscreen blog), 1 = full computer centered on white bg
   const [dollyT, setDollyT] = useState(0)
   const [blogSnapshot, setBlogSnapshot] = useState<string | null>(null)
-  const [ledOn, setLedOn] = useState(true)
   const dollyStartRef = useRef<number | null>(null)
   const textareaRef = useRef<HTMLDivElement>(null)
   const blogWrapRef = useRef<HTMLDivElement>(null)
-
-  // Tower LED display blink — slow status-light pattern
-  useEffect(() => {
-    const id = setInterval(() => setLedOn(p => !p), 1400)
-    return () => clearInterval(id)
-  }, [])
 
   // Theme
   const t = overlayMode ? DARK_THEME : LIGHT_THEME
@@ -538,65 +482,42 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
     setTimeout(() => setEndingOpacity(1), 100)
   }
 
-  // Monitor screen rect within pc.png (2048x2048).
-  // Measured from connected-components on dark interior: (478,793) → (1063,1228), 585x435.
-  const SCREEN_CX_N = 770.5 / 2048  // 0.3762
-  const SCREEN_CY_N = 1010.5 / 2048 // 0.4934
-  const SCREEN_W_N  = 585 / 2048    // 0.2856
-  const SCREEN_H_N  = 435 / 2048    // 0.2124
-  const SCREEN_ASPECT = SCREEN_W_N / SCREEN_H_N // 1.345 (4:3-ish)
-
-  // --- Dolly-out: camera starts INSIDE monitor screen, pulls back ---
-  const pcFinalH = 55 // vh — computer height at end
-  const pcFinalCenterY = 50 // vh — computer vertical center
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1920
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 1080
-  const pcFinalHPx = (pcFinalH / 100) * vh
-  // At t=0: pc is huge so monitor screen exactly fills viewport (we're inside the screen)
-  const pcStartHPx = Math.max(vw / SCREEN_W_N, vh / SCREEN_H_N)
-  // Inverse-distance easing: distance grows linearly (camera moves at constant speed),
-  // perceived scale follows focal/distance — fast change near, slow change far. Real dolly feel.
-  const dStart = 1 / pcStartHPx
-  const dEnd   = 1 / pcFinalHPx
-  const dNow = dStart + (dEnd - dStart) * dollyT
-  const pcH = 1 / dNow
-  // At t=0: position pc so monitor screen sits at viewport center.
-  // At t=1: pc centered at viewport center (vw/2, pcFinalCenterY).
-  const pcCxAtStart = vw / 2 + (0.5 - SCREEN_CX_N) * pcH
-  const pcCyAtStart = vh / 2 + (0.5 - SCREEN_CY_N) * pcH
-  const pcCxAtEnd = vw / 2
-  const pcCyAtEnd = (pcFinalCenterY / 100) * vh
-  const pcCx = pcCxAtStart + (pcCxAtEnd - pcCxAtStart) * dollyT
-  const pcCy = pcCyAtStart + (pcCyAtEnd - pcCyAtStart) * dollyT
-  // Monitor screen rect in viewport (snapshot tracks this throughout)
-  const screenRectCx = pcCx + (SCREEN_CX_N - 0.5) * pcH
-  const screenRectCy = pcCy + (SCREEN_CY_N - 0.5) * pcH
-  const screenRectW = SCREEN_W_N * pcH
-  const screenRectH = SCREEN_H_N * pcH
-
-  // Snapshot dimensions used for html2canvas capture (monitor aspect)
-  const SNAP_W = 870
-  const SNAP_H = Math.round(SNAP_W / SCREEN_ASPECT) // 647
+  // Monitor aspect used when fitting the captured blog into the CRT screen UV
+  const SCREEN_ASPECT = 1.345
 
   // Trigger dolly-out on guestbook comment submit success (Scene 5-4)
-  // Approach (A): Capture blog at monitor aspect, then cross-fade to computer scene.
+  // Approach: capture blog at its natural rendered size, then fit into a
+  // monitor-aspect offscreen canvas (width-fit, top-crop) so the texture
+  // matches the CRT's UV without distortion.
   const triggerDolly = useCallback(async () => {
     if (dollyStartRef.current !== null) return
-    dollyStartRef.current = -1 // lock immediately to prevent double-fire
+    dollyStartRef.current = -1
     if (blogWrapRef.current) {
       try {
         const html2canvas = (await import('html2canvas')).default
-        const canvas = await html2canvas(blogWrapRef.current, {
-          backgroundColor: null,
-          scale: 2,
+        // Overlay mode runs DARK_THEME (white text on transparent) — capture
+        // against black so text stays visible. Dev mode uses the light blog.
+        const captureBg = overlayMode ? '#000000' : '#ffffff'
+        const raw = await html2canvas(blogWrapRef.current, {
+          backgroundColor: captureBg,
+          scale: 1.5,
           logging: false,
           useCORS: true,
-          width: SNAP_W,
-          height: SNAP_H,
-          windowWidth: SNAP_W,
-          windowHeight: SNAP_H,
         })
-        setBlogSnapshot(canvas.toDataURL('image/png'))
+        const dstW = Math.max(960, raw.width)
+        const dstH = Math.round(dstW / SCREEN_ASPECT)
+        const target = document.createElement('canvas')
+        target.width = dstW
+        target.height = dstH
+        const ctx = target.getContext('2d')!
+        ctx.fillStyle = captureBg
+        ctx.fillRect(0, 0, dstW, dstH)
+        // Width-fit: draw the blog at full width, aligned to the top. If the
+        // blog is taller than the screen frame, the bottom simply crops off.
+        const drawW = dstW
+        const drawH = (raw.height / raw.width) * dstW
+        ctx.drawImage(raw, 0, 0, raw.width, raw.height, 0, 0, drawW, drawH)
+        setBlogSnapshot(target.toDataURL('image/png'))
       } catch (e) {
         console.warn('[Ch5] blog snapshot failed, falling back to live DOM', e)
       }
@@ -615,49 +536,94 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       }, 1000)
     }
     requestAnimationFrame(tick)
-  }, [SNAP_H])
-
-  // Opacities — snapshot/pc visible from t=0 (snapshot fills viewport at start),
-  // white bg + shadow fade in late as scene reveals.
-  const sceneOpacity = blogSnapshot ? 1 : 0
-  const whiteBgOpacity = Math.min(1, dollyT * 1.3)
-  const shadowOpacity = Math.max(0, (dollyT - 0.5) / 0.5) * 0.85 // floor shadow appears late
+  }, [overlayMode])
 
   // --- Credits (Scene 5-4 end) ---
   if (ending) {
+    const creditSection = (heading: string, rows: Array<[string, string]>) => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{
+          fontSize: '0.72rem', letterSpacing: 4, color: '#8fa39c',
+          textTransform: 'uppercase', marginBottom: 4,
+        }}>{heading}</div>
+        {rows.map(([role, name]) => (
+          <div key={`${heading}-${role}`} style={{ display: 'flex', gap: 14, fontSize: '0.95rem' }}>
+            <span style={{ width: 120, color: '#7d8f89', textAlign: 'right', flexShrink: 0 }}>{role}</span>
+            <span style={{ color: '#dfe8e4' }}>{name}</span>
+          </div>
+        ))}
+      </div>
+    )
+
     return (
       <div style={{
-        position: 'fixed', inset: 0, backgroundColor: '#fff',
+        position: 'fixed', inset: 0, backgroundColor: '#0a0f14',
         zIndex: overlayMode ? 20 : 100, opacity: endingOpacity, transition: 'opacity 2s ease',
         overflow: 'hidden',
       }}>
-        {/* 3D retro PC scene (replaces pc.png + shadows.png + CRTSnapshot) */}
-        <Canvas
-          camera={{ position: [0, 0.2, 0.9], fov: 35, near: 0.01, far: 10 }}
-          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-          gl={{ antialias: true, alpha: true }}
-        >
-          <ambientLight intensity={0.65} />
-          <directionalLight position={[2, 4, 3]} intensity={0.9} castShadow />
-          <directionalLight position={[-2, 2, -2]} intensity={0.25} />
-          <RetroPC screenDataUrl={blogSnapshot} />
-        </Canvas>
-        {/* Credits — beside/below computer */}
+        <RetroPCScene t={1} snapshot={blogSnapshot} />
         <div style={{
-          position: 'absolute', right: '8vw', top: '20vh',
-          display: 'flex', flexDirection: 'column', gap: 10,
-          fontFamily: "'Nanum Myeongjo', serif", color: '#000',
+          position: 'absolute', right: '4vw', top: '50%', transform: 'translateY(-50%)',
+          width: 'min(32vw, 480px)', maxHeight: '80vh', overflow: 'auto',
+          display: 'flex', flexDirection: 'column', gap: 28,
+          fontFamily: "'Nanum Myeongjo', serif", color: '#dfe8e4',
+          zIndex: 3,
         }}>
-          <h1 style={{ fontSize: '1.8rem', margin: 0, letterSpacing: 2 }}>Map Hack</h1>
-          <p style={{ fontSize: '0.95rem', color: '#555', margin: 0 }}>by 송해민</p>
-          <a href={BLOG_POSTS[0].href} target="_blank" rel="noopener"
-            style={{ color: '#333', fontSize: '0.9rem', textDecoration: 'underline', marginTop: 20 }}>
-            {BLOG_POSTS[0].title}
-          </a>
-          <a href={BLOG_POSTS[1].href} target="_blank" rel="noopener"
-            style={{ color: '#333', fontSize: '0.9rem', textDecoration: 'underline' }}>
-            {BLOG_POSTS[1].title}
-          </a>
+          <div>
+            <h1 style={{
+              fontSize: '2.4rem', margin: 0, letterSpacing: 4, fontWeight: 800,
+              color: '#f0f6f2',
+            }}>Map Hack</h1>
+            <p style={{ fontSize: '0.85rem', color: '#8fa39c', margin: '6px 0 0', letterSpacing: 2 }}>
+              2026 · 송해민
+            </p>
+          </div>
+
+          {creditSection('Direction', [
+            ['Concept', '송해민'],
+            ['Writing', '송해민'],
+            ['Creative Technology', '송해민'],
+          ])}
+
+          {creditSection('Art & Code', [
+            ['Level Design', '송해민'],
+            ['3D Modeling', '송해민 · PSX Asset Pack'],
+            ['Shaders', '송해민'],
+            ['UI / Blog Clone', '송해민'],
+          ])}
+
+          {creditSection('Sound', [
+            ['Design', '송해민'],
+            ['Additional FX', 'freesound.org'],
+          ])}
+
+          {creditSection('Special Thanks', [
+            ['', '허현정'],
+            ['', '남선미'],
+            ['', '0ohihano0 독자들'],
+          ])}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+            <div style={{
+              fontSize: '0.72rem', letterSpacing: 4, color: '#8fa39c',
+              textTransform: 'uppercase', marginBottom: 4,
+            }}>Further Reading</div>
+            <a href={BLOG_POSTS[0].href} target="_blank" rel="noopener"
+              style={{ color: '#b8d4e8', fontSize: '0.9rem', textDecoration: 'underline' }}>
+              {BLOG_POSTS[0].title}
+            </a>
+            <a href={BLOG_POSTS[1].href} target="_blank" rel="noopener"
+              style={{ color: '#b8d4e8', fontSize: '0.9rem', textDecoration: 'underline' }}>
+              {BLOG_POSTS[1].title}
+            </a>
+          </div>
+
+          <p style={{
+            fontSize: '0.72rem', color: '#556964', margin: '16px 0 0',
+            fontStyle: 'italic', letterSpacing: 1,
+          }}>
+            Built with Vite · React · Three.js · Rapier · Zustand
+          </p>
         </div>
       </div>
     )
@@ -676,36 +642,10 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       opacity: mountOpacity,
       transition: overlayMode ? 'opacity 2s ease' : 'none',
     }}>
-      {/* White background fades in during dolly-out */}
-      {dollyT > 0 && (
-        <div style={{
-          position: 'fixed', inset: 0, backgroundColor: '#fff',
-          opacity: whiteBgOpacity, pointerEvents: 'none', zIndex: 0,
-        }} />
-      )}
-      {/* Floor shadow (behind computer) */}
-      {dollyT > 0 && (
-        <img src={`${import.meta.env.BASE_URL}assets/ch5/shadows.png`} alt=""
-          style={{
-            position: 'fixed', left: pcCx, top: pcCy,
-            width: pcH, height: pcH * 907 / 2048,
-            transform: 'translate(-50%, 0)',
-            opacity: shadowOpacity,
-            pointerEvents: 'none', userSelect: 'none',
-            zIndex: 1,
-          }} />
-      )}
-      {/* Computer */}
-      {dollyT > 0 && (
-        <img src={`${import.meta.env.BASE_URL}assets/ch5/${ledOn ? 'pc' : 'pc_off'}.png`} alt=""
-          style={{
-            position: 'fixed', left: pcCx, top: pcCy,
-            width: pcH, height: pcH,
-            transform: 'translate(-50%, -50%)',
-            opacity: sceneOpacity,
-            pointerEvents: 'none', userSelect: 'none',
-            zIndex: 2,
-          }} />
+      {/* 3D retro PC scene — camera dollies from inside the monitor screen
+          (t=0) to product-shot distance (t=1). */}
+      {blogSnapshot && (
+        <RetroPCScene t={dollyT} snapshot={blogSnapshot} />
       )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap');
@@ -951,20 +891,6 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
           initialY={Math.round(window.innerHeight * 0.28)}
           zIndex={152}
           onClose={() => setPopup2Closed(true)}
-        />
-      )}
-
-      {/* Blog snapshot — renders inside monitor screen rect with CRT effect */}
-      {blogSnapshot && (
-        <CRTSnapshot
-          src={blogSnapshot}
-          position="fixed"
-          left={screenRectCx - screenRectW / 2}
-          top={screenRectCy - screenRectH / 2}
-          width={screenRectW}
-          height={screenRectH}
-          opacity={sceneOpacity}
-          zIndex={3}
         />
       )}
 
