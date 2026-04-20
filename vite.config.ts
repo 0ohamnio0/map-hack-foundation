@@ -4,7 +4,7 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: "/map-hack-foundation/",
+  base: process.env.VERCEL ? "/" : "/map-hack-foundation/",
   server: {
     host: "::",
     port: 8080,

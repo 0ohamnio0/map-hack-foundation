@@ -2,6 +2,50 @@
 
 ---
 
+## 2026-04-14 — CH.5 Scene 5-4 Dolly-out (WIP)
+
+### 요약
+스토리보드 5-4 "방명록 진입 + Dolly-out 엔딩 크레딧" 1차 구현. 카메라가 모니터 안에서 시작 → 후퇴하며 컴퓨터 전체가 드러나는 연출.
+
+### 구현
+- **트리거**: 방명록 코멘트 작성 완료(`handleSubmit` 성공/실패 무관) → `triggerDolly`
+- **블로그 캡처**: `html2canvas` 동적 import. 모니터 비율(870×647, 4:3)로 캡처해 `objectFit: fill` 시 무왜곡
+- **dolly 곡선**: inverse-distance (`pcH = 1 / (dStart + (dEnd-dStart)*t)`) — 카메라 등속 후퇴, 가까울 때 빠르게 멀 때 느리게 변하는 자연스러운 dolly. 8s.
+- **시작 스케일**: pc 이미지가 모니터 스크린 = 뷰포트 꽉 차도록 거대 (`pcStartHPx = max(vw/SCREEN_W_N, vh/SCREEN_H_N)`)
+- **스크린 좌표**: pc.png(2048²)의 다크 인테리어 connected-components로 추출 → `(478,793)~(1063,1228), 585×435, 4:3`
+- **CRT 셰이더**: `<CRTSnapshot>` — 스캔라인(multiply) + 인광 그린(screen) + 비네팅 + 글래스 하이라이트 + border-radius 곡률 + inset shadow
+- **LED 블링크**: tower 디지털 디스플레이 1.4s 간격 ON/OFF 토글 (pc.png ↔ pc_off.png src 스왑)
+- **에셋**: `pc.png` (4.2M, 알파 OK), `pc_off.png` (LED 꺼짐, noillu export), `shadows.png` (Photoshop 렌더 그림자) 사용
+- **레이어 z-order**: 흰배경(0) → shadow(1) → pc(2) → 스냅샷+CRT(3)
+
+### 폐기된 시도
+- 자체 ImageMagick으로 PSD 레이어 분리 (band-split y=1480) → 알파 깨지고 거친 마스크. **해민이 H01_parts/ 폴더에 Photoshop export 제공** (flat/lighting/noillu/shadows/depth — part별 분리는 PSD에 없음)
+- 부분 parallax (앞/뒤 평면 분리) → PSD에 part-by-object 분리 없어 가짜 parallax 의미 없음. 단일 평면으로 회귀
+- 모니터 스크린 좌표 눈대중 (447×435, 거의 정사각) → 실측치 585×435 (4:3)와 30% 차이. **connected-components 자동 추출로 교체**
+- 5× 줌 + cross-fade (Approach B 1차) → "줌 폐기"로 오해 후 (A) 페이드만 시도 → 다시 (B) 복원 → 줌 폭 14×로 조정
+- 라이브 블로그 cross-fade 페이드아웃 → 스냅샷이 뷰포트 꽉 채우니 즉시 hide로 단순화
+
+### 알려진 이슈 / TODO
+- 🐛 **dolly 진행 중 스냅샷-모니터 스크린 정렬 어긋남**: 느리게 진행될수록 스냅샷이 모니터 스크린 rect와 미세하게 어긋나는 것이 보임. 추정 원인:
+  - 스냅샷 캡처 aspect (870:647 = 1.345)와 코드상 SCREEN aspect (585:435 = 1.345) 정확히 일치하나 sub-pixel 렌더링 이슈 가능
+  - pc 이미지의 브라우저 보간 vs 위치 계산의 round-off
+  - pcCx/pcCy 계산이 dollyT 각 프레임마다 재계산되며 누적 오차
+  - **다음 세션 진단**: 스냅샷 위치를 pc.png 위에 직접 합성한 정적 이미지로 비교 검증 권장
+- 매직 넘버: `pcFinalH=55`, `pcFinalCenterY=50`, `DURATION=8000`, blink 1400ms, ZOOM curve — 튜닝 필요
+- shadows.png Y 오프셋 추정값 (top=pcCy) — Photoshop export에서 원본 캔버스 Y 오프셋 소실. 시각적으로 어색하면 수동 조정
+- dead code: `handleEndClick`, `showLink` 미사용 (구버전 트리거 잔해)
+- credits 위치 (`right: 8vw, top: 20vh`) — 작은 화면에서 컴퓨터 위 침범 가능
+
+### 파일 변경
+- `src/screens/Ch5Screen.tsx` — dolly-out 상태머신, CRTSnapshot 컴포넌트, LED blink, 좌표 계산
+- `public/assets/ch5/pc.png`, `pc_off.png`, `shadows.png` — Photoshop 네이티브 export (해민 제공)
+- `package.json` — `html2canvas@1.4.1` 추가
+
+### 브랜치
+`feature/ch5-dolly-out` (main에서 분기, 미머지)
+
+---
+
 ## 2026-03-10 — QA 피드백 일괄 수정 (7건)
 
 ### 요약

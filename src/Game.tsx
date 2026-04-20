@@ -64,7 +64,15 @@ export const Game: React.FC = () => {
       case 'CH2': return <Ch2Scene />;
       case 'CH3': return <Ch3Scene />;
       case 'CH4': return <Ch4Screen />;
-      case 'CH5': return <Ch5Screen />;
+      case 'CH5':
+        // HUD-direct entry simulates the post-ink-bleed state: black backdrop
+        // standing in for the ink-bleed residue, CH.5 rendered in overlayMode.
+        return (
+          <>
+            <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 19 }} />
+            <Ch5Screen overlayMode />
+          </>
+        );
       default: return <StartScreen />;
     }
   };
