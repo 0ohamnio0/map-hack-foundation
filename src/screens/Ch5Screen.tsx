@@ -6,8 +6,10 @@
  * guest 탭: 방명록 — 게임 완료 유저가 고유 해시 닉네임으로 글 남김
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react'
+import { Canvas } from '@react-three/fiber'
 import { useSoundManager } from '@/hooks/useSoundManager'
 import { getVisitorNickname } from '@/utils/fingerprint'
+import { RetroPC } from '@/components/ch5/RetroPC'
 
 const TARGET = 'mahn_mal'
 
@@ -629,35 +631,17 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
         zIndex: overlayMode ? 20 : 100, opacity: endingOpacity, transition: 'opacity 2s ease',
         overflow: 'hidden',
       }}>
-        {/* Floor shadow (Photoshop-rendered) */}
-        <img src={`${import.meta.env.BASE_URL}assets/ch5/shadows.png`} alt=""
-          style={{
-            position: 'absolute', left: '50%', top: `${pcFinalCenterY}vh`,
-            width: `${pcFinalH}vh`, height: `${pcFinalH * 907 / 2048}vh`,
-            transform: 'translate(-50%, 0)',
-            pointerEvents: 'none', userSelect: 'none', opacity: 0.85,
-          }} />
-        {/* Computer */}
-        <img src={`${import.meta.env.BASE_URL}assets/ch5/${ledOn ? 'pc' : 'pc_off'}.png`} alt=""
-          style={{
-            position: 'absolute', left: '50%', top: `${pcFinalCenterY}vh`,
-            width: `${pcFinalH}vh`, height: `${pcFinalH}vh`,
-            transform: 'translate(-50%, -50%)',
-            pointerEvents: 'none', userSelect: 'none',
-          }} />
-        {/* Blog snapshot inside monitor screen */}
-        {blogSnapshot && (
-          <CRTSnapshot
-            src={blogSnapshot}
-            position="absolute"
-            left={screenRectCx - screenRectW / 2}
-            top={screenRectCy - screenRectH / 2}
-            width={screenRectW}
-            height={screenRectH}
-            opacity={1}
-            zIndex={3}
-          />
-        )}
+        {/* 3D retro PC scene (replaces pc.png + shadows.png + CRTSnapshot) */}
+        <Canvas
+          camera={{ position: [0, 0.2, 0.9], fov: 35, near: 0.01, far: 10 }}
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+          gl={{ antialias: true, alpha: true }}
+        >
+          <ambientLight intensity={0.65} />
+          <directionalLight position={[2, 4, 3]} intensity={0.9} castShadow />
+          <directionalLight position={[-2, 2, -2]} intensity={0.25} />
+          <RetroPC screenDataUrl={blogSnapshot} />
+        </Canvas>
         {/* Credits — beside/below computer */}
         <div style={{
           position: 'absolute', right: '8vw', top: '20vh',
