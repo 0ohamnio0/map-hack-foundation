@@ -237,14 +237,36 @@ type ExhibitPhase = 'idle' | 'running' | 'settling' | 'inkBleed';
 
 const EXHIBIT_CHAR_INTERVAL = 62;
 const EXHIBIT_POLY_DELAY = 0;
-/** ms for a single polygon's glitch progress to reach full after typing completes */
-const EXHIBIT_GLITCH_RAMP = 10000;
-/** Glitch re-roll interval — 800ms for 0.5x speed (was 400ms) */
-const EXHIBIT_GLITCH_TICK = 800; // ms (0.5x speed)
-/** Peak KO probability per word (fewer = less reflow) */
-const EXHIBIT_GLITCH_PEAK = 0.2;
+/** Max concurrent polygon typings in exhibit mode — K-lane worker pool. */
+const EXHIBIT_TYPING_LANES = 2;
 /** Settle phase duration — glitch fades back to EN before ink bleed */
 const EXHIBIT_SETTLE_DURATION = 2000;
+
+// ── Flicker FSM: fluorescent-tube-style phased transitions per sentence ──
+// Each sentence cycles: idle (EN) → ramp-in (fade EN→KO w/ jitter) → hold (KO, occasional blip) → ramp-out → idle.
+/** FSM tick rate — 40ms ≈ 25fps, smooth enough for fade perception. */
+const FLICKER_TICK_MS = 40;
+/** Delay after typing completion before first transition. */
+const FLICKER_INITIAL_DELAY_MIN = 1500;
+const FLICKER_INITIAL_DELAY_MAX = 5000;
+/** Dormant gap between consecutive transitions (EN is stable). */
+const FLICKER_DORMANT_MIN = 4000;
+const FLICKER_DORMANT_MAX = 9000;
+/** Ramp-in (EN → KO) duration — fade with glitch jitter. */
+const FLICKER_RAMP_IN_MIN = 300;
+const FLICKER_RAMP_IN_MAX = 600;
+/** Hold (full KO) duration — occasional blip drops. */
+const FLICKER_HOLD_MIN = 400;
+const FLICKER_HOLD_MAX = 1200;
+/** Ramp-out (KO → EN) duration. */
+const FLICKER_RAMP_OUT_MIN = 400;
+const FLICKER_RAMP_OUT_MAX = 700;
+/** Random per-tick alpha jitter magnitude during ramps (glitch feel). */
+const FLICKER_JITTER = 0.18;
+/** Probability per tick of a "blip" drop during hold phase (brief near-EN flash). */
+const FLICKER_BLIP_PROB = 0.08;
+/** Blip drop depth (alpha drops to this value briefly). */
+const FLICKER_BLIP_DEPTH = 0.35;
 
 /** Sort polygons by typingOrder (undefined ⇒ fallback to array index, appended). */
 function computeTypingSequence(polygons: TextPolygon[]): TextPolygon[] {
@@ -299,7 +321,8 @@ type PretextDemoProps = {
 };
 
 export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
-  const saved = useRef(loadSaved());
+  // Game mode: always use DEFAULT_POLYGONS (ignore editor's localStorage cache).
+  const saved = useRef(autoExhibit ? null : loadSaved());
 
   const [config, setConfig] = useState<TypographyConfig>(
     saved.current?.config ?? { ...DEFAULT_CONFIG, showPolygonOutlines: false },
@@ -330,9 +353,24 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
   // ── Exhibit mode state ──
   const [exhibitMode, setExhibitMode] = useState(false);
   const [exhibitPhase, setExhibitPhase] = useState<ExhibitPhase>('idle');
-  const [glitchMasks, setGlitchMasks] = useState<Record<string, boolean[]>>({});
-  // Per-word glitch start time: { [polyId]: { [wordIdx]: startMs } }
+  // Per-sentence KO opacity 0~1 (replaces boolean masks — crossfade instead of hard swap).
+  const [glitchAlphas, setGlitchAlphas] = useState<Record<string, number[]>>({});
+  // Per-word glitch start time: { [polyId]: { [wordIdx]: startMs } } (legacy, kept for compat)
   const polyWordStartsRef = useRef<Record<string, Record<number, number>>>({});
+  // Per-sentence flicker FSM state: { [polyId]: Array<FlickerState> }
+  type FlickerPhase = 'idle' | 'ramp-in' | 'hold' | 'ramp-out';
+  type FlickerState = {
+    phase: FlickerPhase;
+    phaseStart: number;
+    phaseDuration: number;
+    /** Scheduled time for idle → ramp-in transition. */
+    nextEventAt: number;
+    /** Current KO opacity 0~1. */
+    alpha: number;
+  };
+  const sentenceFSMRef = useRef<Record<string, FlickerState[]>>({});
+  // Mirror of alphas for cheap diff check inside tick (avoid redundant setState).
+  const glitchAlphasRef = useRef<Record<string, number[]>>({});
   const settleStartRef = useRef<number>(0);
 
   // Refs so the typewriter / glitch loops read latest params and state
@@ -343,11 +381,12 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
   const exhibitPhaseRef = useRef(exhibitPhase);
   exhibitPhaseRef.current = exhibitPhase;
 
-  // 자동 저장 — 상태 변경 시 localStorage에 저장
+  // 자동 저장 — 상태 변경 시 localStorage에 저장 (게임 모드는 스킵)
   useEffect(() => {
+    if (autoExhibit) return;
     const state = { polygons, config, bgAlpha, useBg, typingParams, typingEnabled };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [polygons, config, bgAlpha, useBg, typingParams, typingEnabled]);
+  }, [autoExhibit, polygons, config, bgAlpha, useBg, typingParams, typingEnabled]);
 
   // ── Typewriter effect ──
   // Reruns when user clicks replay (playKey) or flips language (cycle) or toggles typing on.
@@ -364,43 +403,68 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
     }
 
     let cancelled = false;
-    let timer: number | undefined;
+    const timers = new Set<number>();
+    const schedule = (fn: () => void, ms: number): number => {
+      const id = window.setTimeout(() => {
+        timers.delete(id);
+        if (!cancelled) fn();
+      }, ms);
+      timers.add(id);
+      return id;
+    };
 
-    // Snapshot polygons + sequence at effect start — editing during typing won't disrupt flow
-    const sequence = computeTypingSequence(polygons);
+    // Snapshot flat queue at effect start — editing during typing won't disrupt flow.
+    // Exhibit: K-lane worker pool pulls from queue head; editor: K=1 (linear).
+    const queue = computeTypingSequence(polygons);
+    const lanes = exhibitMode ? EXHIBIT_TYPING_LANES : 1;
+    let queueIdx = 0;
+    let activeLanes = 0;
 
     setTypingProg({});
     setTypingDone(false);
 
-    const step = (seqIdx: number, charIdx: number) => {
-      if (cancelled) return;
-      if (seqIdx >= sequence.length) {
-        setTypingDone(true);
+    const typePoly = (poly: TextPolygon, onDone: () => void) => {
+      const text = resolveText(poly, cycle);
+      if (text.length === 0) {
+        onDone();
         return;
       }
-      const poly = sequence[seqIdx];
-      const text = resolveText(poly, cycle);
+      let charIdx = 0;
+      const tick = () => {
+        if (cancelled) return;
+        charIdx++;
+        setTypingProg((prev) => ({ ...prev, [poly.id]: charIdx }));
+        if (charIdx < text.length) {
+          schedule(tick, typingParamsRef.current.charInterval);
+        } else {
+          onDone();
+        }
+      };
+      schedule(tick, typingParamsRef.current.charInterval);
+    };
 
-      if (charIdx < text.length) {
-        setTypingProg((prev) => ({ ...prev, [poly.id]: charIdx + 1 }));
-        timer = window.setTimeout(
-          () => step(seqIdx, charIdx + 1),
-          typingParamsRef.current.charInterval,
-        );
-      } else if (seqIdx + 1 < sequence.length) {
-        timer = window.setTimeout(
-          () => step(seqIdx + 1, 0),
-          typingParamsRef.current.polyDelay,
-        );
-      } else {
-        setTypingDone(true);
+    const dispatchNext = () => {
+      if (cancelled) return;
+      while (activeLanes < lanes && queueIdx < queue.length) {
+        const poly = queue[queueIdx++];
+        activeLanes++;
+        typePoly(poly, () => {
+          if (cancelled) return;
+          activeLanes--;
+          if (queueIdx < queue.length) {
+            schedule(dispatchNext, typingParamsRef.current.polyDelay);
+          } else if (activeLanes === 0) {
+            setTypingDone(true);
+          }
+        });
       }
     };
 
-    timer = window.setTimeout(() => step(0, 0), 200);
+    schedule(dispatchNext, 200);
     return () => {
       cancelled = true;
-      if (timer) window.clearTimeout(timer);
+      timers.forEach((id) => window.clearTimeout(id));
+      timers.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playKey, cycle, typingEnabled]);
@@ -419,7 +483,7 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
         : full.length;
       return { ...resolved, text: full.slice(0, typed) };
     });
-  }, [polygons, cycle, typingProg, typingDone, typingEnabled, exhibitMode, glitchMasks]);
+  }, [polygons, cycle, typingProg, typingDone, typingEnabled, exhibitMode, glitchAlphas]);
 
   // Precompute sentence-aware word mapping from sentenceMap
   // Each sentence's KO words are distributed across that sentence's EN word slots
@@ -477,30 +541,42 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
     return info;
   }, [polygons]);
 
-  // Build GlitchSubstitution: sentence mask → word mask + sentence-aware word mapping
+  // Build GlitchSubstitution: per-sentence alpha → per-word alphas (broadcast within sentence).
+  // Renderer crossfades EN↔KO based on alpha; mask retained for backward compat at α≥0.5.
+  // shiftFactor is deterministic per (polyId, sentenceIdx) — no per-tick jumping.
+  const hashShift = (key: string): number => {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < key.length; i++) {
+      h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+    }
+    return ((h >>> 0) % 1000) / 1000;
+  };
   const exhibitSubstitutions = useMemo(() => {
     if (!exhibitMode) return undefined;
     const subs: Record<string, GlitchSubstitution> = {};
     for (const p of polygons) {
       const wi = sentenceWordInfo[p.id];
       if (!wi) continue;
-      const sentMask = glitchMasks[p.id] ?? [];
+      const sentAlphas = glitchAlphas[p.id] ?? [];
 
-      // Expand sentence mask to word mask
+      const wordAlphas = new Array(wi.totalWords).fill(0);
       const wordMask = new Array(wi.totalWords).fill(false);
       const shiftFactors = new Array(wi.totalWords).fill(0);
-      for (let si = 0; si < sentMask.length; si++) {
-        if (!sentMask[si]) continue;
+      for (let si = 0; si < sentAlphas.length; si++) {
+        const a = sentAlphas[si] ?? 0;
+        if (a <= 0) continue;
         const [start, end] = wi.sentenceWordRanges[si] ?? [-1, -1];
         if (start < 0) continue;
-        for (let w = start; w < end; w++) wordMask[w] = true;
-        // Random alignment for this sentence (re-rolls each tick)
-        shiftFactors[start] = Math.random();
+        for (let w = start; w < end; w++) {
+          wordAlphas[w] = a;
+          if (a >= 0.5) wordMask[w] = true;
+        }
+        shiftFactors[start] = hashShift(`${p.id}:${si}`);
       }
-      subs[p.id] = { mask: wordMask, mapping: wi.mapping, shiftFactors };
+      subs[p.id] = { mask: wordMask, mapping: wi.mapping, shiftFactors, alphas: wordAlphas };
     }
     return subs;
-  }, [exhibitMode, polygons, glitchMasks, sentenceWordInfo]);
+  }, [exhibitMode, polygons, glitchAlphas, sentenceWordInfo]);
 
   // ── Typing order preview (for UI) ──
   const typingSequenceView = useMemo(() => computeTypingSequence(polygons), [polygons]);
@@ -529,8 +605,10 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
     setEditMode(false);
     setInkBleedActive(false);
     setCycle(0); // Force EN
-    setGlitchMasks({});
+    setGlitchAlphas({});
+    glitchAlphasRef.current = {};
     polyWordStartsRef.current = {};
+    sentenceFSMRef.current = {};
     setTypingParams({
       charInterval: EXHIBIT_CHAR_INTERVAL,
       polyDelay: EXHIBIT_POLY_DELAY,
@@ -558,8 +636,10 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
     setExhibitPhase('idle');
     setInkBleedActive(false);
     setShowCh5Overlay(false);
-    setGlitchMasks({});
+    setGlitchAlphas({});
+    glitchAlphasRef.current = {};
     polyWordStartsRef.current = {};
+    sentenceFSMRef.current = {};
     settleStartRef.current = 0;
   }, []);
 
@@ -571,15 +651,12 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
     }
   }, [exhibitMode, exhibitPhase, typingDone]);
 
-  // Continuous glitch tick — runs as long as exhibit is on.
-  // **Per-word timing**: each word starts glitching the moment that word
-  // finishes typing (not when the whole polygon is done).
-  // Phase 'settling': all per-word glitches fade to 0 over EXHIBIT_SETTLE_DURATION, then → 'inkBleed'.
+  // Fluorescent-tube flicker FSM — per-sentence dormant ↔ burst cycle.
+  // Each sentence stays EN most of the time; occasionally flickers 2~4 times rapidly, then back.
+  // Phase 'settling': all masks forced to EN over EXHIBIT_SETTLE_DURATION, then → 'inkBleed'.
   useEffect(() => {
     if (!exhibitMode) return;
 
-    // Pre-compute per-polygon sentence end positions (char index where EN sentence ends in poly.text)
-    // Look up sentenceMap from DEFAULT_POLYGONS (state may lack it due to HMR)
     const defaultMap = new Map(DEFAULT_POLYGONS.map(p => [p.id, p.sentenceMap]));
     const polySentenceEnds: Record<string, number[]> = {};
     for (const p of polygons) {
@@ -592,58 +669,148 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
       polySentenceEnds[p.id] = ends;
     }
 
+    const rand = (min: number, max: number) => min + Math.random() * (max - min);
+    const smoothstep = (t: number) => {
+      const x = Math.max(0, Math.min(1, t));
+      return x * x * (3 - 2 * x);
+    };
+    const alphasEqual = (
+      a: Record<string, number[]>,
+      b: Record<string, number[]>,
+    ): boolean => {
+      const aKeys = Object.keys(a);
+      const bKeys = Object.keys(b);
+      if (aKeys.length !== bKeys.length) return false;
+      for (const k of aKeys) {
+        const av = a[k]; const bv = b[k];
+        if (!bv || av.length !== bv.length) return false;
+        // Quantize to 3 decimals for diff — avoids jitter-only renders
+        for (let i = 0; i < av.length; i++) {
+          if (Math.round(av[i] * 1000) !== Math.round(bv[i] * 1000)) return false;
+        }
+      }
+      return true;
+    };
+
     const tick = window.setInterval(() => {
       const now = performance.now();
       const phase = exhibitPhaseRef.current;
       if (phase === 'idle' || phase === 'inkBleed') return;
 
-      const typedNow = typingProgRef.current;
-      const starts = polyWordStartsRef.current;
-
-      // Settling: compute global fade factor (1 → 0 over SETTLE_DURATION)
-      let settleFade = 1;
+      // Settling: force all sentences to fade-to-EN, end phase when window elapses
       if (phase === 'settling') {
         const settleElapsed = now - settleStartRef.current;
-        const raw = Math.min(1, settleElapsed / EXHIBIT_SETTLE_DURATION);
-        const smoothed = raw * raw * (3 - 2 * raw);
-        settleFade = 1 - smoothed;
-        if (raw >= 1) {
+        if (settleElapsed >= EXHIBIT_SETTLE_DURATION) {
           window.clearInterval(tick);
-          setGlitchMasks({});
+          glitchAlphasRef.current = {};
+          setGlitchAlphas({});
           setExhibitPhase('inkBleed');
           return;
         }
+        // Scale all current alphas down linearly over settle window
+        const settleFade = 1 - Math.min(1, settleElapsed / EXHIBIT_SETTLE_DURATION);
+        const prev = glitchAlphasRef.current;
+        let changed = false;
+        const scaled: Record<string, number[]> = {};
+        for (const k in prev) {
+          const arr = prev[k].map(v => v * settleFade);
+          scaled[k] = arr;
+          if (!changed) {
+            for (let i = 0; i < arr.length; i++) {
+              if (Math.round(arr[i] * 1000) !== Math.round(prev[k][i] * 1000)) { changed = true; break; }
+            }
+          }
+        }
+        if (changed) {
+          glitchAlphasRef.current = scaled;
+          setGlitchAlphas(scaled);
+        }
+        return;
       }
 
-      setGlitchMasks(() => {
-        const next: Record<string, boolean[]> = {};
-        for (const p of polygons) {
-          const sentenceEnds = polySentenceEnds[p.id] ?? [];
-          const n = sentenceEnds.length;
-          if (n === 0) continue;
+      const typedNow = typingProgRef.current;
+      const fsm = sentenceFSMRef.current;
+      const next: Record<string, number[]> = {};
 
-          const typed = typedNow[p.id] ?? 0;
-          const polyStarts = starts[p.id] ?? {};
-          starts[p.id] = polyStarts;
+      for (const p of polygons) {
+        const sentenceEnds = polySentenceEnds[p.id] ?? [];
+        const n = sentenceEnds.length;
+        if (n === 0) continue;
 
-          const mask = new Array(n).fill(false);
-          for (let si = 0; si < n; si++) {
-            if (typed < sentenceEnds[si]) continue;
+        const typed = typedNow[p.id] ?? 0;
+        if (!fsm[p.id]) fsm[p.id] = [];
+        const polyFSM = fsm[p.id];
+        const alphas = new Array<number>(n).fill(0);
 
-            if (!polyStarts[si]) polyStarts[si] = now + Math.random() * 3000; // 0~3s random delay
-            const elapsed = now - polyStarts[si];
-            if (elapsed < 0) continue; // still waiting for delayed start
-            const raw = Math.min(1, elapsed / EXHIBIT_GLITCH_RAMP);
-            const rampProgress = raw * raw * (3 - 2 * raw);
-            const base = rampProgress * EXHIBIT_GLITCH_PEAK;
-            const effective = Math.max(0, base * settleFade);
-            mask[si] = Math.random() < effective;
+        for (let si = 0; si < n; si++) {
+          if (typed < sentenceEnds[si]) continue;
+
+          // Lazy init on first reach — start in idle, scheduled for first ramp-in
+          if (!polyFSM[si]) {
+            polyFSM[si] = {
+              phase: 'idle',
+              phaseStart: now,
+              phaseDuration: 0,
+              nextEventAt: now + rand(FLICKER_INITIAL_DELAY_MIN, FLICKER_INITIAL_DELAY_MAX),
+              alpha: 0,
+            };
           }
-          next[p.id] = mask;
+          const state = polyFSM[si];
+
+          // Phase transitions (with guard)
+          let guard = 4;
+          while (guard-- > 0) {
+            if (state.phase === 'idle') {
+              if (now < state.nextEventAt) break;
+              state.phase = 'ramp-in';
+              state.phaseStart = now;
+              state.phaseDuration = rand(FLICKER_RAMP_IN_MIN, FLICKER_RAMP_IN_MAX);
+              continue;
+            }
+            const elapsed = now - state.phaseStart;
+            if (elapsed < state.phaseDuration) break;
+            // Phase complete — advance
+            if (state.phase === 'ramp-in') {
+              state.phase = 'hold';
+              state.phaseStart = now;
+              state.phaseDuration = rand(FLICKER_HOLD_MIN, FLICKER_HOLD_MAX);
+            } else if (state.phase === 'hold') {
+              state.phase = 'ramp-out';
+              state.phaseStart = now;
+              state.phaseDuration = rand(FLICKER_RAMP_OUT_MIN, FLICKER_RAMP_OUT_MAX);
+            } else if (state.phase === 'ramp-out') {
+              state.phase = 'idle';
+              state.phaseStart = now;
+              state.phaseDuration = 0;
+              state.nextEventAt = now + rand(FLICKER_DORMANT_MIN, FLICKER_DORMANT_MAX);
+            }
+          }
+
+          // Compute alpha for current phase
+          let a = 0;
+          const t = state.phaseDuration > 0 ? (now - state.phaseStart) / state.phaseDuration : 0;
+          if (state.phase === 'idle') {
+            a = 0;
+          } else if (state.phase === 'ramp-in') {
+            a = smoothstep(t) + (Math.random() - 0.5) * FLICKER_JITTER;
+          } else if (state.phase === 'hold') {
+            a = 1;
+            // Occasional blip — briefly drop near EN
+            if (Math.random() < FLICKER_BLIP_PROB) a = FLICKER_BLIP_DEPTH;
+          } else if (state.phase === 'ramp-out') {
+            a = 1 - smoothstep(t) + (Math.random() - 0.5) * FLICKER_JITTER;
+          }
+          state.alpha = Math.max(0, Math.min(1, a));
+          alphas[si] = state.alpha;
         }
-        return next;
-      });
-    }, EXHIBIT_GLITCH_TICK);
+        next[p.id] = alphas;
+      }
+
+      if (!alphasEqual(glitchAlphasRef.current, next)) {
+        glitchAlphasRef.current = next;
+        setGlitchAlphas(next);
+      }
+    }, FLICKER_TICK_MS);
 
     return () => window.clearInterval(tick);
   }, [exhibitMode, polygons]);
