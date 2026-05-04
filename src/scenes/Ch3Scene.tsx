@@ -666,9 +666,11 @@ const Ch3Inner: React.FC<{
       const px = posState.x;
       const pz = posState.z;
 
-      // Medicine pickup detection
+      // Medicine pickup detection — last medicine ("다 먹음") gated until first 4 collected
       MEDICINES.forEach((med, i) => {
         if (!collected.has(i)) {
+          const isLast = i === MEDICINES.length - 1;
+          if (isLast && collected.size < MEDICINES.length - 1) return;
           const wp = medPositions[i];
           const dist = Math.sqrt((px - wp.x) ** 2 + (pz - wp.z) ** 2);
           if (dist < CELL_SIZE * 0.6) {
@@ -740,15 +742,19 @@ const Ch3Inner: React.FC<{
       <MazeFloor />
       <MazeWalls maze={maze} />
 
-      {/* Medicine pickups in maze cells */}
-      {MEDICINES.map((med, i) => (
-        <MedicinePickup
-          key={i}
-          med={med}
-          worldPos={medPositions[i]}
-          collected={collected.has(i)}
-        />
-      ))}
+      {/* Medicine pickups in maze cells — last ("다 먹음") hidden until first 4 collected */}
+      {MEDICINES.map((med, i) => {
+        const isLast = i === MEDICINES.length - 1;
+        if (isLast && collected.size < MEDICINES.length - 1) return null;
+        return (
+          <MedicinePickup
+            key={i}
+            med={med}
+            worldPos={medPositions[i]}
+            collected={collected.has(i)}
+          />
+        );
+      })}
 
       {/* Fitting room + mirror at center */}
       <FittingRoom worldPos={fittingRoomWorld} />
@@ -814,6 +820,8 @@ export const Ch3Scene: React.FC = () => {
     ];
     MEDICINES.forEach((med, i) => {
       if (collectedSet.has(i)) return;
+      const isLast = i === MEDICINES.length - 1;
+      if (isLast && collectedSet.size < MEDICINES.length - 1) return;
       const wp = cellToWorld(med.cell.gx, med.cell.gy, CELL_SIZE);
       markers.push({ x: wp.x, z: wp.z, color: med.color, radius: 2 });
     });
