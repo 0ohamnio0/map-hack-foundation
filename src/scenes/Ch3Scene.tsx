@@ -856,7 +856,7 @@ export const Ch3Scene: React.FC = () => {
 
       {/* Hide minimap & UI during cutscene */}
       {!cutscenePhase && (
-        <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} markers={minimapMarkers} />
+        <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} markers={minimapMarkers} showExit={collectedCount === MEDICINES.length} />
       )}
 
       {/* Notification */}

@@ -17,12 +17,14 @@ interface Props {
   playerZ: number;
   cellSize?: number;
   markers?: MinimapMarker[];
+  /** Show the auto exit dot at maze.end. Default true. */
+  showExit?: boolean;
 }
 
 const MINIMAP_SIZE = 160;
 const PADDING = 12;
 
-export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2, markers }) => {
+export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2, markers, showExit = true }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -81,12 +83,14 @@ export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2,
     }
 
     // Exit marker
-    const ex = maze.end.x * cellSize * scale + (cellSize * scale) / 2;
-    const ey = maze.end.y * cellSize * scale + (cellSize * scale) / 2;
-    ctx.fillStyle = '#4f4';
-    ctx.beginPath();
-    ctx.arc(ex, ey, 3, 0, Math.PI * 2);
-    ctx.fill();
+    if (showExit) {
+      const ex = maze.end.x * cellSize * scale + (cellSize * scale) / 2;
+      const ey = maze.end.y * cellSize * scale + (cellSize * scale) / 2;
+      ctx.fillStyle = '#4f4';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Custom markers
     if (markers) {
@@ -115,7 +119,7 @@ export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2,
     ctx.arc(px, pz, 3.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-  }, [maze, playerX, playerZ, cellSize, markers]);
+  }, [maze, playerX, playerZ, cellSize, markers, showExit]);
 
   return (
     <div style={{
