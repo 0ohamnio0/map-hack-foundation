@@ -593,7 +593,8 @@ const Ch3Inner: React.FC<{
   elevatorCell: { gx: number; gy: number };
   onPlayerMove?: (pos: { x: number; z: number }) => void;
   onElevatorEnter?: () => void;
-}> = ({ maze, elevatorCell, onPlayerMove, onElevatorEnter }) => {
+  onDrugPickup?: (index: number) => void;
+}> = ({ maze, elevatorCell, onPlayerMove, onElevatorEnter, onDrugPickup }) => {
   const goToChapter = useGameStore(s => s.goToChapter);
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const addToCart = useGameStore(s => s.addToCart);
@@ -648,6 +649,7 @@ const Ch3Inner: React.FC<{
             setNotification(med.name);
             triggerEvent(`ch3_med_${i}`);
             setTimeout(() => setNotification(null), 2000);
+            onDrugPickup?.(i);
           }
         }
       });
@@ -681,7 +683,7 @@ const Ch3Inner: React.FC<{
 
     const interval = setInterval(check, 100);
     return () => clearInterval(interval);
-  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, elevatorWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, goToChapter]);
+  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, elevatorWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, goToChapter, onDrugPickup]);
 
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
@@ -747,7 +749,14 @@ const Ch3Inner: React.FC<{
 };
 
 export const Ch3Scene: React.FC = () => {
-  const maze = useMemo(() => generateMaze(MAZE_SIZE, MAZE_SIZE, undefined, CELL_SIZE), []);
+  const [maze, setMaze] = useState<MazeData>(() =>
+    generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: Math.floor(Math.random() * 0xFFFFFFFF) }, CELL_SIZE),
+  );
+  const handleDrugPickup = useCallback((drugIndex: number) => {
+    const profile = MEDICINES[drugIndex].mazeProfile;
+    const newSeed = Math.floor(Math.random() * 0xFFFFFFFF);
+    setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, ...profile }, CELL_SIZE));
+  }, []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const elevatorCell = useMemo(() => pickElevatorCell(), []);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
@@ -797,6 +806,7 @@ export const Ch3Scene: React.FC = () => {
           elevatorCell={elevatorCell}
           onPlayerMove={setPlayerPos}
           onElevatorEnter={startElevatorCutscene}
+          onDrugPickup={handleDrugPickup}
         />
       </Canvas>
 
