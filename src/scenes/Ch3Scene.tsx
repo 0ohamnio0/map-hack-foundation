@@ -50,7 +50,6 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
     });
     meshRef.current.count = maze.wallPositions.length;
     meshRef.current.instanceMatrix.needsUpdate = true;
-    console.log('[ch3] MazeWalls useEffect → rebuilt', maze.wallPositions.length, 'walls');
   }, [maze]);
 
   return (
@@ -681,7 +680,6 @@ const Ch3Inner: React.FC<{
           const wp = medPositions[i];
           const dist = Math.sqrt((px - wp.x) ** 2 + (pz - wp.z) ** 2);
           if (dist < CELL_SIZE * 0.6) {
-            console.log('[ch3] medicine pickup', { idx: i, name: med.name, hasOnDrugPickup: !!onDrugPickup });
             setCollected(prev => {
               const next = new Set(prev).add(i);
               onCollectedChange?.(next);
@@ -802,11 +800,7 @@ export const Ch3Scene: React.FC = () => {
   const handleDrugPickup = useCallback((drugIndex: number) => {
     const profile = MEDICINES[drugIndex].mazeProfile;
     const newSeed = Math.floor(Math.random() * 0xFFFFFFFF);
-    const newMaze = generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, ...profile }, CELL_SIZE);
-    // First row east-wall signature — binary string, easy to compare visually
-    const sig = newMaze.cells[0].map(c => c.walls.east ? '█' : '·').join('');
-    console.log('[ch3] handleDrugPickup', { drug: MEDICINES[drugIndex].name, seed: newSeed, removalRatio: profile.removalRatio, walls: newMaze.wallPositions.length, sig });
-    setMaze(newMaze);
+    setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, ...profile }, CELL_SIZE));
   }, []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const elevatorCell = useMemo(() => pickElevatorCell(), []);
