@@ -29,7 +29,12 @@ function makeSnapMaterial(color: string): THREE.MeshStandardMaterial {
   return mat;
 }
 
-/** InstancedMesh walls for performance */
+/** InstancedMesh walls for performance.
+ *  args[2] is the GL buffer maxCount — fixed at MAX so the InstancedMesh
+ *  isn't recreated on maze regen. Per-frame `count` is set in useEffect
+ *  to the actual wall count so we render exactly the new layout. */
+const MAX_WALLS = 512;
+
 const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const material = useMemo(() => makeSnapMaterial('#555'), []);
@@ -43,11 +48,12 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
       dummy.updateMatrix();
       meshRef.current!.setMatrixAt(i, dummy.matrix);
     });
+    meshRef.current.count = maze.wallPositions.length;
     meshRef.current.instanceMatrix.needsUpdate = true;
   }, [maze]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, maze.wallPositions.length]} material={material} frustumCulled={false}>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_WALLS]} material={material} frustumCulled={false}>
       <boxGeometry args={[1, 1, 1]} />
     </instancedMesh>
   );
