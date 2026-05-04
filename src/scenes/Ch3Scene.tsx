@@ -588,13 +588,43 @@ const MedicinePickup: React.FC<{
   );
 };
 
+/** Exit marker — invisible until all 5 medicines are collected, then 1s fade-in. */
+const ExitMarker: React.FC<{ worldPos: { x: number; z: number }; visible: boolean }> = ({ worldPos, visible }) => {
+  const matRef = useRef<THREE.MeshStandardMaterial>(null);
+  const opacityRef = useRef(0);
+
+  useFrame((_, delta) => {
+    const target = visible ? 1 : 0;
+    opacityRef.current = THREE.MathUtils.lerp(opacityRef.current, target, Math.min(delta * 1.5, 1));
+    if (matRef.current) {
+      matRef.current.opacity = opacityRef.current;
+      matRef.current.emissiveIntensity = 0.2 * opacityRef.current;
+    }
+  });
+
+  return (
+    <mesh position={[worldPos.x, 1.5, worldPos.z]}>
+      <boxGeometry args={[1.5, 3, 0.3]} />
+      <meshStandardMaterial
+        ref={matRef}
+        color="#4a4"
+        emissive="#0f0"
+        emissiveIntensity={0}
+        transparent
+        opacity={0}
+      />
+    </mesh>
+  );
+};
+
 const Ch3Inner: React.FC<{
   maze: MazeData;
   elevatorCell: { gx: number; gy: number };
   onPlayerMove?: (pos: { x: number; z: number }) => void;
   onElevatorEnter?: () => void;
   onDrugPickup?: (index: number) => void;
-}> = ({ maze, elevatorCell, onPlayerMove, onElevatorEnter, onDrugPickup }) => {
+  onCollectedChange?: (count: number) => void;
+}> = ({ maze, elevatorCell, onPlayerMove, onElevatorEnter, onDrugPickup, onCollectedChange }) => {
   const goToChapter = useGameStore(s => s.goToChapter);
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const addToCart = useGameStore(s => s.addToCart);
@@ -642,7 +672,11 @@ const Ch3Inner: React.FC<{
           const wp = medPositions[i];
           const dist = Math.sqrt((px - wp.x) ** 2 + (pz - wp.z) ** 2);
           if (dist < CELL_SIZE * 0.6) {
-            setCollected(prev => new Set(prev).add(i));
+            setCollected(prev => {
+              const next = new Set(prev).add(i);
+              onCollectedChange?.(next.size);
+              return next;
+            });
             addToCart(med.name);
             play(med.soundSlot);
             setActiveEffect(med.effect, med.duration);
@@ -672,18 +706,20 @@ const Ch3Inner: React.FC<{
         }
       }
 
-      // Exit detection
-      const exitDist = Math.sqrt((px - exitWorld.x) ** 2 + (pz - exitWorld.z) ** 2);
-      if (exitDist < 2) {
-        if (triggerEvent('ch3_exit')) {
-          goToChapter('CH4');
+      // Exit detection — gated until all 5 medicines are collected
+      if (collected.size === MEDICINES.length) {
+        const exitDist = Math.sqrt((px - exitWorld.x) ** 2 + (pz - exitWorld.z) ** 2);
+        if (exitDist < 2) {
+          if (triggerEvent('ch3_exit')) {
+            goToChapter('CH4');
+          }
         }
       }
     };
 
     const interval = setInterval(check, 100);
     return () => clearInterval(interval);
-  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, elevatorWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, goToChapter, onDrugPickup]);
+  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, elevatorWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, goToChapter, onDrugPickup, onCollectedChange]);
 
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
@@ -727,11 +763,8 @@ const Ch3Inner: React.FC<{
         playerPos={posState}
       />
 
-      {/* Exit marker */}
-      <mesh position={[exitWorld.x, 1.5, exitWorld.z]}>
-        <boxGeometry args={[1.5, 3, 0.3]} />
-        <meshStandardMaterial color="#4a4" emissive="#0f0" emissiveIntensity={0.2} />
-      </mesh>
+      {/* Exit marker — hidden until all 5 medicines collected, then 1s fade-in */}
+      <ExitMarker worldPos={exitWorld} visible={collected.size === MEDICINES.length} />
 
       <PlayerController
         mode="1st"
@@ -761,6 +794,7 @@ export const Ch3Scene: React.FC = () => {
   const elevatorCell = useMemo(() => pickElevatorCell(), []);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
   const [cutscenePhase, setCutscenePhase] = useState<CutscenePhase>(null);
+  const [collectedCount, setCollectedCount] = useState(0);
   const cartItems = useGameStore(s => s.cartItems);
   const removeFromCart = useGameStore(s => s.removeFromCart);
   const setNotification = useGameStore(s => s.setNotification);
@@ -768,15 +802,21 @@ export const Ch3Scene: React.FC = () => {
   const goToChapter = useGameStore(s => s.goToChapter);
   const devMode = useDevMode();
 
-  // Minimap markers: fitting room (magenta) + elevator (cyan)
+  // Minimap markers: fitting room (magenta) + elevator (cyan).
+  // Exit (green) only after all 5 medicines collected.
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
     const fr = cellToWorld(FITTING_ROOM_CELL.gx, FITTING_ROOM_CELL.gy, CELL_SIZE);
     const el = cellToWorld(elevatorCell.gx, elevatorCell.gy, CELL_SIZE);
-    return [
+    const markers: MinimapMarker[] = [
       { x: fr.x, z: fr.z, color: '#c040ff', radius: 3.5, glow: true },
       { x: el.x, z: el.z, color: '#00e5ff', radius: 3, glow: true },
     ];
-  }, [elevatorCell]);
+    if (collectedCount === MEDICINES.length) {
+      const ex = cellToWorld(MAZE_SIZE - 1, MAZE_SIZE - 1, CELL_SIZE);
+      markers.push({ x: ex.x, z: ex.z, color: '#0f0', radius: 3, glow: true });
+    }
+    return markers;
+  }, [elevatorCell, collectedCount]);
 
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
@@ -807,6 +847,7 @@ export const Ch3Scene: React.FC = () => {
           onPlayerMove={setPlayerPos}
           onElevatorEnter={startElevatorCutscene}
           onDrugPickup={handleDrugPickup}
+          onCollectedChange={setCollectedCount}
         />
       </Canvas>
 
