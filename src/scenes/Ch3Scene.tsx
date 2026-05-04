@@ -803,7 +803,9 @@ export const Ch3Scene: React.FC = () => {
     const profile = MEDICINES[drugIndex].mazeProfile;
     const newSeed = Math.floor(Math.random() * 0xFFFFFFFF);
     const newMaze = generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, ...profile }, CELL_SIZE);
-    console.log('[ch3] handleDrugPickup', { drug: MEDICINES[drugIndex].name, seed: newSeed, removalRatio: profile.removalRatio, walls: newMaze.wallPositions.length });
+    // First row east-wall signature — binary string, easy to compare visually
+    const sig = newMaze.cells[0].map(c => c.walls.east ? '█' : '·').join('');
+    console.log('[ch3] handleDrugPickup', { drug: MEDICINES[drugIndex].name, seed: newSeed, removalRatio: profile.removalRatio, walls: newMaze.wallPositions.length, sig });
     setMaze(newMaze);
   }, []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
