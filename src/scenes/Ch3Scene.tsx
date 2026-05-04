@@ -74,11 +74,11 @@ const FlickerLight: React.FC = () => {
 };
 
 const MEDICINES = [
-  { name: '기분안정제', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 } },
-  { name: '항정신병약', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 } },
-  { name: '수면제', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 } },
-  { name: '항불안제', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 } },
-  { name: '다 먹음', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 } },
+  { name: '기분안정제', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 }, mazeProfile: { removalRatio: 0.1 } },
+  { name: '항정신병약', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 }, mazeProfile: { removalRatio: 0 } },
+  { name: '수면제', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 }, mazeProfile: { removalRatio: 0.05 } },
+  { name: '항불안제', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 }, mazeProfile: { removalRatio: 0.3 } },
+  { name: '다 먹음', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 }, mazeProfile: { removalRatio: 0.6 } },
 ];
 
 // --- Fitting room + mirror at center ---
