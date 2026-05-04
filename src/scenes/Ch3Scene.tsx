@@ -623,7 +623,7 @@ const Ch3Inner: React.FC<{
   onPlayerMove?: (pos: { x: number; z: number }) => void;
   onElevatorEnter?: () => void;
   onDrugPickup?: (index: number) => void;
-  onCollectedChange?: (count: number) => void;
+  onCollectedChange?: (collected: Set<number>) => void;
 }> = ({ maze, elevatorCell, onPlayerMove, onElevatorEnter, onDrugPickup, onCollectedChange }) => {
   const goToChapter = useGameStore(s => s.goToChapter);
   const triggerEvent = useGameStore(s => s.triggerEvent);
@@ -674,7 +674,7 @@ const Ch3Inner: React.FC<{
           if (dist < CELL_SIZE * 0.6) {
             setCollected(prev => {
               const next = new Set(prev).add(i);
-              onCollectedChange?.(next.size);
+              onCollectedChange?.(next);
               return next;
             });
             addToCart(med.name);
@@ -794,7 +794,7 @@ export const Ch3Scene: React.FC = () => {
   const elevatorCell = useMemo(() => pickElevatorCell(), []);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
   const [cutscenePhase, setCutscenePhase] = useState<CutscenePhase>(null);
-  const [collectedCount, setCollectedCount] = useState(0);
+  const [collectedSet, setCollectedSet] = useState<Set<number>>(new Set());
   const cartItems = useGameStore(s => s.cartItems);
   const removeFromCart = useGameStore(s => s.removeFromCart);
   const setNotification = useGameStore(s => s.setNotification);
@@ -803,7 +803,8 @@ export const Ch3Scene: React.FC = () => {
   const devMode = useDevMode();
 
   // Minimap markers: fitting room (magenta) + elevator (cyan).
-  // Exit (green) only after all 5 medicines collected.
+  // Uncollected medicines shown in their own color (small dots).
+  // Exit (green glow) only after all 5 medicines collected.
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
     const fr = cellToWorld(FITTING_ROOM_CELL.gx, FITTING_ROOM_CELL.gy, CELL_SIZE);
     const el = cellToWorld(elevatorCell.gx, elevatorCell.gy, CELL_SIZE);
@@ -811,12 +812,17 @@ export const Ch3Scene: React.FC = () => {
       { x: fr.x, z: fr.z, color: '#c040ff', radius: 3.5, glow: true },
       { x: el.x, z: el.z, color: '#00e5ff', radius: 3, glow: true },
     ];
-    if (collectedCount === MEDICINES.length) {
+    MEDICINES.forEach((med, i) => {
+      if (collectedSet.has(i)) return;
+      const wp = cellToWorld(med.cell.gx, med.cell.gy, CELL_SIZE);
+      markers.push({ x: wp.x, z: wp.z, color: med.color, radius: 2 });
+    });
+    if (collectedSet.size === MEDICINES.length) {
       const ex = cellToWorld(MAZE_SIZE - 1, MAZE_SIZE - 1, CELL_SIZE);
       markers.push({ x: ex.x, z: ex.z, color: '#0f0', radius: 3, glow: true });
     }
     return markers;
-  }, [elevatorCell, collectedCount]);
+  }, [elevatorCell, collectedSet]);
 
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
@@ -847,7 +853,7 @@ export const Ch3Scene: React.FC = () => {
           onPlayerMove={setPlayerPos}
           onElevatorEnter={startElevatorCutscene}
           onDrugPickup={handleDrugPickup}
-          onCollectedChange={setCollectedCount}
+          onCollectedChange={setCollectedSet}
         />
       </Canvas>
 
@@ -856,7 +862,7 @@ export const Ch3Scene: React.FC = () => {
 
       {/* Hide minimap & UI during cutscene */}
       {!cutscenePhase && (
-        <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} markers={minimapMarkers} showExit={collectedCount === MEDICINES.length} />
+        <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} markers={minimapMarkers} showExit={collectedSet.size === MEDICINES.length} />
       )}
 
       {/* Notification */}
