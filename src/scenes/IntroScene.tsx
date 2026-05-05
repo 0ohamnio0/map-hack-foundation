@@ -1,66 +1,12 @@
 /**
- * INTRO Scene — mania buildup
- * Canvas with ChannelShift + Glitch + FlashbackHeightfield behind title overlay.
- * Auto-transitions to CH.1 after 5s.
+ * INTRO Scene — CH.1 인트로 1차 프리뷰 영상이 메인.
+ * Auto-transitions to CH.1 after 30s. Title fades in at 15s.
  */
-import React, { useEffect, useState, useRef } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import {
-  EffectComposer,
-  Bloom,
-  Vignette,
-  Glitch,
-} from '@react-three/postprocessing'
-import { GlitchMode } from 'postprocessing'
-import { ChannelShift } from '@/components/effects/ChannelShiftEffect'
-import { FlashbackHeightfield } from '@/components/effects/FlashbackHeightfield'
+import React, { useEffect, useState } from 'react'
 import { useGameStore } from '@/store/useGameStore'
 import { useSoundManager } from '@/hooks/useSoundManager'
 
-/** Intro post-processing: ChannelShift builds from 0→peak over 5s */
-function IntroEffects() {
-  const shiftRef = useRef({ r: [0, 0] as [number, number], b: [0, 0] as [number, number] })
-  const elapsed = useRef(0)
-
-  useFrame((_, delta) => {
-    elapsed.current += delta
-    const progress = Math.min(elapsed.current / 30, 1)
-
-    shiftRef.current.r = [-0.15 * progress, 0.05 * progress]
-    shiftRef.current.b = [0.15 * progress, -0.05 * progress]
-  })
-
-  return (
-    <EffectComposer>
-      <Bloom luminanceThreshold={0.4} luminanceSmoothing={0.9} intensity={1.2} />
-      <Vignette offset={0.4} darkness={0.9} />
-      <Glitch
-        delay={[1.5, 3.5] as unknown as import('three').Vector2}
-        duration={[0.1, 0.3] as unknown as import('three').Vector2}
-        strength={[0.05, 0.2] as unknown as import('three').Vector2}
-        mode={GlitchMode.SPORADIC}
-      />
-      <ChannelShift shiftR={shiftRef.current.r} shiftB={shiftRef.current.b} />
-    </EffectComposer>
-  )
-}
-
-/** Minimal 3D content for effects to process */
-function IntroContent() {
-  return (
-    <>
-      <ambientLight intensity={0.15} color="#ff2200" />
-      <pointLight position={[0, 2, 0]} intensity={0.8} color="#ff0000" />
-      {/* Dark room feel — floor and walls */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[10, 10]} />
-        <meshStandardMaterial color="#0a0a0a" />
-      </mesh>
-      <FlashbackHeightfield opacity={0.3} />
-      <IntroEffects />
-    </>
-  )
-}
+const VIDEO_SRC = `${import.meta.env.BASE_URL ?? '/'}assets/video/preview.mp4`
 
 export const IntroScene: React.FC = () => {
   const goToChapter = useGameStore((s) => s.goToChapter)
@@ -78,11 +24,24 @@ export const IntroScene: React.FC = () => {
   }, [goToChapter, play])
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
-      <Canvas camera={{ fov: 75, position: [0, 1.6, 0] }} style={{ background: '#000' }}>
-        <IntroContent />
-      </Canvas>
-      {/* Title overlay */}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: '#000', overflow: 'hidden' }}>
+      {/* CH.1 인트로 프리뷰 영상 (muted; intro BGM via chapterMusic) */}
+      <video
+        src={VIDEO_SRC}
+        autoPlay
+        loop
+        muted
+        playsInline
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          pointerEvents: 'none',
+        }}
+      />
+      {/* Title overlay — fades in at 15s */}
       <div
         style={{
           position: 'absolute',
@@ -101,6 +60,7 @@ export const IntroScene: React.FC = () => {
             letterSpacing: '0.3em',
             opacity: titleVisible ? 1 : 0,
             transition: 'opacity 2s ease',
+            textShadow: '0 0 30px rgba(0,0,0,0.8)',
           }}
         >
           Map Hack
