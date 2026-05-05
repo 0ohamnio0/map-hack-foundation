@@ -7,6 +7,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '@/store/useGameStore'
 import { useSoundManager } from '@/hooks/useSoundManager'
+import { useFontReady } from '@/hooks/useFontReady'
 
 const VIDEO_SRC = `${import.meta.env.BASE_URL ?? '/'}assets/video/preview.mp4`
 const TITLE_LEAD_BEFORE_END_MS = 5000
@@ -15,6 +16,7 @@ export const IntroScene: React.FC = () => {
   const goToChapter = useGameStore((s) => s.goToChapter)
   const { play } = useSoundManager()
   const [titleVisible, setTitleVisible] = useState(false)
+  const fontReady = useFontReady('Hammer Keys')
   const videoRef = useRef<HTMLVideoElement>(null)
   const titleTimerRef = useRef<number | null>(null)
 
@@ -71,7 +73,7 @@ export const IntroScene: React.FC = () => {
             color: '#fff',
             fontSize: '4rem',
             letterSpacing: '0.15em',
-            opacity: titleVisible ? 1 : 0,
+            opacity: titleVisible && fontReady ? 1 : 0,
             transition: 'opacity 2s ease',
             textShadow: '0 0 30px rgba(0,0,0,0.8)',
           }}

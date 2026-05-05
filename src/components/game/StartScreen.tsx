@@ -1,8 +1,10 @@
 import React from 'react';
 import { useGameStore } from '@/store/useGameStore';
+import { useFontReady } from '@/hooks/useFontReady';
 
 export const StartScreen: React.FC = () => {
   const goToChapter = useGameStore(s => s.goToChapter);
+  const fontReady = useFontReady('Hammer Keys');
 
   return (
     <div
@@ -26,6 +28,8 @@ export const StartScreen: React.FC = () => {
           fontSize: '4rem',
           letterSpacing: '0.1em',
           marginBottom: '2rem',
+          opacity: fontReady ? 1 : 0,
+          transition: 'opacity 0.4s ease',
         }}
       >
         Map Hack
