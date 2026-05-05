@@ -21,10 +21,10 @@ export const StartScreen: React.FC = () => {
     >
       <h1
         style={{
-          fontFamily: 'monospace',
+          fontFamily: '"Hammer Keys", monospace',
           color: '#fff',
-          fontSize: '3rem',
-          letterSpacing: '0.2em',
+          fontSize: '4rem',
+          letterSpacing: '0.1em',
           marginBottom: '2rem',
         }}
       >

@@ -67,10 +67,10 @@ export const IntroScene: React.FC = () => {
       >
         <h1
           style={{
-            fontFamily: 'monospace',
+            fontFamily: '"Hammer Keys", monospace',
             color: '#fff',
-            fontSize: '3rem',
-            letterSpacing: '0.3em',
+            fontSize: '4rem',
+            letterSpacing: '0.15em',
             opacity: titleVisible ? 1 : 0,
             transition: 'opacity 2s ease',
             textShadow: '0 0 30px rgba(0,0,0,0.8)',

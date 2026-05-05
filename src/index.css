@@ -1,5 +1,11 @@
 /* Oceanside Typewriter — loaded dynamically in PretextTypography to ensure Canvas access */
 
+@font-face {
+  font-family: 'Hammer Keys';
+  src: url('/assets/fonts/HammerKeys.ttf') format('truetype');
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
