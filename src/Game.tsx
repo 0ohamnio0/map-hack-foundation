@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useGameStore, type Chapter } from '@/store/useGameStore';
 import { StartScreen } from '@/components/game/StartScreen';
 import { FadeOverlay } from '@/components/game/FadeOverlay';
@@ -9,6 +9,7 @@ import { Ch2Scene } from '@/scenes/Ch2Scene';
 import { Ch3Scene } from '@/scenes/Ch3Scene';
 import { Ch4Screen } from '@/screens/Ch4Screen';
 import { Ch5Screen } from '@/screens/Ch5Screen';
+import { playChapterMusic } from '@/lib/chapterMusic';
 
 const CHAPTERS: Chapter[] = ['START', 'INTRO', 'CH1', 'CH2', 'CH3', 'CH4', 'CH5'];
 
@@ -55,6 +56,10 @@ const ChapterHUD: React.FC<{ chapter: string }> = ({ chapter }) => {
 
 export const Game: React.FC = () => {
   const chapter = useGameStore(s => s.chapter);
+
+  useEffect(() => {
+    playChapterMusic(chapter);
+  }, [chapter]);
 
   const renderScene = () => {
     switch (chapter) {
