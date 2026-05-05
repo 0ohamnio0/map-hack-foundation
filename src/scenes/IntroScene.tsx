@@ -1,6 +1,6 @@
 /**
  * INTRO Scene — CH.1 인트로 1차 프리뷰 영상이 메인.
- * Auto-transitions to CH.1 after 30s. Title fades in at 15s.
+ * Auto-transitions to CH.1 when the video ends. Title fades in at 15s.
  */
 import React, { useEffect, useState } from 'react'
 import { useGameStore } from '@/store/useGameStore'
@@ -16,21 +16,20 @@ export const IntroScene: React.FC = () => {
   useEffect(() => {
     play('intro_ambient')
     const t1 = setTimeout(() => setTitleVisible(true), 15000)
-    const t2 = setTimeout(() => goToChapter('CH1'), 30000)
     return () => {
       clearTimeout(t1)
-      clearTimeout(t2)
     }
-  }, [goToChapter, play])
+  }, [play])
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: '#000', overflow: 'hidden' }}>
-      {/* CH.1 인트로 프리뷰 영상 — 영상 자체 audio track 사용 (별도 BGM 없음) */}
+      {/* CH.1 인트로 프리뷰 영상 — 영상 자체 audio track 사용 (별도 BGM 없음).
+          영상 끝나면 자동으로 CH.1 진입. */}
       <video
         src={VIDEO_SRC}
         autoPlay
-        loop
         playsInline
+        onEnded={() => goToChapter('CH1')}
         style={{
           position: 'absolute',
           inset: 0,
