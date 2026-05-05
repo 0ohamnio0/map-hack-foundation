@@ -5,7 +5,9 @@ const BASE = `${import.meta.env.BASE_URL ?? '/'}assets/audio/bgm/`;
 
 const CHAPTER_BGM: Partial<Record<Chapter, string>> = {
   START: `${BASE}intro.mp3`,
-  // INTRO has its own audio (preview video's audio track) — no separate BGM
+  // INTRO and CH1 share ch1.mp3 — same track plays through video and into CH.1
+  // (video audio is muted; this BGM stays continuous across the chapter boundary)
+  INTRO: `${BASE}ch1.mp3`,
   CH1: `${BASE}ch1.mp3`,
   CH2: `${BASE}ch2.mp3`,
   CH3: `${BASE}ch3-map.mp3`,

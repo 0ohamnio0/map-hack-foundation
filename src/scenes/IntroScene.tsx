@@ -1,35 +1,50 @@
 /**
- * INTRO Scene — CH.1 인트로 1차 프리뷰 영상이 메인.
- * Auto-transitions to CH.1 when the video ends. Title fades in at 15s.
+ * INTRO Scene — CH.1 인트로 프리뷰 영상이 메인.
+ * 영상은 muted, BGM은 chapterMusic의 ch1.mp3 (CH.1과 같은 트랙으로 이어짐).
+ * Auto-transitions to CH.1 when the video ends.
+ * Title fades in 5s before the video ends.
  */
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '@/store/useGameStore'
 import { useSoundManager } from '@/hooks/useSoundManager'
 
 const VIDEO_SRC = `${import.meta.env.BASE_URL ?? '/'}assets/video/preview.mp4`
+const TITLE_LEAD_BEFORE_END_MS = 5000
 
 export const IntroScene: React.FC = () => {
   const goToChapter = useGameStore((s) => s.goToChapter)
   const { play } = useSoundManager()
   const [titleVisible, setTitleVisible] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const titleTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     play('intro_ambient')
-    const t1 = setTimeout(() => setTitleVisible(true), 15000)
     return () => {
-      clearTimeout(t1)
+      if (titleTimerRef.current !== null) clearTimeout(titleTimerRef.current)
     }
   }, [play])
 
+  const handleLoadedMetadata = () => {
+    const v = videoRef.current
+    if (!v) return
+    const durationMs = v.duration * 1000
+    const delay = Math.max(0, durationMs - TITLE_LEAD_BEFORE_END_MS)
+    titleTimerRef.current = window.setTimeout(() => setTitleVisible(true), delay)
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: '#000', overflow: 'hidden' }}>
-      {/* CH.1 인트로 프리뷰 영상 — 영상 자체 audio track 사용 (별도 BGM 없음).
+      {/* CH.1 인트로 프리뷰 영상 — muted (BGM은 chapterMusic 측에서 ch1.mp3로 깔림).
           영상 끝나면 자동으로 CH.1 진입. */}
       <video
+        ref={videoRef}
         src={VIDEO_SRC}
         autoPlay
+        muted
         playsInline
         onEnded={() => goToChapter('CH1')}
+        onLoadedMetadata={handleLoadedMetadata}
         style={{
           position: 'absolute',
           inset: 0,
@@ -39,7 +54,7 @@ export const IntroScene: React.FC = () => {
           pointerEvents: 'none',
         }}
       />
-      {/* Title overlay — fades in at 15s */}
+      {/* Title overlay — fades in 5s before the video ends */}
       <div
         style={{
           position: 'absolute',
