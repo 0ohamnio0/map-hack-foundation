@@ -25,12 +25,11 @@ export const IntroScene: React.FC = () => {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: '#000', overflow: 'hidden' }}>
-      {/* CH.1 인트로 프리뷰 영상 (muted; intro BGM via chapterMusic) */}
+      {/* CH.1 인트로 프리뷰 영상 — 영상 자체 audio track 사용 (별도 BGM 없음) */}
       <video
         src={VIDEO_SRC}
         autoPlay
         loop
-        muted
         playsInline
         style={{
           position: 'absolute',

@@ -5,7 +5,7 @@ const BASE = `${import.meta.env.BASE_URL ?? '/'}assets/audio/bgm/`;
 
 const CHAPTER_BGM: Partial<Record<Chapter, string>> = {
   START: `${BASE}intro.mp3`,
-  INTRO: `${BASE}intro.mp3`,
+  // INTRO has its own audio (preview video's audio track) — no separate BGM
   CH1: `${BASE}ch1.mp3`,
   CH2: `${BASE}ch2.mp3`,
   CH3: `${BASE}ch3-map.mp3`,
