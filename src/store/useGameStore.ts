@@ -11,6 +11,8 @@ interface GameState {
   cartItems: string[];
   activeEffect: string | null;
   notification: string | null;
+  /** CH.2 떨어진 쪽지 — 현재 열려 있는 쪽지 id (null이면 닫힌 상태) */
+  activeNoteId: string | null;
   goToChapter: (chapter: Chapter) => void;
   triggerEvent: (id: string) => boolean;
   addMovement: (direction: 'left' | 'right', amount: number) => void;
@@ -18,6 +20,8 @@ interface GameState {
   removeFromCart: (index: number) => void;
   setActiveEffect: (effect: string | null, duration?: number) => void;
   setNotification: (text: string | null) => void;
+  openNote: (id: string) => void;
+  closeNote: () => void;
   /** directionScore = rightMovement - leftMovement */
   getDirectionScore: () => number;
 }
@@ -33,6 +37,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   cartItems: [],
   activeEffect: null,
   notification: null,
+  activeNoteId: null,
 
   goToChapter: (chapter: Chapter) => {
     set({ isTransitioning: true });
@@ -93,6 +98,19 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setNotification: (notification) => {
     set({ notification });
+  },
+
+  openNote: (id: string) => {
+    set({ activeNoteId: id });
+  },
+
+  closeNote: () => {
+    const { activeNoteId, visitedEvents } = get();
+    if (!activeNoteId) return;
+    // 한 번 읽으면 휘발 — visitedEvents에 영구 기록
+    const newSet = new Set(visitedEvents);
+    newSet.add(`note_${activeNoteId}`);
+    set({ visitedEvents: newSet, activeNoteId: null });
   },
 
   getDirectionScore: () => {

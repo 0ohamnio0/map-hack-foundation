@@ -12,6 +12,9 @@ import { CloudSkyBackground } from '@/components/effects/CloudSkyBackground';
 import { NPC } from '@/components/game/NPC';
 import { SignpostManager, MovementTracker } from '@/components/game/SignpostManager';
 import { Ch2SoundManager } from '@/components/game/Ch2SoundManager';
+import { Note } from '@/components/game/Note';
+import { NoteReader } from '@/components/game/NoteReader';
+import { CH2_NOTES } from '@/data/ch2Notes';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -78,6 +81,13 @@ const NPC_POSITIONS_RAW: { x: number; z: number; isSpecial?: boolean }[] = [
   { x: 2,  z: -80 },
 ];
 const NPC_POSITIONS = NPC_POSITIONS_RAW.map(n => ({ ...n, x: n.x * SCALE_X, z: n.z * SCALE_Z }));
+
+// CH2_NOTES base 좌표를 길의 SCALE에 맞춰 변환
+const NOTE_POSITIONS = CH2_NOTES.map(n => ({
+  ...n,
+  worldPos: [n.position[0] * SCALE_X, 0.15, n.position[1] * SCALE_Z] as [number, number, number],
+}));
+
 const AIRPORT_DURATION = 5200;
 const AIRPORT_FADE = 220;
 
@@ -554,6 +564,11 @@ const Ch2PhysicsScene: React.FC<{
         />
       ))}
 
+      {/* 떨어진 쪽지 — 패닉어택 슈퍼스타 시 5편 */}
+      {NOTE_POSITIONS.map(n => (
+        <Note key={n.id} noteId={n.id} position={n.worldPos} />
+      ))}
+
       {/* STEP 1: Signposts + movement tracking */}
       <MovementTracker />
       <SignpostManager />
@@ -646,11 +661,14 @@ const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
 
 export const Ch2Scene: React.FC = () => {
   const [airportActive, setAirportActive] = useState(false);
-  const goToChapter = useGameStore(s => s.goToChapter);
-  const devMode     = useDevMode();
+  const goToChapter  = useGameStore(s => s.goToChapter);
+  const activeNoteId = useGameStore(s => s.activeNoteId);
+  const devMode      = useDevMode();
 
   const startAirport = useCallback(() => setAirportActive(true),  []);
   const endAirport   = useCallback(() => setAirportActive(false), []);
+
+  const freezeControls = airportActive || activeNoteId !== null;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
@@ -658,11 +676,12 @@ export const Ch2Scene: React.FC = () => {
         <Ch2Inner
           airportActive={airportActive}
           onAirportTrigger={startAirport}
-          freezeControls={airportActive}
+          freezeControls={freezeControls}
         />
       </Canvas>
 
       <AirportCutscene active={airportActive} onDone={endAirport} />
+      <NoteReader />
 
       {/* Mobile joystick — touch devices only */}
       {'ontouchstart' in window && <EcctrlJoystick />}
