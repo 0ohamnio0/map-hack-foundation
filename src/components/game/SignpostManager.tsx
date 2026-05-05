@@ -9,7 +9,7 @@ import { useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGameStore } from '@/store/useGameStore'
 import { Signpost, FloorSign } from './Signpost'
-import { SCALE_X, SCALE_Z } from '@/scenes/Ch2Scene'
+import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout'
 
 const BERLIN_POOL = ['SchwuZ', 'Kreuzberg', 'Friedrichshain', 'Kottbusser Tor', 'Görlitzer Park']
 const KOREA_POOL = ['신림역', '관악구', '이태원', '녹사평', '한남동']

@@ -17,11 +17,9 @@ const BASE = import.meta.env.BASE_URL;
 
 const WALL_HEIGHT = 4;
 
-/** Scale factors applied to the original S-curve layout.
- *  SCALE_X widens the street, SCALE_Z lengthens each segment.
- *  SignpostManager imports the same constants so its positions stay in sync. */
-export const SCALE_X = 1.5;
-export const SCALE_Z = 1.6;
+/** Scale factors live in @/scenes/ch2Layout to keep Ch2Scene <-> SignpostManager
+ *  free of a circular import. */
+import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout';
 
 /*
  * S-shaped winding street layout (top-down) — base values, scaled at runtime:
