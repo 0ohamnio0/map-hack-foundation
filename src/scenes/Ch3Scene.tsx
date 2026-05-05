@@ -11,6 +11,7 @@ import { useDevMode } from '@/hooks/useDevMode';
 import { Ch3Effects } from '@/components/effects/ChapterEffects';
 import { StarNestOverlay } from '@/components/effects/StarNestOverlay';
 import { ItaewonLayer } from '@/components/game/ItaewonLayer';
+import { startElevatorMusic, endElevatorMusic } from '@/lib/chapterMusic';
 
 const MAZE_SIZE = 10;
 const CELL_SIZE = 7;
@@ -772,6 +773,7 @@ export const Ch3Scene: React.FC = () => {
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
     setCutscenePhase('elevator');
+    startElevatorMusic();
 
     // Phase 1 → Phase 2
     setTimeout(() => {
@@ -781,6 +783,7 @@ export const Ch3Scene: React.FC = () => {
     // Phase 2 → returning (fade out)
     setTimeout(() => {
       setCutscenePhase('returning');
+      endElevatorMusic();
     }, ELEVATOR_DURATION + SPACE_DURATION);
 
     // Done — back to maze
