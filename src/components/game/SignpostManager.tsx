@@ -9,13 +9,14 @@ import { useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGameStore } from '@/store/useGameStore'
 import { Signpost, FloorSign } from './Signpost'
+import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout'
 
 const BERLIN_POOL = ['SchwuZ', 'Kreuzberg', 'Friedrichshain', 'Kottbusser Tor', 'Görlitzer Park']
 const KOREA_POOL = ['신림역', '관악구', '이태원', '녹사평', '한남동']
 const HANOI_POOL = ['Hoàn Kiếm', 'Phố cổ', 'Ba Đình']
 const ALL_POOL = [...BERLIN_POOL, ...KOREA_POOL, ...HANOI_POOL]
 
-const SIGNPOST_POSITIONS = [
+const SIGNPOST_POSITIONS_RAW = [
   { x: 0, z: -10, rot: 0 },
   { x: 3, z: -20, rot: 0.3 },
   { x: 5, z: -35, rot: -0.2 },
@@ -25,12 +26,16 @@ const SIGNPOST_POSITIONS = [
   { x: -3, z: -75, rot: -0.1 },
   { x: 0, z: -82, rot: 0 },
 ]
+const SIGNPOST_POSITIONS = SIGNPOST_POSITIONS_RAW.map(p => ({ ...p, x: p.x * SCALE_X, z: p.z * SCALE_Z }))
 
-const FLOOR_SIGNS = [
+const FLOOR_SIGNS_RAW = [
   { x: 2, z: -5, text: '일방통행' },
   { x: 15, z: -42, text: '어린이보호구역 30' },
   { x: -2, z: -70, text: '일방통행' },
 ]
+const FLOOR_SIGNS = FLOOR_SIGNS_RAW.map(s => ({ ...s, x: s.x * SCALE_X, z: s.z * SCALE_Z }))
+
+const NEAR_EXIT_Z = -78 * SCALE_Z
 
 function pickFromPool(pool: string[], index: number): string {
   return pool[index % pool.length]
@@ -70,14 +75,14 @@ export function SignpostManager() {
   // Update signpost texts when directionScore changes significantly
   useFrame(() => {
     const score = getDirectionScore()
-    const nearExit = camera.position.z < -78
+    const nearExit = camera.position.z < NEAR_EXIT_Z
 
     // Only update when score changes by > 0.5 to avoid constant re-renders
     if (Math.abs(score - lastScore.current) < 0.5 && !nearExit) return
     lastScore.current = score
 
     const newTexts = SIGNPOST_POSITIONS.map((sp, i) => {
-      if (nearExit || sp.z < -78) return '→'
+      if (nearExit || sp.z < NEAR_EXIT_Z) return '→'
       if (score < -3) return pickFromPool(BERLIN_POOL, i)
       if (score > 3) return pickFromPool(KOREA_POOL, i)
       return pickFromPool(ALL_POOL, i + Math.floor(Math.abs(score)))

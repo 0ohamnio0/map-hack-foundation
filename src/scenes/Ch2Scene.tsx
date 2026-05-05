@@ -17,8 +17,12 @@ const BASE = import.meta.env.BASE_URL;
 
 const WALL_HEIGHT = 4;
 
+/** Scale factors live in @/scenes/ch2Layout to keep Ch2Scene <-> SignpostManager
+ *  free of a circular import. */
+import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout';
+
 /*
- * S-shaped winding street layout (top-down):
+ * S-shaped winding street layout (top-down) — base values, scaled at runtime:
  *
  *  V1: x∈[-7, 7]   south from z=3 to z=-40
  *  H1: x∈[-7, 27]  east  at z∈[-30, -40]   (turn right)
@@ -27,8 +31,8 @@ const WALL_HEIGHT = 4;
  *  V3: x∈[-7, 7]   south from z=-70 to z=-90  (exit)
  */
 
-// Wall segments: [centerX, centerZ, width(x), depth(z)]
-const WALL_DEFS: [number, number, number, number][] = [
+// Wall segments: [centerX, centerZ, width(x), depth(z)] — base values
+const WALL_DEFS_RAW: [number, number, number, number][] = [
   // --- Outer perimeter ---
   [0,      3,      14.6,  0.3],
   [7.15,  -13.5,   0.3,   33.3],
@@ -43,9 +47,12 @@ const WALL_DEFS: [number, number, number, number][] = [
   [13,    -50,     0.3,   20.3],
   [3,     -60,     20.3,  0.3],
 ];
+const WALL_DEFS: [number, number, number, number][] = WALL_DEFS_RAW.map(
+  ([cx, cz, w, d]) => [cx * SCALE_X, cz * SCALE_Z, w * SCALE_X, d * SCALE_Z],
+);
 
-// Decorative street objects
-const DECOR: { x: number; z: number; w: number; d: number; h: number; color: string }[] = [
+// Decorative street objects — base values
+const DECOR_RAW: { x: number; z: number; w: number; d: number; h: number; color: string }[] = [
   { x: -5, z: -6,  w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
   { x: 5,  z: -16, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
   { x: -5, z: -26, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
@@ -54,11 +61,12 @@ const DECOR: { x: number; z: number; w: number; d: number; h: number; color: str
   { x: 10, z: -65, w: 1.5,  d: 1.0,  h: 1.2, color: '#777' },
   { x: -5, z: -78, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
 ];
+const DECOR = DECOR_RAW.map(o => ({ ...o, x: o.x * SCALE_X, z: o.z * SCALE_Z }));
 
-const AIRPORT_TRIGGER = { x: 5, z: -16, radius: 2.5 };
+const AIRPORT_TRIGGER = { x: 5 * SCALE_X, z: -16 * SCALE_Z, radius: 2.5 * SCALE_X };
 
-// STEP 2: NPC positions along the S-curve
-const NPC_POSITIONS: { x: number; z: number; isSpecial?: boolean }[] = [
+// STEP 2: NPC positions along the S-curve — base values
+const NPC_POSITIONS_RAW: { x: number; z: number; isSpecial?: boolean }[] = [
   { x: -3, z: -8 },
   { x: 4,  z: -15 },
   { x: -2, z: -25 },
@@ -69,6 +77,7 @@ const NPC_POSITIONS: { x: number; z: number; isSpecial?: boolean }[] = [
   { x: -4, z: -72 },
   { x: 2,  z: -80 },
 ];
+const NPC_POSITIONS = NPC_POSITIONS_RAW.map(n => ({ ...n, x: n.x * SCALE_X, z: n.z * SCALE_Z }));
 const AIRPORT_DURATION = 5200;
 const AIRPORT_FADE = 220;
 
@@ -411,7 +420,7 @@ const TriggerWatcher: React.FC<{
     }
 
     // Chapter exit (camera orbits behind character, so threshold is less negative)
-    if (pz < -80) {
+    if (pz < -80 * SCALE_Z) {
       if (triggerEvent('ch2_exit')) goToChapter('CH3');
     }
   });
@@ -428,11 +437,11 @@ const StreetScene: React.FC = () => {
     <>
       {/* Floor */}
       <RigidBody type="fixed">
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, 0, -43]}>
-          <planeGeometry args={[50, 100]} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10 * SCALE_X, 0, -43 * SCALE_Z]}>
+          <planeGeometry args={[50 * SCALE_X, 100 * SCALE_Z]} />
           <meshStandardMaterial color="#888" />
         </mesh>
-        <CuboidCollider args={[25, 0.1, 50]} position={[10, -0.1, -43]} />
+        <CuboidCollider args={[25 * SCALE_X, 0.1, 50 * SCALE_Z]} position={[10 * SCALE_X, -0.1, -43 * SCALE_Z]} />
       </RigidBody>
 
       {/* Walls */}
@@ -454,7 +463,7 @@ const StreetScene: React.FC = () => {
       ))}
 
       {/* Exit marker */}
-      <mesh position={[0, 1.5, -87]}>
+      <mesh position={[0, 1.5, -87 * SCALE_Z]}>
         <boxGeometry args={[3, 3, 0.3]} />
         <meshStandardMaterial color="#4a4" emissive="#0f0" emissiveIntensity={0.2} />
       </mesh>
