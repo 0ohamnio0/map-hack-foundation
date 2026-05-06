@@ -8,6 +8,8 @@ import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 
+const UNIFONT_URL = `${import.meta.env.BASE_URL}assets/fonts/unifont-16.0.02.otf`
+
 interface SignpostProps {
   position: [number, number, number]
   text: string
@@ -81,7 +83,7 @@ export function Signpost({ position, text, rotation = 0 }: SignpostProps) {
         position={[0, 2.2, 0.04]}
         fontSize={0.25}
         color="#ddd"
-        font={undefined}
+        font={UNIFONT_URL}
         anchorX="center"
         anchorY="middle"
         maxWidth={1.2}
@@ -105,6 +107,7 @@ export function FloorSign({ position, text }: { position: [number, number, numbe
         rotation={[-Math.PI / 2, 0, 0]}
         fontSize={0.2}
         color="#ccc"
+        font={UNIFONT_URL}
         anchorX="center"
         anchorY="middle"
       >

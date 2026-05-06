@@ -88,27 +88,8 @@ const MEDICINES = [
   { name: '다 먹음', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 }, mazeProfile: { removalRatio: 0.6 } },
 ];
 
-// --- Fitting room + mirror at center ---
+// --- Fitting room (= space elevator portal) at center ---
 const FITTING_ROOM_CELL = { gx: Math.floor(MAZE_SIZE / 2), gy: Math.floor(MAZE_SIZE / 2) }; // (5, 5)
-
-// Cells that are "reserved" and can't be used for the elevator
-const RESERVED_CELLS = new Set([
-  '0,0',   // start
-  '9,9',   // end
-  `${FITTING_ROOM_CELL.gx},${FITTING_ROOM_CELL.gy}`,
-  ...MEDICINES.map(m => `${m.cell.gx},${m.cell.gy}`),
-]);
-
-/** Pick a random non-reserved cell for the space elevator */
-function pickElevatorCell(): { gx: number; gy: number } {
-  const candidates: { gx: number; gy: number }[] = [];
-  for (let y = 0; y < MAZE_SIZE; y++) {
-    for (let x = 0; x < MAZE_SIZE; x++) {
-      if (!RESERVED_CELLS.has(`${x},${y}`)) candidates.push({ gx: x, gy: y });
-    }
-  }
-  return candidates[Math.floor(Math.random() * candidates.length)];
-}
 
 /** Fitting room booth + reflective mirror */
 const FittingRoom: React.FC<{ worldPos: { x: number; z: number } }> = ({ worldPos }) => {
@@ -145,40 +126,6 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number } }> = ({ worldPo
           metalness={0.9}
           roughness={0.05}
         />
-      </mesh>
-    </group>
-  );
-};
-
-/** Space elevator portal — rotating, glowing */
-const SpaceElevator: React.FC<{ worldPos: { x: number; z: number } }> = ({ worldPos }) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const ringRef = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    if (ringRef.current) {
-      ringRef.current.rotation.y = clock.elapsedTime * 1.5;
-      ringRef.current.rotation.z = clock.elapsedTime * 0.7;
-      ringRef.current.position.y = 1.5 + Math.sin(clock.elapsedTime * 2) * 0.15;
-    }
-  });
-
-  return (
-    <group ref={groupRef} position={[worldPos.x, 0, worldPos.z]}>
-      {/* Base pad */}
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[1, 24]} />
-        <meshStandardMaterial color="#112233" emissive="#00e5ff" emissiveIntensity={0.15} />
-      </mesh>
-      {/* Rotating ring */}
-      <mesh ref={ringRef} position={[0, 1.5, 0]}>
-        <torusGeometry args={[0.8, 0.08, 8, 24]} />
-        <meshStandardMaterial color="#00e5ff" emissive="#00e5ff" emissiveIntensity={0.6} />
-      </mesh>
-      {/* Inner glow pillar */}
-      <mesh position={[0, 1.5, 0]}>
-        <cylinderGeometry args={[0.15, 0.15, 2.5, 8]} />
-        <meshStandardMaterial color="#00e5ff" emissive="#00e5ff" emissiveIntensity={0.3} transparent opacity={0.4} />
       </mesh>
     </group>
   );
@@ -339,7 +286,7 @@ const ElevatorCutscene: React.FC<{
           {/* ▲ direction arrow */}
           <div style={{
             position: 'absolute', top: '-4%', left: '50%', transform: 'translateX(-50%)',
-            fontFamily: 'monospace', fontSize: 12, color: '#ff3300',
+            fontFamily: '"Unifont", monospace', fontSize: 12, color: '#ff3300',
             animation: 'arrowPulse 0.8s ease-in-out infinite',
           }}>
             ▲
@@ -353,7 +300,7 @@ const ElevatorCutscene: React.FC<{
           textAlign: 'center',
         }}>
           <div style={{
-            fontFamily: "'Courier New', monospace",
+            fontFamily: '"Unifont", monospace',
             fontSize: 36,
             fontWeight: 'bold',
             color: '#ff3300',
@@ -363,7 +310,7 @@ const ElevatorCutscene: React.FC<{
             {floor >= 99 ? '∞' : String(floor).padStart(2, '0')}
           </div>
           <div style={{
-            fontFamily: 'monospace', fontSize: 8, color: 'rgba(255,255,255,0.2)',
+            fontFamily: '"Unifont", monospace', fontSize: 8, color: 'rgba(255,255,255,0.2)',
             letterSpacing: 3, marginTop: 2,
           }}>
             FLOOR
@@ -391,7 +338,7 @@ const ElevatorCutscene: React.FC<{
               background: i === 0 ? 'rgba(255,200,0,0.25)' : 'rgba(255,255,255,0.06)',
               border: `1px solid ${i === 0 ? 'rgba(255,200,0,0.3)' : 'rgba(255,255,255,0.08)'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'monospace', fontSize: 14,
+              fontFamily: '"Unifont", monospace', fontSize: 14,
               color: i === 0 ? '#ffcc00' : 'rgba(255,255,255,0.3)',
               letterSpacing: 1,
             }}>
@@ -423,7 +370,7 @@ const ElevatorCutscene: React.FC<{
         {/* ▲ key hint — fixed, outside viewport shift */}
         <div style={{
           position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)',
-          fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.12)',
+          fontFamily: '"Unifont", monospace', fontSize: 10, color: 'rgba(255,255,255,0.12)',
           letterSpacing: 3,
           opacity: lookUp ? 0 : 1,
           transition: 'opacity 0.3s ease',
@@ -536,7 +483,7 @@ const ElevatorCutscene: React.FC<{
         {/* Text */}
         <div style={{
           position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-          fontFamily: "'Courier New', monospace",
+          fontFamily: '"Unifont", monospace',
           fontSize: 14,
           color: 'rgba(255,255,255,0.3)',
           letterSpacing: 6,
@@ -626,13 +573,12 @@ const ExitMarker: React.FC<{ worldPos: { x: number; z: number }; visible: boolea
 
 const Ch3Inner: React.FC<{
   maze: MazeData;
-  elevatorCell: { gx: number; gy: number };
   onPlayerMove?: (pos: { x: number; z: number }) => void;
-  onElevatorEnter?: () => void;
+  onElevatorZoneChange?: (inZone: boolean) => void;
+  onExitZoneChange?: (inZone: boolean) => void;
   onDrugPickup?: (index: number) => void;
   onCollectedChange?: (collected: Set<number>) => void;
-}> = ({ maze, elevatorCell, onPlayerMove, onElevatorEnter, onDrugPickup, onCollectedChange }) => {
-  const goToChapter = useGameStore(s => s.goToChapter);
+}> = ({ maze, onPlayerMove, onElevatorZoneChange, onExitZoneChange, onDrugPickup, onCollectedChange }) => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const addToCart = useGameStore(s => s.addToCart);
   const setActiveEffect = useGameStore(s => s.setActiveEffect);
@@ -661,10 +607,6 @@ const Ch3Inner: React.FC<{
   const fittingRoomWorld = useMemo(() =>
     cellToWorld(FITTING_ROOM_CELL.gx, FITTING_ROOM_CELL.gy, CELL_SIZE),
   []);
-
-  const elevatorWorld = useMemo(() =>
-    cellToWorld(elevatorCell.gx, elevatorCell.gy, CELL_SIZE),
-  [elevatorCell]);
 
   const itaewonCellWorld = useMemo(() => cellToWorld(3, 3, CELL_SIZE), []);
 
@@ -697,38 +639,22 @@ const Ch3Inner: React.FC<{
         }
       });
 
-      // Fitting room / mirror detection
-      const mirrorDist = Math.sqrt((px - fittingRoomWorld.x) ** 2 + (pz - fittingRoomWorld.z) ** 2);
-      if (mirrorDist < CELL_SIZE * 0.6) {
-        if (triggerEvent('ch3_mirror')) {
-          setNotification('시착실');
-          setActiveEffect('blur', 2000);
-          setTimeout(() => setNotification(null), 2000);
-        }
-      }
+      // 시착실 = 엘리베이터 portal — proximity-only state (E-confirm in Ch3Scene)
+      const elevDist = Math.sqrt((px - fittingRoomWorld.x) ** 2 + (pz - fittingRoomWorld.z) ** 2);
+      onElevatorZoneChange?.(elevDist < CELL_SIZE * 0.6);
 
-      // Space elevator detection — triggers cutscene
-      const elevDist = Math.sqrt((px - elevatorWorld.x) ** 2 + (pz - elevatorWorld.z) ** 2);
-      if (elevDist < CELL_SIZE * 0.5) {
-        if (triggerEvent('ch3_elevator')) {
-          onElevatorEnter?.();
-        }
-      }
-
-      // Exit detection — gated until all 5 medicines are collected
+      // Exit zone — gated until all 5 medicines collected, E-confirm in Ch3Scene
       if (collected.size === MEDICINES.length) {
         const exitDist = Math.sqrt((px - exitWorld.x) ** 2 + (pz - exitWorld.z) ** 2);
-        if (exitDist < 2) {
-          if (triggerEvent('ch3_exit')) {
-            goToChapter('CH4');
-          }
-        }
+        onExitZoneChange?.(exitDist < 2);
+      } else {
+        onExitZoneChange?.(false);
       }
     };
 
     const interval = setInterval(check, 100);
     return () => clearInterval(interval);
-  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, elevatorWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, goToChapter, onDrugPickup, onCollectedChange]);
+  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange, onExitZoneChange]);
 
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
@@ -763,11 +689,8 @@ const Ch3Inner: React.FC<{
         );
       })}
 
-      {/* Fitting room + mirror at center */}
+      {/* 시착실 = 엘리베이터 portal at center */}
       <FittingRoom worldPos={fittingRoomWorld} />
-
-      {/* Space elevator — random position each playthrough */}
-      <SpaceElevator worldPos={elevatorWorld} />
 
       {/* STEP 5: Itaewon memorial layer at cell (3,3) */}
       <ItaewonLayer
@@ -804,26 +727,25 @@ export const Ch3Scene: React.FC = () => {
     setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, ...profile }, CELL_SIZE));
   }, []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
-  const elevatorCell = useMemo(() => pickElevatorCell(), []);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
   const [cutscenePhase, setCutscenePhase] = useState<CutscenePhase>(null);
   const [collectedSet, setCollectedSet] = useState<Set<number>>(new Set());
+  const [atElevator, setAtElevator] = useState(false);
+  const [atExit, setAtExit] = useState(false);
   const cartItems = useGameStore(s => s.cartItems);
   const removeFromCart = useGameStore(s => s.removeFromCart);
   const setNotification = useGameStore(s => s.setNotification);
   const notification = useGameStore(s => s.notification);
   const goToChapter = useGameStore(s => s.goToChapter);
+  const triggerEvent = useGameStore(s => s.triggerEvent);
+  const elevatorVisited = useGameStore(s => s.visitedEvents.has('ch3_elevator'));
   const devMode = useDevMode();
 
-  // Minimap markers: fitting room (magenta) + elevator (cyan).
-  // Uncollected medicines shown in their own color (small dots).
-  // Exit (green glow) only after all 5 medicines collected.
+  // Minimap markers: 시착실(=엘리베이터) magenta + 약 위치 (수집 전) + 출구(전부 모은 후).
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
     const fr = cellToWorld(FITTING_ROOM_CELL.gx, FITTING_ROOM_CELL.gy, CELL_SIZE);
-    const el = cellToWorld(elevatorCell.gx, elevatorCell.gy, CELL_SIZE);
     const markers: MinimapMarker[] = [
       { x: fr.x, z: fr.z, color: '#c040ff', radius: 3.5, glow: true },
-      { x: el.x, z: el.z, color: '#00e5ff', radius: 3, glow: true },
     ];
     MEDICINES.forEach((med, i) => {
       if (collectedSet.has(i)) return;
@@ -837,7 +759,7 @@ export const Ch3Scene: React.FC = () => {
       markers.push({ x: ex.x, z: ex.z, color: '#0f0', radius: 3, glow: true });
     }
     return markers;
-  }, [elevatorCell, collectedSet]);
+  }, [collectedSet]);
 
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
@@ -861,14 +783,34 @@ export const Ch3Scene: React.FC = () => {
     }, ELEVATOR_DURATION + SPACE_DURATION + RETURN_FADE);
   }, []);
 
+  // E 키 — 엘리베이터/출구 진입 확정
+  const showElevatorPrompt = atElevator && !elevatorVisited && !cutscenePhase;
+  const showExitPrompt = atExit && !cutscenePhase;
+  useEffect(() => {
+    if (!showElevatorPrompt && !showExitPrompt) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyE') return;
+      e.preventDefault();
+      if (showExitPrompt) {
+        triggerEvent('ch3_exit');
+        goToChapter('CH4');
+      } else if (showElevatorPrompt) {
+        triggerEvent('ch3_elevator');
+        startElevatorCutscene();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showElevatorPrompt, showExitPrompt, triggerEvent, goToChapter, startElevatorCutscene]);
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
       <Canvas camera={{ fov: 75, position: [startWorld.x, 1.8, startWorld.z] }} style={{ background: '#0a0a0a' }}>
         <Ch3Inner
           maze={maze}
-          elevatorCell={elevatorCell}
           onPlayerMove={setPlayerPos}
-          onElevatorEnter={startElevatorCutscene}
+          onElevatorZoneChange={setAtElevator}
+          onExitZoneChange={setAtExit}
           onDrugPickup={handleDrugPickup}
           onCollectedChange={setCollectedSet}
         />
@@ -876,6 +818,29 @@ export const Ch3Scene: React.FC = () => {
 
       {/* Elevator cutscene overlay */}
       <ElevatorCutscene phase={cutscenePhase} />
+
+      {/* Door E-confirm prompts */}
+      {(showElevatorPrompt || showExitPrompt) && (
+        <div style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: '14%',
+          transform: 'translateX(-50%)',
+          zIndex: 1500,
+          fontFamily: '"Unifont", monospace',
+          fontSize: 14,
+          letterSpacing: 4,
+          color: '#f3eedd',
+          background: 'rgba(0,0,0,0.65)',
+          padding: '8px 18px',
+          border: '1px solid rgba(243,238,221,0.35)',
+          textShadow: '0 0 6px rgba(0,0,0,0.8)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}>
+          {showExitPrompt ? '[E] 나가기' : '[E] 들어가기'}
+        </div>
+      )}
 
       {/* Hide minimap & UI during cutscene */}
       {!cutscenePhase && (
@@ -892,7 +857,7 @@ export const Ch3Scene: React.FC = () => {
           backgroundColor: 'rgba(0,0,0,0.8)',
           color: '#fff',
           padding: '20px 40px',
-          fontFamily: 'monospace',
+          fontFamily: '"Unifont", monospace',
           fontSize: 24,
           border: '1px solid #fff',
           zIndex: 300,
@@ -927,7 +892,7 @@ export const Ch3Scene: React.FC = () => {
               }}
               style={{
                 padding: '4px 10px',
-                fontFamily: 'monospace',
+                fontFamily: '"Unifont", monospace',
                 fontSize: 11,
                 color: '#fff',
                 backgroundColor: 'rgba(0,0,0,0.7)',
@@ -955,7 +920,7 @@ export const Ch3Scene: React.FC = () => {
           border: '1px solid rgba(255,255,255,0.15)',
           borderRadius: 6,
           padding: '10px 14px',
-          fontFamily: 'monospace',
+          fontFamily: '"Unifont", monospace',
           fontSize: 11,
           color: '#ccc',
           display: 'flex',
@@ -966,9 +931,6 @@ export const Ch3Scene: React.FC = () => {
           <div style={{ color: '#ff0', fontSize: 10, letterSpacing: 2, marginBottom: 2 }}>DEV MODE</div>
           <div style={{ color: '#888', fontSize: 10 }}>
             pos: {playerPos.x.toFixed(1)}, {playerPos.z.toFixed(1)}
-          </div>
-          <div style={{ color: '#888', fontSize: 10 }}>
-            elevator cell: ({elevatorCell.gx}, {elevatorCell.gy})
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label="Elevator Cutscene" onClick={() => { if (!cutscenePhase) startElevatorCutscene(); }} />
@@ -989,7 +951,7 @@ const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
       border: '1px solid rgba(255,255,255,0.15)',
       borderRadius: 3,
       color: '#ddd',
-      fontFamily: 'monospace',
+      fontFamily: '"Unifont", monospace',
       fontSize: 11,
       padding: '4px 8px',
       cursor: 'pointer',

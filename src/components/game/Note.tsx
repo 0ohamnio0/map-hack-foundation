@@ -10,8 +10,9 @@ import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
 
-// 3인칭 카메라가 캐릭터 뒤로 ~3유닛 떨어져 있어, NPC 거리 4유닛 컨벤션과 비슷하게 설정.
-const PROXIMITY_RADIUS = 3.0
+// 3인칭 카메라가 캐릭터 뒤로 ~3유닛 떨어져 있어, 카메라-노트 거리 기준으로 넉넉하게 설정.
+// 캐릭터 기준으로는 노트로부터 약 2~3유닛이면 [E] 줍기가 활성화됨.
+const PROXIMITY_RADIUS = 5.5
 
 interface NoteProps {
   noteId: string
@@ -83,7 +84,7 @@ export function Note({ noteId, position }: NoteProps) {
         <Html position={[0, 0.55, 0]} center>
           <div style={{
             color: '#f3eedd',
-            fontFamily: 'monospace',
+            fontFamily: '"Unifont", monospace',
             fontSize: 12,
             letterSpacing: 3,
             background: 'rgba(0, 0, 0, 0.65)',

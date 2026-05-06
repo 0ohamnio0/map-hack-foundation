@@ -36,7 +36,7 @@ export const StartScreen: React.FC = () => {
       </h1>
       <p
         style={{
-          fontFamily: 'monospace',
+          fontFamily: '"Unifont", monospace',
           color: '#fff',
           fontSize: '1.2rem',
           animation: 'blink 1s step-end infinite',

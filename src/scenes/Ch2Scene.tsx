@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
-import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@react-three/drei';
+import { KeyboardControls, useFBX, useGLTF, useAnimations, useKeyboardControls } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import Ecctrl, { EcctrlJoystick } from 'ecctrl';
@@ -14,6 +14,7 @@ import { SignpostManager, MovementTracker } from '@/components/game/SignpostMana
 import { Ch2SoundManager } from '@/components/game/Ch2SoundManager';
 import { Note } from '@/components/game/Note';
 import { NoteReader } from '@/components/game/NoteReader';
+import { Ch2Decor } from '@/components/game/Ch2Decor';
 import { CH2_NOTES } from '@/data/ch2Notes';
 
 const BASE = import.meta.env.BASE_URL;
@@ -165,7 +166,7 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
       </div>
       <div style={{
         position: 'absolute', top: '18%', left: '50%', transform: 'translateX(-50%)',
-        fontFamily: 'monospace', color: 'rgba(19,42,84,0.95)', letterSpacing: 7, fontSize: 15,
+        fontFamily: '"Unifont", monospace', color: 'rgba(19,42,84,0.95)', letterSpacing: 7, fontSize: 15,
         textShadow: '0 0 15px rgba(255,255,255,0.7)',
         animation: 'airportPulse 0.2s steps(2, end) infinite',
       }}>GATE 14</div>
@@ -192,12 +193,12 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
           mixBlendMode: 'screen',
           animation: `airportCardFlicker ${0.65 + i * 0.1}s steps(2, end) infinite`,
         }}>
-          <div style={{ position: 'absolute', left: 10, top: 10, fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(14,28,54,0.8)' }}>{card.label}</div>
+          <div style={{ position: 'absolute', left: 10, top: 10, fontFamily: '"Unifont", monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(14,28,54,0.8)' }}>{card.label}</div>
           <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 40%, rgba(255,255,255,0.7) 0%, transparent 52%)' }} />
         </div>
       ))}
       <div style={{
-        position: 'absolute', left: '8%', top: '12%', fontFamily: 'monospace',
+        position: 'absolute', left: '8%', top: '12%', fontFamily: '"Unifont", monospace',
         color: 'rgba(255,255,255,0.85)', fontSize: 12, letterSpacing: 2, lineHeight: 1.8,
         textTransform: 'uppercase',
         animation: 'airportGlitch 0.14s steps(2, end) infinite', mixBlendMode: 'screen',
@@ -412,26 +413,29 @@ const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }
 
 const TriggerWatcher: React.FC<{
   onAirportTrigger: () => void;
+  onExitZoneChange: (inZone: boolean) => void;
   disabled: boolean;
-}> = ({ onAirportTrigger, disabled }) => {
+}> = ({ onAirportTrigger, onExitZoneChange, disabled }) => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
-  const goToChapter  = useGameStore(s => s.goToChapter);
+  const inExitRef = useRef(false);
 
   useFrame(({ camera }) => {
     if (disabled) return;
     const px = camera.position.x;
     const pz = camera.position.z;
 
-    // Airport hallucination
+    // Airport hallucination — auto fire (one-shot via triggerEvent)
     const dx = px - AIRPORT_TRIGGER.x;
     const dz = pz - AIRPORT_TRIGGER.z;
     if (Math.sqrt(dx * dx + dz * dz) < AIRPORT_TRIGGER.radius) {
       if (triggerEvent('ch2_airport')) onAirportTrigger();
     }
 
-    // Chapter exit (camera orbits behind character, so threshold is less negative)
-    if (pz < -80 * SCALE_Z) {
-      if (triggerEvent('ch2_exit')) goToChapter('CH3');
+    // Chapter exit zone — proximity-only state, confirmed by E key in Ch2Scene
+    const inExit = pz < -82 * SCALE_Z;
+    if (inExit !== inExitRef.current) {
+      inExitRef.current = inExit;
+      onExitZoneChange(inExit);
     }
   });
 
@@ -440,26 +444,85 @@ const TriggerWatcher: React.FC<{
 
 // ---------- Street geometry + physics ----------
 
-const StreetScene: React.FC = () => {
-  const wallMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: '#bbb' }), []);
+// wall.glb base 모델 — 외곽 박스 8.12 × 3.08 × 0.87 (m), origin 비중심
+const WALL_GLB_URL = `${BASE}assets/models/wall.glb`;
+const WALL_GLB_SIZE: [number, number, number] = [8.117, 3.075, 0.867];
+// PBR 텍스처는 별도로 추출해둔 파일을 직접 로드 (GLB 임베드 WebP가 안정적이지 않을 때 안전)
+const WALL_TEX_BASE_URL  = `${BASE}assets/textures/wall_basecolor.jpg`;
+const WALL_TEX_NORMAL_URL = `${BASE}assets/textures/wall_normal.png`;
+const WALL_TEX_ROUGH_URL  = `${BASE}assets/textures/wall_roughness.jpg`;
 
+useGLTF.preload(WALL_GLB_URL);
+useLoader.preload(THREE.TextureLoader, WALL_TEX_BASE_URL);
+useLoader.preload(THREE.TextureLoader, WALL_TEX_NORMAL_URL);
+useLoader.preload(THREE.TextureLoader, WALL_TEX_ROUGH_URL);
+
+/** 한 wall 세그먼트 — wall.glb 메쉬를 세그먼트 dimension에 맞춰 인스턴싱.
+ *  머티리얼은 별도 추출한 PBR 텍스처로 새로 만들어 mesh에 덮어씀 (GLB 임베드 WebP 디코딩 신뢰성 회피). */
+const WallBlock: React.FC<{ dim: [number, number, number] }> = ({ dim }) => {
+  const { scene } = useGLTF(WALL_GLB_URL);
+  const baseTex = useLoader(THREE.TextureLoader, WALL_TEX_BASE_URL);
+  const normTex = useLoader(THREE.TextureLoader, WALL_TEX_NORMAL_URL);
+  const roughTex = useLoader(THREE.TextureLoader, WALL_TEX_ROUGH_URL);
+
+  const wallMaterial = useMemo(() => {
+    [baseTex, normTex, roughTex].forEach(t => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = 4;
+    });
+    return new THREE.MeshStandardMaterial({
+      map: baseTex,
+      normalMap: normTex,
+      roughnessMap: roughTex,
+      roughness: 1.0,
+      metalness: 0.0,
+    });
+  }, [baseTex, normTex, roughTex]);
+
+  const centered = useMemo(() => {
+    const cloned = scene.clone(true);
+    // 바운딩 박스 계산 후 중심으로 이동
+    const box = new THREE.Box3().setFromObject(cloned);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    cloned.position.sub(center);
+    cloned.traverse(obj => {
+      if ((obj as THREE.Mesh).isMesh) {
+        const m = obj as THREE.Mesh;
+        m.material = wallMaterial;
+        m.castShadow = true;
+        m.receiveShadow = true;
+      }
+    });
+    return cloned;
+  }, [scene, wallMaterial]);
+
+  // 세그먼트 dim 대비 wall.glb 원본 사이즈로 스케일 산출
+  const scale: [number, number, number] = [
+    dim[0] / WALL_GLB_SIZE[0],
+    dim[1] / WALL_GLB_SIZE[1],
+    dim[2] / WALL_GLB_SIZE[2],
+  ];
+
+  return <primitive object={centered} scale={scale} />;
+};
+
+const StreetScene: React.FC = () => {
   return (
     <>
       {/* Floor */}
       <RigidBody type="fixed">
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10 * SCALE_X, 0, -43 * SCALE_Z]}>
           <planeGeometry args={[50 * SCALE_X, 100 * SCALE_Z]} />
-          <meshStandardMaterial color="#888" />
+          <meshStandardMaterial color="#666" roughness={1} />
         </mesh>
         <CuboidCollider args={[25 * SCALE_X, 0.1, 50 * SCALE_Z]} position={[10 * SCALE_X, -0.1, -43 * SCALE_Z]} />
       </RigidBody>
 
-      {/* Walls */}
+      {/* Walls — wall.glb 메쉬를 세그먼트 크기에 맞춰 stretch 인스턴싱 */}
       {WALL_DEFS.map(([x, z, w, d], i) => (
         <RigidBody key={i} type="fixed" position={[x, WALL_HEIGHT / 2, z]}>
-          <mesh material={wallMaterial}>
-            <boxGeometry args={[w, WALL_HEIGHT, d]} />
-          </mesh>
+          <WallBlock dim={[w, WALL_HEIGHT, d]} />
           <CuboidCollider args={[w / 2, WALL_HEIGHT / 2, d / 2]} />
         </RigidBody>
       ))}
@@ -507,8 +570,9 @@ const PhysicsReadyGate: React.FC<{ onReady: () => void }> = ({ onReady }) => {
 const Ch2PhysicsScene: React.FC<{
   airportActive: boolean;
   onAirportTrigger: () => void;
+  onExitZoneChange: (inZone: boolean) => void;
   freezeControls: boolean;
-}> = ({ airportActive, onAirportTrigger, freezeControls }) => {
+}> = ({ airportActive, onAirportTrigger, onExitZoneChange, freezeControls }) => {
   // Suspends here until main FBX is cached — Physics only mounts after this resolves.
   // PlayerCharacter's own useFBX call then hits the warm cache and never re-suspends.
   useFBX(MAIN_FBX_URL);
@@ -569,6 +633,9 @@ const Ch2PhysicsScene: React.FC<{
         <Note key={n.id} noteId={n.id} position={n.worldPos} />
       ))}
 
+      {/* 거리 데코 — electric-box / trashes / concrete-pile / 도시 단편 */}
+      <Ch2Decor />
+
       {/* STEP 1: Signposts + movement tracking */}
       <MovementTracker />
       <SignpostManager />
@@ -601,6 +668,7 @@ const Ch2PhysicsScene: React.FC<{
 
       <TriggerWatcher
         onAirportTrigger={onAirportTrigger}
+        onExitZoneChange={onExitZoneChange}
         disabled={!physicsReady || freezeControls}
       />
     </Physics>
@@ -612,8 +680,9 @@ const Ch2PhysicsScene: React.FC<{
 const Ch2Inner: React.FC<{
   airportActive: boolean;
   onAirportTrigger: () => void;
+  onExitZoneChange: (inZone: boolean) => void;
   freezeControls: boolean;
-}> = ({ airportActive, onAirportTrigger, freezeControls }) => {
+}> = ({ airportActive, onAirportTrigger, onExitZoneChange, freezeControls }) => {
   return (
     <>
       <color attach="background" args={['#0a0a0a']} />
@@ -639,6 +708,7 @@ const Ch2Inner: React.FC<{
         <Ch2PhysicsScene
           airportActive={airportActive}
           onAirportTrigger={onAirportTrigger}
+          onExitZoneChange={onExitZoneChange}
           freezeControls={freezeControls}
         />
       </React.Suspense>
@@ -651,7 +721,7 @@ const Ch2Inner: React.FC<{
 const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
   <button
     onClick={onClick}
-    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 3, color: '#ddd', fontFamily: 'monospace', fontSize: 11, padding: '4px 8px', cursor: 'pointer', textAlign: 'left' }}
+    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 3, color: '#ddd', fontFamily: '"Unifont", monospace', fontSize: 11, padding: '4px 8px', cursor: 'pointer', textAlign: 'left' }}
     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
     onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
   >{label}</button>
@@ -661,6 +731,7 @@ const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
 
 export const Ch2Scene: React.FC = () => {
   const [airportActive, setAirportActive] = useState(false);
+  const [atExit, setAtExit] = useState(false);
   const goToChapter  = useGameStore(s => s.goToChapter);
   const activeNoteId = useGameStore(s => s.activeNoteId);
   const devMode      = useDevMode();
@@ -670,12 +741,28 @@ export const Ch2Scene: React.FC = () => {
 
   const freezeControls = airportActive || activeNoteId !== null;
 
+  // E key — confirm exit (only when in zone, no note open, no airport cutscene)
+  useEffect(() => {
+    if (!atExit || activeNoteId !== null || airportActive) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === 'KeyE') {
+        e.preventDefault();
+        goToChapter('CH3');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [atExit, activeNoteId, airportActive, goToChapter]);
+
+  const showExitPrompt = atExit && activeNoteId === null && !airportActive;
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
       <Canvas camera={{ fov: 75 }} style={{ background: '#0a0a0a' }}>
         <Ch2Inner
           airportActive={airportActive}
           onAirportTrigger={startAirport}
+          onExitZoneChange={setAtExit}
           freezeControls={freezeControls}
         />
       </Canvas>
@@ -683,11 +770,33 @@ export const Ch2Scene: React.FC = () => {
       <AirportCutscene active={airportActive} onDone={endAirport} />
       <NoteReader />
 
+      {showExitPrompt && (
+        <div style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: '14%',
+          transform: 'translateX(-50%)',
+          zIndex: 1500,
+          fontFamily: '"Unifont", monospace',
+          fontSize: 14,
+          letterSpacing: 4,
+          color: '#f3eedd',
+          background: 'rgba(0,0,0,0.65)',
+          padding: '8px 18px',
+          border: '1px solid rgba(243,238,221,0.35)',
+          textShadow: '0 0 6px rgba(0,0,0,0.8)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}>
+          [E] 들어가기
+        </div>
+      )}
+
       {/* Mobile joystick — touch devices only */}
       {'ontouchstart' in window && <EcctrlJoystick />}
 
       {devMode && !airportActive && (
-        <div style={{ position: 'fixed', top: 12, left: 12, zIndex: 9999, background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '10px 14px', fontFamily: 'monospace', fontSize: 11, color: '#ccc', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180 }}>
+        <div style={{ position: 'fixed', top: 12, left: 12, zIndex: 9999, background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '10px 14px', fontFamily: '"Unifont", monospace', fontSize: 11, color: '#ccc', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180 }}>
           <div style={{ color: '#ff0', fontSize: 10, letterSpacing: 2, marginBottom: 2 }}>DEV MODE</div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label="Airport Cutscene" onClick={() => { if (!airportActive) startAirport(); }} />

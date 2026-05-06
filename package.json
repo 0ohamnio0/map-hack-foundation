@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "prep-model": "scripts/prep-model.sh"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",
@@ -81,6 +82,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@gltf-transform/cli": "^4.3.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
@@ -96,6 +98,7 @@
     "gh-pages": "^6.3.0",
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
+    "obj2gltf": "^3.2.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",

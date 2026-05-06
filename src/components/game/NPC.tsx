@@ -118,7 +118,7 @@ export function NPC({ position, isSpecial = false }: NPCProps) {
         <Html position={[0, 2.4, 0]} center>
           <div style={{
             color: 'white',
-            fontFamily: 'monospace',
+            fontFamily: '"Unifont", monospace',
             fontSize: '14px',
             opacity: textOpacity,
             whiteSpace: 'nowrap',

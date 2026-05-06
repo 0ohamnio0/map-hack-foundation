@@ -10,6 +10,8 @@ import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
 
+const UNIFONT_URL = `${import.meta.env.BASE_URL}assets/fonts/unifont-16.0.02.otf`
+
 interface ItaewonLayerProps {
   /** Cell (3,3) world position */
   cellWorldPos: { x: number; z: number }
@@ -119,6 +121,7 @@ export function ItaewonLayer({ cellWorldPos, cellSize, playerPos }: ItaewonLayer
           position={[cellWorldPos.x, 1.5, cellWorldPos.z - cellSize * 0.45]}
           fontSize={0.3}
           color="#666"
+          font={UNIFONT_URL}
           anchorX="center"
           anchorY="middle"
         >
@@ -152,6 +155,7 @@ export function ItaewonLayer({ cellWorldPos, cellSize, playerPos }: ItaewonLayer
             position={[camera.position.x, camera.position.y, camera.position.z - 0.9]}
             fontSize={0.15}
             color="#fff"
+            font={UNIFONT_URL}
             anchorX="center"
             anchorY="middle"
             renderOrder={998}

@@ -186,7 +186,7 @@ const DoorPrompt: React.FC = () => {
       left: 0,
       right: 0,
       textAlign: 'center',
-      fontFamily: 'monospace',
+      fontFamily: '"Unifont", monospace',
       fontSize: 14,
       color: 'rgba(255,255,255,0.4)',
       zIndex: 100,
