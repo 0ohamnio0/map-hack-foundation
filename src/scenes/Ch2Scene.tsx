@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
-import { KeyboardControls, useFBX, useGLTF, useAnimations, useKeyboardControls } from '@react-three/drei';
+import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import Ecctrl, { EcctrlJoystick } from 'ecctrl';
@@ -444,70 +444,40 @@ const TriggerWatcher: React.FC<{
 
 // ---------- Street geometry + physics ----------
 
-// wall.glb base 모델 — 외곽 박스 8.12 × 3.08 × 0.87 (m), origin 비중심
-const WALL_GLB_URL = `${BASE}assets/models/wall.glb`;
-const WALL_GLB_SIZE: [number, number, number] = [8.117, 3.075, 0.867];
-// PBR 텍스처는 별도로 추출해둔 파일을 직접 로드 (GLB 임베드 WebP가 안정적이지 않을 때 안전)
+// 벽 PBR 텍스처 — wall-low-poly 팩에서 추출 (1024×1024)
+// (wall.glb 직접 인스턴싱은 origin offset + scale 결합 시 위치 어긋남 + WebP 디코딩 이슈로 보류)
 const WALL_TEX_BASE_URL  = `${BASE}assets/textures/wall_basecolor.jpg`;
 const WALL_TEX_NORMAL_URL = `${BASE}assets/textures/wall_normal.png`;
 const WALL_TEX_ROUGH_URL  = `${BASE}assets/textures/wall_roughness.jpg`;
 
-useGLTF.preload(WALL_GLB_URL);
 useLoader.preload(THREE.TextureLoader, WALL_TEX_BASE_URL);
 useLoader.preload(THREE.TextureLoader, WALL_TEX_NORMAL_URL);
 useLoader.preload(THREE.TextureLoader, WALL_TEX_ROUGH_URL);
 
-/** 한 wall 세그먼트 — wall.glb 메쉬를 세그먼트 dimension에 맞춰 인스턴싱.
- *  머티리얼은 별도 추출한 PBR 텍스처로 새로 만들어 mesh에 덮어씀 (GLB 임베드 WebP 디코딩 신뢰성 회피). */
-const WallBlock: React.FC<{ dim: [number, number, number] }> = ({ dim }) => {
-  const { scene } = useGLTF(WALL_GLB_URL);
-  const baseTex = useLoader(THREE.TextureLoader, WALL_TEX_BASE_URL);
-  const normTex = useLoader(THREE.TextureLoader, WALL_TEX_NORMAL_URL);
-  const roughTex = useLoader(THREE.TextureLoader, WALL_TEX_ROUGH_URL);
+const StreetScene: React.FC = () => {
+  // 벽 PBR 텍스처 — sRGB 색공간 + flipY=false (GLB UV 컨벤션) + UV repeat 2×1
+  const wallBase  = useLoader(THREE.TextureLoader, WALL_TEX_BASE_URL);
+  const wallNorm  = useLoader(THREE.TextureLoader, WALL_TEX_NORMAL_URL);
+  const wallRough = useLoader(THREE.TextureLoader, WALL_TEX_ROUGH_URL);
 
   const wallMaterial = useMemo(() => {
-    [baseTex, normTex, roughTex].forEach(t => {
+    // BaseColor만 sRGB, normal/rough는 linear 유지
+    wallBase.colorSpace = THREE.SRGBColorSpace;
+    [wallBase, wallNorm, wallRough].forEach(t => {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(2, 1);
       t.anisotropy = 4;
+      t.needsUpdate = true;
     });
     return new THREE.MeshStandardMaterial({
-      map: baseTex,
-      normalMap: normTex,
-      roughnessMap: roughTex,
+      map: wallBase,
+      normalMap: wallNorm,
+      roughnessMap: wallRough,
       roughness: 1.0,
       metalness: 0.0,
     });
-  }, [baseTex, normTex, roughTex]);
+  }, [wallBase, wallNorm, wallRough]);
 
-  const centered = useMemo(() => {
-    const cloned = scene.clone(true);
-    // 바운딩 박스 계산 후 중심으로 이동
-    const box = new THREE.Box3().setFromObject(cloned);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    cloned.position.sub(center);
-    cloned.traverse(obj => {
-      if ((obj as THREE.Mesh).isMesh) {
-        const m = obj as THREE.Mesh;
-        m.material = wallMaterial;
-        m.castShadow = true;
-        m.receiveShadow = true;
-      }
-    });
-    return cloned;
-  }, [scene, wallMaterial]);
-
-  // 세그먼트 dim 대비 wall.glb 원본 사이즈로 스케일 산출
-  const scale: [number, number, number] = [
-    dim[0] / WALL_GLB_SIZE[0],
-    dim[1] / WALL_GLB_SIZE[1],
-    dim[2] / WALL_GLB_SIZE[2],
-  ];
-
-  return <primitive object={centered} scale={scale} />;
-};
-
-const StreetScene: React.FC = () => {
   return (
     <>
       {/* Floor */}
@@ -519,10 +489,12 @@ const StreetScene: React.FC = () => {
         <CuboidCollider args={[25 * SCALE_X, 0.1, 50 * SCALE_Z]} position={[10 * SCALE_X, -0.1, -43 * SCALE_Z]} />
       </RigidBody>
 
-      {/* Walls — wall.glb 메쉬를 세그먼트 크기에 맞춰 stretch 인스턴싱 */}
+      {/* Walls — boxGeometry + 콘크리트 PBR 머티리얼 (위치 절대 안 어긋남) */}
       {WALL_DEFS.map(([x, z, w, d], i) => (
         <RigidBody key={i} type="fixed" position={[x, WALL_HEIGHT / 2, z]}>
-          <WallBlock dim={[w, WALL_HEIGHT, d]} />
+          <mesh material={wallMaterial}>
+            <boxGeometry args={[w, WALL_HEIGHT, d]} />
+          </mesh>
           <CuboidCollider args={[w / 2, WALL_HEIGHT / 2, d / 2]} />
         </RigidBody>
       ))}
