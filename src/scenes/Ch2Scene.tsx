@@ -725,9 +725,11 @@ export const Ch2Scene: React.FC = () => {
     });
   }, [airportActive, activeNoteId]);
 
-  // E key — confirm exit (only when in zone, no note open, no airport cutscene)
+  const allNotesCollected = collectedNotes === totalNotes;
+
+  // E key — confirm exit (only when in zone, all notes collected, no note open, no airport cutscene)
   useEffect(() => {
-    if (!atExit || activeNoteId !== null || airportActive) return;
+    if (!atExit || !allNotesCollected || activeNoteId !== null || airportActive) return;
     const handler = (e: KeyboardEvent) => {
       if (e.code === 'KeyE') {
         e.preventDefault();
@@ -736,7 +738,7 @@ export const Ch2Scene: React.FC = () => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [atExit, activeNoteId, airportActive, goToChapter]);
+  }, [atExit, allNotesCollected, activeNoteId, airportActive, goToChapter]);
 
   const showExitPrompt = atExit && activeNoteId === null && !airportActive;
 
@@ -764,37 +766,58 @@ export const Ch2Scene: React.FC = () => {
           fontFamily: '"Unifont", monospace',
           fontSize: 14,
           letterSpacing: 4,
-          color: '#f3eedd',
+          color: allNotesCollected ? '#f3eedd' : 'rgba(243,238,221,0.45)',
           background: 'rgba(0,0,0,0.65)',
           padding: '8px 18px',
-          border: '1px solid rgba(243,238,221,0.35)',
+          border: `1px solid ${allNotesCollected ? 'rgba(243,238,221,0.35)' : 'rgba(243,238,221,0.18)'}`,
           textShadow: '0 0 6px rgba(0,0,0,0.8)',
           pointerEvents: 'none',
           userSelect: 'none',
         }}>
-          [E] 들어가기
+          {allNotesCollected ? '[E] 들어가기' : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
         </div>
       )}
 
-      {/* 쪽지 수집 진행도 — 좌하단 HUD */}
+      {/* 쪽지 수집 슬롯 — 좌하단 HUD */}
       {!airportActive && (
         <div style={{
           position: 'fixed',
           left: 24,
           bottom: 24,
           zIndex: 1500,
-          fontFamily: '"Unifont", monospace',
-          fontSize: 13,
-          letterSpacing: 3,
-          color: '#f3eedd',
-          background: 'rgba(0,0,0,0.5)',
-          padding: '6px 14px',
-          border: '1px solid rgba(243,238,221,0.3)',
-          textShadow: '0 0 6px rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
           pointerEvents: 'none',
           userSelect: 'none',
+          filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.8))',
         }}>
-          쪽지 {collectedNotes}/{totalNotes}
+          {CH2_NOTES.map(n => {
+            const collected = visitedEvents.has(`note_${n.id}`);
+            return (
+              <svg
+                key={n.id}
+                viewBox="0 0 24 32"
+                width="18"
+                height="24"
+                style={{ opacity: collected ? 1 : 0.5 }}
+              >
+                <path
+                  d="M3 2 L17 2 L21 6 L21 30 L3 30 Z"
+                  fill={collected ? '#ffffff' : 'transparent'}
+                  stroke={collected ? '#ffffff' : '#a0a0a0'}
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M17 2 L17 6 L21 6"
+                  fill="none"
+                  stroke={collected ? '#1a1a1a' : '#a0a0a0'}
+                  strokeWidth="1.2"
+                />
+              </svg>
+            );
+          })}
         </div>
       )}
 

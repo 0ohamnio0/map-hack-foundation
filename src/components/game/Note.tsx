@@ -47,17 +47,18 @@ export function Note({ noteId, position }: NoteProps) {
     setNear(dist < PROXIMITY_RADIUS && activeNoteId === null)
   })
 
-  // E 키로 줍기
+  // E 키로 줍기 — capture + stopImmediatePropagation으로 출구 진입(같은 E) 차단
   useEffect(() => {
     if (!near || visited || activeNoteId !== null) return
     const handler = (e: KeyboardEvent) => {
       if (e.code === 'KeyE') {
         e.preventDefault()
+        e.stopImmediatePropagation()
         openNote(noteId)
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
   }, [near, visited, activeNoteId, noteId, openNote])
 
   if (visited) return null
