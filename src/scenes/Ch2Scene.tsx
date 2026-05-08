@@ -627,8 +627,8 @@ const Ch2PhysicsScene: React.FC<{
             floatHeight={0.3}
             capsuleHalfHeight={0.5}
             capsuleRadius={0.2}
-            maxVelLimit={5}
-            camCollision={false}
+            maxVelLimit={freezeControls ? 0 : 5}
+            camCollision={true}
             autoBalance={false}
             disableControl={freezeControls}
             position={[0, 2, -8]}
@@ -706,12 +706,24 @@ export const Ch2Scene: React.FC = () => {
   const [atExit, setAtExit] = useState(false);
   const goToChapter  = useGameStore(s => s.goToChapter);
   const activeNoteId = useGameStore(s => s.activeNoteId);
+  const visitedEvents = useGameStore(s => s.visitedEvents);
   const devMode      = useDevMode();
+
+  const collectedNotes = CH2_NOTES.filter(n => visitedEvents.has(`note_${n.id}`)).length;
+  const totalNotes = CH2_NOTES.length;
 
   const startAirport = useCallback(() => setAirportActive(true),  []);
   const endAirport   = useCallback(() => setAirportActive(false), []);
 
   const freezeControls = airportActive || activeNoteId !== null;
+
+  // freeze 전환 시 held movement key 강제 release —
+  // cutscene/모달 동안 누르고 있던 방향키가 안 풀려 끝난 뒤 계속 전진하는 문제 방지
+  useEffect(() => {
+    ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].forEach(code => {
+      window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+    });
+  }, [airportActive, activeNoteId]);
 
   // E key — confirm exit (only when in zone, no note open, no airport cutscene)
   useEffect(() => {
@@ -761,6 +773,28 @@ export const Ch2Scene: React.FC = () => {
           userSelect: 'none',
         }}>
           [E] 들어가기
+        </div>
+      )}
+
+      {/* 쪽지 수집 진행도 — 좌하단 HUD */}
+      {!airportActive && (
+        <div style={{
+          position: 'fixed',
+          left: 24,
+          bottom: 24,
+          zIndex: 1500,
+          fontFamily: '"Unifont", monospace',
+          fontSize: 13,
+          letterSpacing: 3,
+          color: '#f3eedd',
+          background: 'rgba(0,0,0,0.5)',
+          padding: '6px 14px',
+          border: '1px solid rgba(243,238,221,0.3)',
+          textShadow: '0 0 6px rgba(0,0,0,0.8)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}>
+          쪽지 {collectedNotes}/{totalNotes}
         </div>
       )}
 
