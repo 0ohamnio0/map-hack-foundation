@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useGameStore } from '@/store/useGameStore'
+import { useSoundManager } from '@/hooks/useSoundManager'
 import { CH2_NOTES } from '@/data/ch2Notes'
 
 const BASE = import.meta.env.BASE_URL
@@ -22,12 +23,14 @@ const GRAIN_URL = `url("data:image/svg+xml;utf8,${encodeURIComponent(GRAIN_SVG)}
 export function NoteReader() {
   const activeNoteId = useGameStore(s => s.activeNoteId)
   const closeNote = useGameStore(s => s.closeNote)
+  const { play } = useSoundManager()
   const [page, setPage] = useState(0)
 
-  // 새 쪽지 열릴 때마다 페이지 초기화
+  // 새 쪽지 열릴 때마다 페이지 초기화 + 종이 펼치는 SFX
   useEffect(() => {
     setPage(0)
-  }, [activeNoteId])
+    if (activeNoteId !== null) play('paper_flip')
+  }, [activeNoteId, play])
 
   const note = activeNoteId === null ? null : CH2_NOTES.find(n => n.id === activeNoteId) ?? null
   const totalPages = note ? note.images.length : 0
@@ -41,18 +44,26 @@ export function NoteReader() {
         return
       }
       if (totalPages > 1) {
-        if (e.code === 'ArrowLeft') {
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
           e.preventDefault()
-          setPage(p => Math.max(0, p - 1))
-        } else if (e.code === 'ArrowRight') {
+          setPage(p => {
+            const next = Math.max(0, p - 1)
+            if (next !== p) play('paper_flip')
+            return next
+          })
+        } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
           e.preventDefault()
-          setPage(p => Math.min(totalPages - 1, p + 1))
+          setPage(p => {
+            const next = Math.min(totalPages - 1, p + 1)
+            if (next !== p) play('paper_flip')
+            return next
+          })
         }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [note, totalPages, closeNote])
+  }, [note, totalPages, closeNote, play])
 
   if (note === null) return null
 

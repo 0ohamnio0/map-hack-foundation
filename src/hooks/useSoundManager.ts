@@ -1,44 +1,57 @@
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
+import { Howl } from 'howler';
 
-// Placeholder sound manager - actual Howler integration when sound files are available
-type SoundSlot = {
-  name: string;
-  playing: boolean;
-  looping: boolean;
+const BASE = `${import.meta.env.BASE_URL ?? '/'}assets/audio/`;
+
+const SOUND_MAP: Record<string, string | null> = {
+  intro_ambient: null,
+  door_creak: 'ch1/door_creak.mp3',
+  dog_bark: 'ch1/dog_bark.mp3',
+  tape_rewind: 'ch1/tape_rewind.mp3',
+  paper_flip: 'ch2/paper_flip.mp3',
+  gulp_red: 'ch3/gulp_red.mp3',
+  gulp_blue: 'ch3/gulp_blue.mp3',
+  gulp_yellow: 'ch3/gulp_yellow.mp3',
+  gulp_green: 'ch3/gulp_green.mp3',
+  gulp_white: 'ch3/gulp_white.mp3',
+  phone_ring: 'ch4/phone_ring.mp3',
+  boot_sound: 'ch5/boot_sound.mp3',
+  screen_off: 'ch5/screen_off.mp3',
+  pc_fan: 'ch5/pc_fan.mp3',
+  transition: 'transition.mp3',
 };
 
-const soundSlots: Record<string, SoundSlot> = {};
-
-const SLOTS = [
-  'intro_ambient', 'door_creak', 'gulp_red', 'gulp_blue',
-  'gulp_yellow', 'gulp_green', 'gulp_white', 'phone_ring',
-  'screen_on', 'boot_sound', 'pc_fan',
-];
-
-SLOTS.forEach(name => {
-  soundSlots[name] = { name, playing: false, looping: false };
-});
+const howls: Record<string, Howl> = {};
+for (const [slot, path] of Object.entries(SOUND_MAP)) {
+  if (!path) continue;
+  const src = `${BASE}${path}`;
+  howls[slot] = new Howl({
+    src: [src],
+    preload: true,
+    onloaderror: (_id, err) => console.error(`[Sound] load error: ${slot} (${src})`, err),
+    onplayerror: (_id, err) => console.error(`[Sound] play error: ${slot}`, err),
+  });
+}
 
 export function useSoundManager() {
   const play = useCallback((name: string) => {
-    if (soundSlots[name]) {
-      soundSlots[name].playing = true;
-      console.log(`[Sound] Play: ${name}`);
-    }
+    const h = howls[name];
+    if (h) h.play();
+    else if (!(name in SOUND_MAP)) console.warn(`[Sound] unknown slot: ${name}`);
   }, []);
 
   const stop = useCallback((name: string) => {
-    if (soundSlots[name]) {
-      soundSlots[name].playing = false;
-      console.log(`[Sound] Stop: ${name}`);
-    }
+    howls[name]?.stop();
   }, []);
 
   const loop = useCallback((name: string, shouldLoop: boolean) => {
-    if (soundSlots[name]) {
-      soundSlots[name].looping = shouldLoop;
-      soundSlots[name].playing = shouldLoop;
-      console.log(`[Sound] Loop ${shouldLoop ? 'on' : 'off'}: ${name}`);
+    const h = howls[name];
+    if (!h) return;
+    h.loop(shouldLoop);
+    if (shouldLoop) {
+      if (!h.playing()) h.play();
+    } else {
+      h.stop();
     }
   }, []);
 
