@@ -257,74 +257,84 @@ function renderOutlineFromLayout(
   ctx.fillStyle = poly.color;
   ctx.textBaseline = 'middle';
 
-  for (const word of layout.words) {
-    // Typing clip: skip words not yet reached
-    if (word.charStart >= typedLimit) continue;
-
-    // Check glitch mask
-    const swap = sub?.mask?.[word.wordIdx] ?? false;
-    const koText = (swap ? sub?.mapping?.[word.wordIdx] : null) ?? null;
-
-    let renderText: string;
-    let renderFont: string;
-
-    if (koText !== null && word.charEnd <= typedLimit) {
-      // Fully typed + glitched → render KO at frozen EN position
-      renderText = koText;
-      renderFont = koFont ?? poly.font;
-    } else if (word.charEnd > typedLimit) {
-      // Partially typed → render partial EN (no glitch for incomplete words)
-      const partialLen = Math.max(0, Math.floor(typedLimit) - word.charStart);
-      renderText = word.text.slice(0, partialLen);
-      renderFont = poly.font;
-    } else {
-      // Fully typed, not glitched → render EN
-      renderText = word.text;
-      renderFont = poly.font;
-    }
-
-    if (renderText.length === 0) continue;
-
-    // Compute perimeter shift for KO alignment
-    ctx.font = renderFont;
-    let perimShift = 0;
-    if (koText && koText.length > 0 && sub?.shiftFactors) {
-      const shift = sub.shiftFactors[word.wordIdx] ?? 0;
-      if (shift > 0) {
-        // Look ahead: sum EN perimeter widths for consecutive '' words
-        let enPerimSpan = 0;
-        ctx.font = poly.font;
-        for (const c of word.text) enPerimSpan += ctx.measureText(c).width + 0.3;
-        for (const w2 of layout.words) {
-          if (w2.wordIdx <= word.wordIdx) continue;
-          if (sub.mapping?.[w2.wordIdx] !== '') break;
-          for (const c of w2.text) enPerimSpan += ctx.measureText(c).width + 0.3;
-        }
-        // KO text perimeter width
-        ctx.font = renderFont;
-        let koPerimW = 0;
-        for (const c of renderText) koPerimW += ctx.measureText(c).width + 0.3;
-        perimShift = shift * Math.max(0, enPerimSpan - koPerimW);
-        ctx.font = renderFont;
-      }
-    }
-
-    // Render chars along perimeter from word's frozen start position + shift
-    ctx.font = renderFont;
-    let offset = word.perimStart + perimShift;
-
-    for (const c of renderText) {
+  /** Draw a sequence of chars along perimeter starting from `startOffset`. */
+  const drawAlongPerimeter = (text: string, font: string, startOffset: number) => {
+    ctx.font = font;
+    let offset = startOffset;
+    for (const c of text) {
       const charW = ctx.measureText(c).width;
       const pos = perimOffsetToPos(layout.segs, offset + charW / 2);
       if (!pos) break;
-
       ctx.save();
       ctx.translate(pos.px, pos.py);
       ctx.rotate(pos.angle);
       ctx.fillText(c, 0, 0);
       ctx.restore();
-
       offset += charW + 0.3;
+    }
+  };
+
+  for (const word of layout.words) {
+    // Typing clip: skip words not yet reached
+    if (word.charStart >= typedLimit) continue;
+
+    const wIdx = word.wordIdx;
+    const maskOn = sub?.mask?.[wIdx] ?? false;
+    const alphaVal = sub?.alphas?.[wIdx];
+    const koAlpha = alphaVal !== undefined
+      ? Math.max(0, Math.min(1, alphaVal))
+      : (maskOn ? 1 : 0);
+    const enAlpha = 1 - koAlpha;
+
+    const koRaw = koAlpha > 0 ? sub?.mapping?.[wIdx] ?? null : null;
+
+    // Partial typing: show EN sliced only; no glitch until fully typed
+    if (word.charEnd > typedLimit) {
+      const partialLen = Math.max(0, Math.floor(typedLimit) - word.charStart);
+      const partialText = word.text.slice(0, partialLen);
+      if (partialText.length > 0) drawAlongPerimeter(partialText, poly.font, word.perimStart);
+      continue;
+    }
+
+    // Suppressed word (KO expansion tail) — draw nothing
+    if (koRaw === '') continue;
+
+    // Draw EN layer
+    if (enAlpha > 0.02) {
+      ctx.save();
+      ctx.globalAlpha *= enAlpha;
+      drawAlongPerimeter(word.text, poly.font, word.perimStart);
+      ctx.restore();
+    }
+
+    // Draw KO layer
+    if (koAlpha > 0.02 && koRaw && koRaw.length > 0) {
+      const renderFont = koFont ?? poly.font;
+
+      // Perimeter shift for KO alignment
+      let perimShift = 0;
+      if (sub?.shiftFactors) {
+        const shift = sub.shiftFactors[wIdx] ?? 0;
+        if (shift > 0) {
+          let enPerimSpan = 0;
+          ctx.font = poly.font;
+          for (const c of word.text) enPerimSpan += ctx.measureText(c).width + 0.3;
+          for (const w2 of layout.words) {
+            if (w2.wordIdx <= wIdx) continue;
+            if (sub.mapping?.[w2.wordIdx] !== '') break;
+            for (const c of w2.text) enPerimSpan += ctx.measureText(c).width + 0.3;
+          }
+          ctx.font = renderFont;
+          let koPerimW = 0;
+          for (const c of koRaw) koPerimW += ctx.measureText(c).width + 0.3;
+          perimShift = shift * Math.max(0, enPerimSpan - koPerimW);
+        }
+      }
+
+      ctx.save();
+      ctx.globalAlpha *= koAlpha;
+      drawAlongPerimeter(koRaw, renderFont, word.perimStart + perimShift);
+      ctx.restore();
     }
   }
 
@@ -580,6 +590,11 @@ export interface GlitchSubstitution {
   mapping: (string | null)[];
   /** Per-word shift factor 0~1 (0=left, 0.5=center, 1=right). KO text shifts within EN slack. */
   shiftFactors?: number[];
+  /**
+   * Per-word KO opacity 0~1. 0 = EN only, 1 = KO only, intermediate = crossfade
+   * (both drawn with complementary alpha). When unset, mask is hard-swapped as before.
+   */
+  alphas?: number[];
 }
 
 /** Pre-compute char range for each word (whitespace-split) in full text. */
@@ -638,12 +653,28 @@ function drawLineByWords(
         // Not yet typed — skip draw, but still advance xOffset to preserve slot
       } else if (end <= typedLimit) {
         // Fully typed — apply glitch substitution if any
-        const swap = sub?.mask?.[wIdx] ?? false;
-        const koText = swap ? sub?.mapping?.[wIdx] ?? null : null;
-        if (koText !== null && koText !== undefined) {
-          if (koText.length > 0) {
-            // KO substitution — draw with KO font + random alignment shift
+        // alpha > 0 means KO crossfade; when alphas unset, fall back to mask-based hard swap
+        const maskOn = sub?.mask?.[wIdx] ?? false;
+        const alphaVal = sub?.alphas?.[wIdx];
+        const koAlpha = alphaVal !== undefined
+          ? Math.max(0, Math.min(1, alphaVal))
+          : (maskOn ? 1 : 0);
+        const koText = koAlpha > 0 ? sub?.mapping?.[wIdx] ?? null : null;
+
+        if (koText === '') {
+          // Suppressed word (sentence tail after first-word KO expansion) — draw nothing
+        } else if (koText !== null && koText !== undefined) {
+          // Crossfade: EN at (1-α), KO at α. When α=1 only KO, when α=0 only EN.
+          const enAlpha = 1 - koAlpha;
+          if (enAlpha > 0.02) {
             ctx.save();
+            ctx.globalAlpha *= enAlpha;
+            ctx.fillText(part, drawX + xOffset, drawY);
+            ctx.restore();
+          }
+          if (koAlpha > 0.02 && koText.length > 0) {
+            ctx.save();
+            ctx.globalAlpha *= koAlpha;
             if (koFont) ctx.font = koFont;
             // Look ahead: sum EN widths for consecutive '' words (same sentence)
             let enSlack = partWidth;
@@ -659,7 +690,6 @@ function drawLineByWords(
             }
             if (koFont) ctx.font = koFont;
             const shift = sub?.shiftFactors?.[wIdx] ?? 0;
-            // Handle \n in KO text — render each line separately
             const koLines = koText.split('\n');
             const koFirstWidth = ctx.measureText(koLines[0]).width;
             const slack = enSlack - koFirstWidth;
@@ -670,7 +700,6 @@ function drawLineByWords(
             ctx.restore();
             ctx.font = baseFont;
           }
-          // koText === '' → suppressed word, draw nothing
         } else {
           ctx.fillText(part, drawX + xOffset, drawY);
         }
