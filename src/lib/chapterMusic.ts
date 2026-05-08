@@ -18,8 +18,8 @@ const CHAPTER_BGM: Partial<Record<Chapter, string>> = {
 const ELEVATOR_SRC = `${BASE}ch3-elevator.mp3`;
 
 const FADE_MS = 1500;
-const ELEVATOR_FADE_MS = 800;
-const TARGET_VOLUME = 0.6;
+const ELEVATOR_FADE_MS = 1500;
+const TARGET_VOLUME = 0.95;
 
 const cache: Record<string, Howl> = {};
 let currentTrack: Howl | null = null;
@@ -80,9 +80,10 @@ export function startElevatorMusic() {
 }
 
 export function endElevatorMusic() {
-  // Force-stop elevator immediately to avoid lingering fades stomping the restore
-  if (currentTrack) {
-    currentTrack.stop();
+  // Cross-fade: 엘베 트랙 fade out + 챕터 BGM fade in (자연스러운 음악 페이드)
+  const elevatorTrack = currentTrack;
+  if (elevatorTrack) {
+    fadeOutAndStop(elevatorTrack, ELEVATOR_FADE_MS);
   }
   currentTrack = null;
   currentSrc = null;
@@ -92,6 +93,9 @@ export function endElevatorMusic() {
   chapterSrcBeforeElevator = null;
 
   if (restoreSrc) {
+    // 기존 cache 인스턴스가 stop 후 stale 상태일 수 있어 unload 후 새로 생성
+    cache[restoreSrc]?.unload();
+    delete cache[restoreSrc];
     const restored = getOrCreate(restoreSrc);
     fadeIn(restored, ELEVATOR_FADE_MS);
     currentTrack = restored;
