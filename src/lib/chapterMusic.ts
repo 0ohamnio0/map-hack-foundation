@@ -5,14 +5,13 @@ const BASE = `${import.meta.env.BASE_URL ?? '/'}assets/audio/bgm/`;
 
 const CHAPTER_BGM: Partial<Record<Chapter, string>> = {
   START: `${BASE}intro.mp3`,
-  // INTRO and CH1 share ch1.mp3 — same track plays through video and into CH.1
-  // (video audio is muted; this BGM stays continuous across the chapter boundary)
+  // INTRO + CH.1 동안 ch1.mp3 — 영상에서 챕터 본편으로 같은 트랙 이어짐
   INTRO: `${BASE}ch1.mp3`,
   CH1: `${BASE}ch1.mp3`,
   CH2: `${BASE}ch2.mp3`,
   CH3: `${BASE}ch3-map.mp3`,
   CH4: `${BASE}ending.mp3`,
-  CH5: `${BASE}ending.mp3`,
+  // CH5: omitted — silence on entry (CH.4 ending fades out)
   END: `${BASE}ending.mp3`,
 };
 
@@ -81,19 +80,23 @@ export function startElevatorMusic() {
 }
 
 export function endElevatorMusic() {
-  if (currentTrack && currentSrc === ELEVATOR_SRC) {
-    fadeOutAndStop(currentTrack, ELEVATOR_FADE_MS);
+  // Force-stop elevator immediately to avoid lingering fades stomping the restore
+  if (currentTrack) {
+    currentTrack.stop();
   }
-  if (chapterTrackBeforeElevator && chapterSrcBeforeElevator) {
-    fadeIn(chapterTrackBeforeElevator, ELEVATOR_FADE_MS);
-    currentTrack = chapterTrackBeforeElevator;
-    currentSrc = chapterSrcBeforeElevator;
-  } else {
-    currentTrack = null;
-    currentSrc = null;
-  }
+  currentTrack = null;
+  currentSrc = null;
+
+  const restoreSrc = chapterSrcBeforeElevator;
   chapterTrackBeforeElevator = null;
   chapterSrcBeforeElevator = null;
+
+  if (restoreSrc) {
+    const restored = getOrCreate(restoreSrc);
+    fadeIn(restored, ELEVATOR_FADE_MS);
+    currentTrack = restored;
+    currentSrc = restoreSrc;
+  }
 }
 
 export function stopAllMusic() {

@@ -58,6 +58,8 @@ export const Game: React.FC = () => {
   const chapter = useGameStore(s => s.chapter);
 
   useEffect(() => {
+    // START는 user gesture 전이라 BGM 트리거를 StartScreen 1차 클릭에 위임
+    if (chapter === 'START') return;
     playChapterMusic(chapter);
   }, [chapter]);
 
