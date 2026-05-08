@@ -1,24 +1,86 @@
 /**
- * CH.2 떨어진 쪽지 — 본문 모달.
- * 책 페이지 스캔 이미지를 로우폴리 텍스처(sepia + contrast + grain) 처리하여 표시.
- * E 키로 닫기 + 휘발. 다중 페이지 시 ← → 키로 이동.
+ * CH.2 떨어진 쪽지 — 본문 모달 (텍스트 + 인라인 이미지).
+ * - 종이는 A4 비율(1654 / 2339) 고정 박스, 텍스트 양 무관하게 동일 사이즈
+ * - 한·영 글리치 토글 (en이 채워진 segment만)
+ * - preserveSpacing 적용 segment는 monospace 그대로 보존 (ASCII / 코드)
+ * - E/Esc 닫기 · ←→ 또는 A/D 페이지 이동 (페이지 변경 시 paper_flip)
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useGameStore } from '@/store/useGameStore'
 import { useSoundManager } from '@/hooks/useSoundManager'
-import { CH2_NOTES } from '@/data/ch2Notes'
+import { useGlitchText } from '@/hooks/useGlitchText'
+import { CH2_NOTES, type PageSegment } from '@/data/ch2Notes'
 
 const BASE = import.meta.env.BASE_URL
 
-// SVG 노이즈 — base64 inline data URI로 grain 오버레이
-const GRAIN_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'>
-  <filter id='n'>
-    <feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/>
-    <feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0'/>
-  </filter>
-  <rect width='100%' height='100%' filter='url(#n)' opacity='0.85'/>
-</svg>`
-const GRAIN_URL = `url("data:image/svg+xml;utf8,${encodeURIComponent(GRAIN_SVG)}")`
+function GlitchText({ ko, en }: { ko: string; en?: string }) {
+  const texts = useMemo(() => (en ? [ko, en] : [ko]), [ko, en])
+  return <>{useGlitchText(texts, { interval: 5500, scrambleMs: 900 })}</>
+}
+
+function TextSegment({ ko, en, preserveSpacing, size, align }: {
+  ko: string
+  en?: string
+  preserveSpacing?: boolean
+  size?: 'normal' | 'small'
+  align?: 'left' | 'center'
+}) {
+  return (
+    <div style={{
+      fontFamily: '"Unifont", monospace',
+      fontSize: size === 'small' ? 10 : 13,
+      lineHeight: size === 'small' ? 1.5 : 1.7,
+      letterSpacing: 0.5,
+      whiteSpace: preserveSpacing ? 'pre' : 'pre-wrap',
+      wordBreak: 'keep-all',
+      color: '#1a1a1a',
+      overflow: 'hidden',
+      opacity: size === 'small' ? 0.65 : 1,
+      width: '100%',
+      textAlign: align ?? 'left',
+    }}>
+      <GlitchText ko={ko} en={en} />
+    </div>
+  )
+}
+
+function SegmentRenderer({ segment }: { segment: PageSegment }) {
+  if (segment.type === 'text') {
+    return (
+      <TextSegment
+        ko={segment.ko}
+        en={segment.en}
+        preserveSpacing={segment.preserveSpacing}
+        size={segment.size}
+        align={segment.align}
+      />
+    )
+  }
+  if (segment.type === 'image') {
+    return (
+      <img
+        src={`${BASE}${segment.src}`}
+        alt=""
+        draggable={false}
+        style={{
+          display: 'block',
+          width: `${segment.widthPct ?? 100}%`,
+          height: 'auto',
+          margin: '8px auto',
+        }}
+      />
+    )
+  }
+  // rule
+  return (
+    <hr style={{
+      border: 'none',
+      borderTop: '1px solid rgba(0,0,0,0.45)',
+      width: '40%',
+      margin: '14px 0 10px',
+    }} />
+  )
+}
 
 export function NoteReader() {
   const activeNoteId = useGameStore(s => s.activeNoteId)
@@ -26,14 +88,14 @@ export function NoteReader() {
   const { play } = useSoundManager()
   const [page, setPage] = useState(0)
 
-  // 새 쪽지 열릴 때마다 페이지 초기화 + 종이 펼치는 SFX
+  const note = activeNoteId === null ? null : CH2_NOTES.find(n => n.id === activeNoteId) ?? null
+  const totalPages = note ? note.pages.length : 0
+
+  // 새 쪽지 열림: 페이지 초기화 + paper SFX
   useEffect(() => {
     setPage(0)
     if (activeNoteId !== null) play('paper_flip')
   }, [activeNoteId, play])
-
-  const note = activeNoteId === null ? null : CH2_NOTES.find(n => n.id === activeNoteId) ?? null
-  const totalPages = note ? note.images.length : 0
 
   useEffect(() => {
     if (note === null) return
@@ -67,8 +129,9 @@ export function NoteReader() {
 
   if (note === null) return null
 
-  const currentSrc = note.images[page]
+  const pageData = note.pages[page]
   const multi = totalPages > 1
+  const titleEn = note.titleEn
 
   return (
     <div
@@ -82,88 +145,94 @@ export function NoteReader() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'safe center',
-        overflowY: 'auto',
         padding: '4vh 4vw',
         cursor: 'pointer',
         animation: 'noteReaderFadeIn 0.5s ease-out',
+        gap: 16,
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
+        key={page}
         style={{
-          maxWidth: 540,
-          width: '100%',
+          // A4 비율(1654 / 2339) 고정 — viewport 높이 우선
+          height: 'min(90vh, 980px)',
+          aspectRatio: '1654 / 2339',
+          background: '#ffffff',
+          color: '#1a1a1a',
+          padding: '4.5% 5%',
+          boxShadow: '8px 8px 0 0 rgba(0,0,0,0.55), 16px 16px 0 0 rgba(0,0,0,0.28)',
+          overflow: 'hidden',
+          cursor: 'default',
+          animation: 'notePageFadeIn 0.3s ease-out',
           display: 'flex',
           flexDirection: 'column',
-          gap: 16,
-          cursor: 'default',
+          alignItems: 'center',
+          gap: 12,
         }}
       >
-        <div
-          key={page}
-          style={{
-            position: 'relative',
-            // 로우폴리 그림자 — blur 0, 단단한 계단식 오프셋 두 단
-            boxShadow: '8px 8px 0 0 rgba(0,0,0,0.55), 16px 16px 0 0 rgba(0,0,0,0.28)',
-            background: '#ffffff',
-            animation: 'notePageFadeIn 0.25s ease-out',
-          }}
-        >
-          <img
-            src={`${BASE}${currentSrc}`}
-            alt={`${note.title} — page ${page + 1}`}
-            draggable={false}
-            style={{
-              display: 'block',
-              width: '100%',
-              height: 'auto',
-            }}
-          />
-          {/* Grain noise overlay — multiply blend로 종이 질감 (색조 없음) */}
+        {/* 제목 — 첫 페이지에만 */}
+        {page === 0 && (
           <div style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: GRAIN_URL,
-            mixBlendMode: 'multiply',
-            opacity: 0.4,
-            pointerEvents: 'none',
-          }} />
-        </div>
-
-        {/* 페이지 인디케이터 (다중 페이지일 때만) */}
-        {multi && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 18,
-            fontSize: 12,
-            letterSpacing: 3,
             fontFamily: '"Unifont", monospace',
-            color: '#f3eedd',
-            textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7)',
-            opacity: 0.85,
-            marginTop: 4,
-            userSelect: 'none',
+            fontSize: 18,
+            letterSpacing: 4,
+            textAlign: 'center',
+            marginBottom: 36,
+            color: '#1a1a1a',
+            width: '100%',
           }}>
-            <span style={{ opacity: page > 0 ? 1 : 0.25 }}>←</span>
-            <span>{page + 1} / {totalPages}</span>
-            <span style={{ opacity: page < totalPages - 1 ? 1 : 0.25 }}>→</span>
+            <GlitchText ko={note.title} en={titleEn} />
           </div>
         )}
 
+        {/* Segments wrapper — 컨테이너 폭=가장 긴 segment 폭, paper 안 가운데 위치, 내부는 좌측 정렬 통일 */}
         <div style={{
-          marginTop: multi ? 4 : 16,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 12,
+          width: 'fit-content',
+          maxWidth: '100%',
+          margin: '0 auto',
+        }}>
+          {pageData.segments.map((seg, i) => (
+            <SegmentRenderer key={i} segment={seg} />
+          ))}
+        </div>
+      </div>
+
+      {/* 페이지 인디케이터 (다중 페이지일 때만) */}
+      {multi && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 18,
           fontSize: 12,
-          letterSpacing: 4,
+          letterSpacing: 3,
           fontFamily: '"Unifont", monospace',
-          textAlign: 'center',
           color: '#f3eedd',
           textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7)',
-          opacity: 0.75,
+          opacity: 0.85,
+          userSelect: 'none',
         }}>
-          E — 닫기
+          <span style={{ opacity: page > 0 ? 1 : 0.25 }}>← / A</span>
+          <span>{page + 1} / {totalPages}</span>
+          <span style={{ opacity: page < totalPages - 1 ? 1 : 0.25 }}>D / →</span>
         </div>
+      )}
+
+      <div style={{
+        fontSize: 12,
+        letterSpacing: 4,
+        fontFamily: '"Unifont", monospace',
+        textAlign: 'center',
+        color: '#f3eedd',
+        textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7)',
+        opacity: 0.75,
+      }}>
+        E — 닫기
       </div>
 
       <style>{`
@@ -172,7 +241,7 @@ export function NoteReader() {
           to   { opacity: 1; }
         }
         @keyframes notePageFadeIn {
-          from { opacity: 0; transform: translateY(6px) rotate(0deg); }
+          from { opacity: 0; transform: translateY(6px); }
           to   { opacity: 1; }
         }
       `}</style>
