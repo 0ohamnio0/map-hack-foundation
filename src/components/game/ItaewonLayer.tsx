@@ -115,20 +115,6 @@ export function ItaewonLayer({ cellWorldPos, cellSize, playerPos }: ItaewonLayer
 
   return (
     <>
-      {/* "2022-10-29" date inscription on wall */}
-      {dateVisible && (
-        <Text
-          position={[cellWorldPos.x, 1.5, cellWorldPos.z - cellSize * 0.45]}
-          fontSize={0.3}
-          color="#666"
-          font={UNIFONT_URL}
-          anchorX="center"
-          anchorY="middle"
-        >
-          2022-10-29
-        </Text>
-      )}
-
       {/* 3 ghost employees */}
       <GhostEmployee
         startPos={[cellWorldPos.x - 1.5, 0, cellWorldPos.z - 2]}

@@ -1,8 +1,10 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { Minimap, type MinimapMarker } from '@/components/game/Minimap';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { MeshReflectorMaterial } from '@react-three/drei';
+import { MeshReflectorMaterial, useFBX } from '@react-three/drei';
+import { Suspense } from 'react';
 import { PlayerController, type WallAABB } from '@/components/game/PlayerController';
 import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
@@ -108,59 +110,170 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number } }> = ({ worldPo
         <boxGeometry args={[0.15, 3, 1.8]} />
         <meshStandardMaterial color="#665544" />
       </mesh>
-      {/* Mirror frame */}
+      {/* Mirror frame — full-wall, dark satin */}
       <mesh position={[0, 1.5, 1.48]}>
-        <boxGeometry args={[1.35, 2.15, 0.03]} />
-        <meshStandardMaterial color="#333" />
+        <boxGeometry args={[2.1, 2.85, 0.04]} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.4} roughness={0.6} />
       </mesh>
-      {/* Mirror — real planar reflection using MeshReflectorMaterial */}
+      {/* Mirror — full reflection, sharper resolution, near-perfect mirror */}
       <mesh position={[0, 1.5, 1.5]} rotation={[0, Math.PI, 0]}>
-        <planeGeometry args={[1.2, 2]} />
+        <planeGeometry args={[1.95, 2.7]} />
         <MeshReflectorMaterial
-          mirror={0.85}
-          resolution={512}
-          mixBlur={0.3}
-          mixStrength={1}
-          blur={[200, 100]}
-          color="#aaccdd"
-          metalness={0.9}
-          roughness={0.05}
+          mirror={1}
+          resolution={1024}
+          mixBlur={0.05}
+          mixStrength={1.2}
+          blur={[60, 30]}
+          color="#dde6ee"
+          metalness={1}
+          roughness={0.02}
+          depthScale={0.4}
+          minDepthThreshold={0.3}
+          maxDepthThreshold={1}
         />
       </mesh>
     </group>
   );
 };
 
+// --- Space character (FBX with PBR, R3F overlay) ---
+const ASSETS_BASE = `${import.meta.env.BASE_URL}assets/characters_biped/Meshy_AI_biped/`;
+const SPACE_FBX_URL = `${ASSETS_BASE}Meshy_AI_Animation_Long_Breathe_and_Look_Around_frame_rate_24.fbx`;
+const SPACE_DIFFUSE_URL   = `${ASSETS_BASE}Meshy_AI_texture_0.png`;
+const SPACE_METALLIC_URL  = `${ASSETS_BASE}Meshy_AI_texture_0_metallic.png`;
+const SPACE_NORMAL_URL    = `${ASSETS_BASE}Meshy_AI_texture_0_normal.png`;
+const SPACE_ROUGHNESS_URL = `${ASSETS_BASE}Meshy_AI_texture_0_roughness.png`;
+
+const SpaceCharacterMesh: React.FC = () => {
+  const fbx = useFBX(SPACE_FBX_URL);
+  const diffuse   = useLoader(THREE.TextureLoader, SPACE_DIFFUSE_URL);
+  const metallic  = useLoader(THREE.TextureLoader, SPACE_METALLIC_URL);
+  const normalMap = useLoader(THREE.TextureLoader, SPACE_NORMAL_URL);
+  const roughness = useLoader(THREE.TextureLoader, SPACE_ROUGHNESS_URL);
+  const ref = useRef<THREE.Group>(null);
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+
+  useEffect(() => {
+    if (!fbx) return;
+    if (fbx.animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(fbx);
+      const action = mixer.clipAction(fbx.animations[0]);
+      action.play();
+      mixerRef.current = mixer;
+    }
+    fbx.traverse(child => {
+      if (child instanceof THREE.Mesh) {
+        child.material = new THREE.MeshStandardMaterial({
+          map: diffuse,
+          metalnessMap: metallic,
+          normalMap: normalMap,
+          roughnessMap: roughness,
+          metalness: 0.25,
+          roughness: 0.72,
+        });
+      }
+    });
+  }, [fbx, diffuse, metallic, normalMap, roughness]);
+
+  useFrame((_, delta) => {
+    mixerRef.current?.update(delta);
+    if (ref.current) {
+      ref.current.rotation.y += delta * 0.18;
+      ref.current.position.y = -0.75 + Math.sin(performance.now() * 0.001) * 0.03;
+    }
+  });
+
+  return (
+    <group ref={ref}>
+      <primitive object={fbx} scale={0.0022} />
+    </group>
+  );
+};
+
+const SpaceCharacterCanvas: React.FC = () => (
+  <Canvas
+    style={{ position: 'fixed', inset: 0, zIndex: 1002, pointerEvents: 'none' }}
+    camera={{ fov: 35, position: [0, 0.4, 3.2] }}
+    gl={{ alpha: true }}
+  >
+    <ambientLight intensity={0.45} color="#dde8ff" />
+    <directionalLight position={[2, 4, 3]} intensity={1.2} color="#ffffff" />
+    <directionalLight position={[-2, 1, -1]} intensity={0.4} color="#88aaff" />
+    <Suspense fallback={null}>
+      <SpaceCharacterMesh />
+    </Suspense>
+    <EffectComposer>
+      <Bloom
+        intensity={0.9}
+        luminanceThreshold={0.35}
+        luminanceSmoothing={0.4}
+        mipmapBlur
+      />
+    </EffectComposer>
+  </Canvas>
+);
+
 // --- Elevator Cutscene ---
 type CutscenePhase = 'elevator' | 'space' | 'returning' | null;
 
-const ELEVATOR_DURATION = 10000; // 10s elevator interior
-const SPACE_DURATION = 15000;    // 15s space scene
-const RETURN_FADE = 800;        // fade back
+const ELEVATOR_DURATION = 18000; // 18s elevator interior — 명상적 호흡 확보
+const SPACE_DURATION = 45000;    // 45s space scene
+const RETURN_FADE = 1500;       // 화이트아웃 → 맵 복귀 fade
 
 const ElevatorCutscene: React.FC<{
   phase: CutscenePhase;
 }> = ({ phase }) => {
-  const [floor, setFloor] = useState(1);
+  const [floor, setFloor] = useState<string>('01');
   const [lookUp, setLookUp] = useState(false);
   const [stars, setStars] = useState<{ x: number; y: number; size: number; opacity: number; speed: number }[]>([]);
   const [earthY, setEarthY] = useState(80);
   const animRef = useRef<number>(0);
+  const { play, loop } = useSoundManager();
 
-  // Auto floor counter
+  // 엘베 안 룸톤 loop — elevator phase 시작 ~ space 진입 직전까지
   useEffect(() => {
-    if (phase !== 'elevator') { setFloor(1); setLookUp(false); return; }
+    if (phase === 'elevator') {
+      loop('elevator_room', true);
+      return () => loop('elevator_room', false);
+    }
+    return undefined;
+  }, [phase, loop]);
+
+  // 도착 ding → 700ms 후 문 열림. space 전환 2초 전에 시작 (사운드가 시각 변화에 약간 선행)
+  useEffect(() => {
+    if (phase === 'elevator') {
+      const dingTimer = setTimeout(() => {
+        play('elevator_ding');
+        setTimeout(() => play('elevator_door'), 700);
+      }, ELEVATOR_DURATION - 2000);
+      return () => clearTimeout(dingTimer);
+    }
+    return undefined;
+  }, [phase, play]);
+
+  // Auto floor counter — 1 → 99 → ★
+  useEffect(() => {
+    if (phase !== 'elevator') { setFloor('01'); setLookUp(false); return; }
+    let count = 1;
+    setFloor('01');
     const interval = setInterval(() => {
-      setFloor(f => (f < 99 ? f + 1 : f));
-    }, 200);
+      count++;
+      if (count > 99) {
+        setFloor('★');
+        clearInterval(interval);
+      } else {
+        setFloor(String(count).padStart(2, '0'));
+      }
+    }, 170);
     return () => clearInterval(interval);
   }, [phase]);
 
-  // Up arrow = look up (hold)
+  // Up arrow / W = look up (hold)
   useEffect(() => {
     if (phase !== 'elevator') return;
-    const down = (e: KeyboardEvent) => { if (e.key === 'ArrowUp') setLookUp(true); };
-    const up = (e: KeyboardEvent) => { if (e.key === 'ArrowUp') setLookUp(false); };
+    const isLookKey = (e: KeyboardEvent) => e.code === 'ArrowUp' || e.code === 'KeyW';
+    const down = (e: KeyboardEvent) => { if (isLookKey(e)) setLookUp(true); };
+    const up = (e: KeyboardEvent) => { if (isLookKey(e)) setLookUp(false); };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
@@ -198,7 +311,7 @@ const ElevatorCutscene: React.FC<{
     position: 'fixed',
     inset: 0,
     zIndex: 1000,
-    transition: 'opacity 0.6s ease',
+    transition: `opacity ${RETURN_FADE}ms ease`,
     opacity: phase === 'returning' ? 0 : 1,
   };
 
@@ -249,6 +362,33 @@ const ElevatorCutscene: React.FC<{
             position: 'absolute', right: '35%', top: 0, bottom: 0,
             width: 1, background: 'rgba(255,255,255,0.03)',
           }} />
+        </div>
+
+        {/* Graffiti City 폰트 — public/fonts/GraffitiCity.otf */}
+        <style>{`
+          @font-face {
+            font-family: 'Graffiti City';
+            src: url('${import.meta.env.BASE_URL}fonts/GraffitiCity.otf') format('opentype');
+            font-display: swap;
+          }
+        `}</style>
+        {/* 'look up kid...' graffiti — 좌측 중하단 (Up/W 인터랙션 안내) */}
+        <div style={{
+          position: 'absolute',
+          left: '6%',
+          top: '78%',
+          zIndex: 10,
+          transform: 'rotate(-6deg)',
+          fontFamily: '"Graffiti City", "Hammer Keys", monospace',
+          fontSize: 56,
+          letterSpacing: 2,
+          color: 'rgba(235, 80, 70, 0.9)',
+          textShadow: '0 0 12px rgba(220, 40, 30, 0.6), 2px 3px 0 rgba(0,0,0,0.75)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+          whiteSpace: 'nowrap',
+        }}>
+          ↑ look up kid...
         </div>
 
         {/* Right wall */}
@@ -307,7 +447,7 @@ const ElevatorCutscene: React.FC<{
             textShadow: '0 0 15px rgba(255,50,0,0.5)',
             letterSpacing: 6,
           }}>
-            {floor >= 99 ? '∞' : String(floor).padStart(2, '0')}
+            {floor}
           </div>
           <div style={{
             fontFamily: '"Unifont", monospace', fontSize: 8, color: 'rgba(255,255,255,0.2)',
@@ -412,53 +552,34 @@ const ElevatorCutscene: React.FC<{
   }
 
   // --- Space scene (STEP 9: StarNest shader background) ---
-  if (phase === 'space') {
+  if (phase === 'space' || phase === 'returning') {
     return (
       <div style={fadeStyle}>
         {/* STEP 9: Star Nest shader background (REF-7) */}
         <StarNestOverlay duration={SPACE_DURATION / 1000} />
 
-        {/* Character silhouette — floating in space */}
-        <div style={{
-          position: 'fixed',
-          left: '50%',
-          top: `${earthY}%`,
-          transform: 'translateX(-50%)',
-          zIndex: 1002,
-          pointerEvents: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          opacity: 0.6,
-          filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.15))',
-          transition: 'top 0.5s ease-out',
-        }}>
-          {/* Head */}
-          <div style={{
-            width: 24, height: 24, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.8)',
-            marginBottom: 4,
-          }} />
-          {/* Body */}
-          <div style={{
-            width: 20, height: 40, borderRadius: '10px 10px 4px 4px',
-            background: 'rgba(255,255,255,0.7)',
-            marginBottom: 2,
-          }} />
-          {/* Arms */}
-          <div style={{
-            position: 'absolute', top: 32, width: 56, height: 6,
-            display: 'flex', justifyContent: 'space-between',
-          }}>
-            <div style={{ width: 16, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.5)', transform: 'rotate(-20deg)' }} />
-            <div style={{ width: 16, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.5)', transform: 'rotate(20deg)' }} />
-          </div>
-          {/* Legs */}
-          <div style={{ display: 'flex', gap: 4 }}>
-            <div style={{ width: 8, height: 30, borderRadius: '0 0 4px 4px', background: 'rgba(255,255,255,0.6)' }} />
-            <div style={{ width: 8, height: 30, borderRadius: '0 0 4px 4px', background: 'rgba(255,255,255,0.6)' }} />
-          </div>
-        </div>
+        {/* Main character — Meshy FBX, floating + slow rotation */}
+        <SpaceCharacterCanvas />
+
+        {/* 화이트아웃 — phase returning 시 흰 overlay가 캐릭터·별 같이 덮으며 fade out */}
+        {phase === 'returning' && (
+          <>
+            <style>{`
+              @keyframes whiteoutFade {
+                0% { opacity: 1; }
+                100% { opacity: 0; }
+              }
+            `}</style>
+            <div style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 1100,
+              background: '#ffffff',
+              pointerEvents: 'none',
+              animation: `whiteoutFade ${RETURN_FADE}ms ease-out forwards`,
+            }} />
+          </>
+        )}
 
         {/* Elevator window frame */}
         <div style={{
@@ -504,16 +625,6 @@ const ElevatorCutscene: React.FC<{
     );
   }
 
-  // --- Returning (fade out overlay) ---
-  if (phase === 'returning') {
-    return (
-      <div style={{
-        ...fadeStyle,
-        background: '#000',
-        transition: `opacity ${RETURN_FADE}ms ease`,
-      }} />
-    );
-  }
 
   return null;
 };
@@ -729,6 +840,17 @@ export const Ch3Scene: React.FC = () => {
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
   const [cutscenePhase, setCutscenePhase] = useState<CutscenePhase>(null);
+  const { loop } = useSoundManager();
+
+  // 마트 앰비언스 — 챕터 진입 시 loop, 엘리베이터/우주 cutscene 동안엔 정지
+  useEffect(() => {
+    if (cutscenePhase) {
+      loop('mart_bgm', false);
+    } else {
+      loop('mart_bgm', true);
+    }
+    return () => loop('mart_bgm', false);
+  }, [cutscenePhase, loop]);
   const [collectedSet, setCollectedSet] = useState<Set<number>>(new Set());
   const [atElevator, setAtElevator] = useState(false);
   const [atExit, setAtExit] = useState(false);
