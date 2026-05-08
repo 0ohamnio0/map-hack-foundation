@@ -21,6 +21,12 @@ import {
 } from '@/components/effects/PretextTypography';
 import { InkBleed } from '@/components/effects/InkBleed';
 import { Ch5Screen } from '@/screens/Ch5Screen';
+import { useSoundManager } from '@/hooks/useSoundManager';
+import { stopAllMusic } from '@/lib/chapterMusic';
+import { Howl } from 'howler';
+
+const TYPING_BASE = `${import.meta.env.BASE_URL}assets/audio/ch4/typing/`;
+const TYPING_COUNT = 10;
 
 // ── Typing / language helpers ──
 
@@ -542,6 +548,25 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
   }, []);
 
   const [showCh5Overlay, setShowCh5Overlay] = useState(false);
+  const { play: playSfx } = useSoundManager();
+
+  // Ch.4 타이핑 — 10개 wav 각각 loop, 일정 간격으로 한 layer씩 추가 누적
+  useEffect(() => {
+    if (!autoExhibit || showCh5Overlay) return;
+    const howls = Array.from({ length: TYPING_COUNT }, (_, i) =>
+      new Howl({ src: [`${TYPING_BASE}${i + 1}.wav`], preload: true, volume: 0.25, loop: true }),
+    );
+    let cancelled = false;
+    const STAGGER_MS = 3000;
+    const timers = howls.map((h, i) =>
+      setTimeout(() => { if (!cancelled) h.play(); }, i * STAGGER_MS),
+    );
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      howls.forEach(h => { h.stop(); h.unload(); });
+    };
+  }, [autoExhibit, showCh5Overlay]);
 
   // Auto-exhibit: enter exhibit mode on mount (game mode)
   useEffect(() => {
@@ -552,6 +577,7 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoExhibit]);
+
 
   const exitExhibit = useCallback(() => {
     setExhibitMode(false);
@@ -1379,7 +1405,14 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
             <InkBleed
               sourceCanvas={pretextCanvasRef.current}
               onStop={() => setInkBleedActive(false)}
-              onRampComplete={() => { if (exhibitMode) setShowCh5Overlay(true); }}
+              onRampComplete={() => {
+                if (exhibitMode) {
+                  // CH.5 진입: CH.4 ending BGM 정지 + boot 사운드
+                  stopAllMusic();
+                  playSfx('boot_sound');
+                  setShowCh5Overlay(true);
+                }
+              }}
               hideTuning={exhibitMode}
               fullscreen={exhibitMode}
             />

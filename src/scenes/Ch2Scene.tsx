@@ -67,7 +67,7 @@ const DECOR_RAW: { x: number; z: number; w: number; d: number; h: number; color:
 ];
 const DECOR = DECOR_RAW.map(o => ({ ...o, x: o.x * SCALE_X, z: o.z * SCALE_Z }));
 
-const AIRPORT_TRIGGER = { x: 5 * SCALE_X, z: -16 * SCALE_Z, radius: 2.5 * SCALE_X };
+const AIRPORT_TRIGGER = { x: 5 * SCALE_X, z: -16 * SCALE_Z, radius: 4.5 * SCALE_X };
 
 // STEP 2: NPC positions along the S-curve — base values
 const NPC_POSITIONS_RAW: { x: number; z: number; isSpecial?: boolean }[] = [
@@ -618,9 +618,9 @@ const Ch2PhysicsScene: React.FC<{
       <KeyboardControls map={keyboardMap}>
         {physicsReady && (
           <Ecctrl
-            camInitDis={-3}
-            camMaxDis={-5}
-            camMinDis={-2}
+            camInitDis={-2.5}
+            camMaxDis={-3.5}
+            camMinDis={-1.2}
             camInitDir={{ x: 0.25, y: Math.PI }}
             camTargetPos={{ x: 0, y: 0.8, z: 0 }}
             characterInitDir={Math.PI}

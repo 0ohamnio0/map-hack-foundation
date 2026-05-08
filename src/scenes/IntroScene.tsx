@@ -32,7 +32,10 @@ export const IntroScene: React.FC = () => {
     if (!v) return
     const durationMs = v.duration * 1000
     const delay = Math.max(0, durationMs - TITLE_LEAD_BEFORE_END_MS)
-    titleTimerRef.current = window.setTimeout(() => setTitleVisible(true), delay)
+    titleTimerRef.current = window.setTimeout(() => {
+      setTitleVisible(true)
+      play('dog_bark')
+    }, delay)
   }
 
   return (

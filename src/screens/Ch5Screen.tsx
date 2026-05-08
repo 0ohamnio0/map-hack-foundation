@@ -438,10 +438,13 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
         clearTimeout(t2)
       }
     }
-    // Overlay mode — fade-in, delayed focus
+    // Overlay mode — fade-in, delayed focus + PC ambience loop
+    loop('pc_fan', true)
     setTimeout(() => textareaRef.current?.focus(), 2000)
     requestAnimationFrame(() => setMountOpacity(1))
-    return undefined
+    return () => {
+      loop('pc_fan', false)
+    }
   }, [play, loop, overlayMode])
 
   useEffect(() => {
@@ -532,6 +535,8 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       if (t < 1) requestAnimationFrame(tick)
       else setTimeout(() => {
         setEnding(true)
+        loop('pc_fan', false)
+        play('screen_off')
         setTimeout(() => setEndingOpacity(1), 100)
       }, 1000)
     }

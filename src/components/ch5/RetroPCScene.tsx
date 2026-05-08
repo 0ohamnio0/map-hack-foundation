@@ -44,13 +44,16 @@ const CameraRig: React.FC<{
     const start = new THREE.Vector3(sc.x, sc.y, sc.z + 0.04)
     const end = new THREE.Vector3(sc.x, sc.y - 0.05, sc.z + 1.9)
 
-    // Shift lookAt target right as t→1 so the computer lands on the left half
-    // of the frame, leaving room for credits on the right.
+    // Phase 1 (t=0→0.5): 정면 dolly-out, lookAt 정면 고정
+    // Phase 2 (t=0.5→1): camera 정지, lookAt만 우측으로 이동 → 컴퓨터가 화면 좌측으로 흘러감
+    const dollyPhase = t < 0.5 ? t * 2 : 1
+    const sidePhase = t < 0.5 ? 0 : (t - 0.5) * 2
+
     const targetStart = sc
     const targetEnd = new THREE.Vector3(sc.x + 0.55, sc.y, sc.z)
 
-    camera.position.lerpVectors(start, end, t)
-    const look = new THREE.Vector3().lerpVectors(targetStart, targetEnd, t)
+    camera.position.lerpVectors(start, end, dollyPhase)
+    const look = new THREE.Vector3().lerpVectors(targetStart, targetEnd, sidePhase)
     camera.lookAt(look)
 
     // CRT fill light, parked relative to the screen (offset -0.27, +0.4, +0.6)
@@ -87,13 +90,14 @@ export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1 }) => {
         camera={{ fov: 35, near: 0.001, far: 10 }}
         gl={{ antialias: true, alpha: true }}
       >
-        <color attach="background" args={['#0d141c']} />
-        <ambientLight intensity={1.49} color="#004bfa" />
+        <color attach="background" args={['#0a0a0c']} />
+        {/* 네온 컬러 라이팅 해제 — 중성/warm-white 키 + 약한 fill */}
+        <ambientLight intensity={0.55} color="#ffffff" />
         <directionalLight
           castShadow
           position={[-10, 2.6, 3]}
-          intensity={0.75}
-          color="#00fa32"
+          intensity={1.1}
+          color="#fffaf0"
           shadow-mapSize={[2048, 2048]}
           shadow-bias={-0.0005}
           shadow-camera-near={0.1}
@@ -103,13 +107,13 @@ export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1 }) => {
           shadow-camera-top={1.5}
           shadow-camera-bottom={-1.5}
         />
-        <directionalLight position={[-0.5, 4.4, 10]} intensity={1.55} color="#ffa200" />
+        <directionalLight position={[-0.5, 4.4, 10]} intensity={0.45} color="#ffe8c8" />
         <pointLight
           ref={crtFill}
-          intensity={1.4}
+          intensity={0.5}
           distance={0.9}
           decay={0.8}
-          color="#ff00dd"
+          color="#fff5e0"
         />
         <RetroPC screenDataUrl={snapshot} />
         <ContactShadows
@@ -124,10 +128,10 @@ export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1 }) => {
         <CameraRig t={t} fill={crtFill} />
         <EffectComposer>
           <Bloom
-            intensity={13.0}
-            luminanceThreshold={0.1}
+            intensity={1.2}
+            luminanceThreshold={0.6}
             luminanceSmoothing={0.4}
-            kernelSize={KernelSize.HUGE}
+            kernelSize={KernelSize.LARGE}
             mipmapBlur
           />
         </EffectComposer>
