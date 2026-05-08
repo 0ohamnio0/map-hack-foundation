@@ -7,6 +7,7 @@
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useSoundManager } from '@/hooks/useSoundManager'
+import { useGameStore } from '@/store/useGameStore'
 import { getVisitorNickname } from '@/utils/fingerprint'
 import { RetroPCScene } from '@/components/ch5/RetroPCScene'
 
@@ -397,6 +398,7 @@ type Props = {
 
 export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   const { play, loop } = useSoundManager()
+  const goToChapter = useGameStore(s => s.goToChapter)
   const [fragments, setFragments] = useState<TextFragment[]>([])
   const [count, setCount] = useState(0)
   const nextId = useRef(0)
@@ -543,20 +545,16 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
     requestAnimationFrame(tick)
   }, [overlayMode])
 
-  // --- Credits (Scene 5-4 end) ---
+  // --- Credits (Scene 5-4 end) — film-style center stack ---
   if (ending) {
-    const creditSection = (heading: string, rows: Array<[string, string]>) => (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    const role = (heading: string, ko: string, en: string) => (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
         <div style={{
-          fontSize: '0.72rem', letterSpacing: 4, color: '#8fa39c',
-          textTransform: 'uppercase', marginBottom: 4,
+          fontSize: '0.72rem', letterSpacing: 5, color: '#8fa39c',
+          textTransform: 'uppercase', marginBottom: 6,
         }}>{heading}</div>
-        {rows.map(([role, name]) => (
-          <div key={`${heading}-${role}`} style={{ display: 'flex', gap: 14, fontSize: '0.95rem' }}>
-            <span style={{ width: 120, color: '#7d8f89', textAlign: 'right', flexShrink: 0 }}>{role}</span>
-            <span style={{ color: '#dfe8e4' }}>{name}</span>
-          </div>
-        ))}
+        <div style={{ fontSize: '1.05rem', color: '#f0f6f2', letterSpacing: 1 }}>{ko}</div>
+        <div style={{ fontSize: '0.85rem', color: '#a8b8b3', letterSpacing: 1 }}>{en}</div>
       </div>
     )
 
@@ -568,67 +566,56 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       }}>
         <RetroPCScene t={1} snapshot={blogSnapshot} />
         <div style={{
-          position: 'absolute', right: '4vw', top: '50%', transform: 'translateY(-50%)',
-          width: 'min(32vw, 480px)', maxHeight: '80vh', overflow: 'auto',
-          display: 'flex', flexDirection: 'column', gap: 28,
-          fontFamily: "'Nanum Myeongjo', serif", color: '#dfe8e4',
+          position: 'absolute', right: '7vw', top: '50%',
+          transform: 'translateY(-50%) scale(1.2)',
+          transformOrigin: 'right center',
+          width: 'min(32vw, 480px)', maxHeight: '90vh', overflow: 'auto',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 36,
+          fontFamily: '"Unifont", monospace', color: '#dfe8e4',
           zIndex: 3,
+          textAlign: 'center',
         }}>
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <h1 style={{
-              fontSize: '2.4rem', margin: 0, letterSpacing: 4, fontWeight: 800,
+              fontFamily: '"Hammer Keys", monospace',
+              fontSize: '4.2rem', margin: 0, letterSpacing: 8, fontWeight: 800,
               color: '#f0f6f2',
             }}>Map Hack</h1>
-            <p style={{ fontSize: '0.85rem', color: '#8fa39c', margin: '6px 0 0', letterSpacing: 2 }}>
-              2026 · 송해민
-            </p>
+            <div style={{ fontSize: '1rem', color: '#a8b8b3', letterSpacing: 4 }}>맵 핵</div>
           </div>
 
-          {creditSection('Direction', [
-            ['Concept', '송해민'],
-            ['Writing', '송해민'],
-            ['Creative Technology', '송해민'],
-          ])}
+          {role('Created by', '송해민', 'Song Haemin')}
+          {role('Sound', '허현정', 'Heo Hyunjeong')}
+          {role('Commissioned by', '화이트리버프레스', 'White River Press')}
 
-          {creditSection('Art & Code', [
-            ['Level Design', '송해민'],
-            ['3D Modeling', '송해민 · PSX Asset Pack'],
-            ['Shaders', '송해민'],
-            ['UI / Blog Clone', '송해민'],
-          ])}
-
-          {creditSection('Sound', [
-            ['Design', '송해민'],
-            ['Additional FX', 'freesound.org'],
-          ])}
-
-          {creditSection('Special Thanks', [
-            ['', '허현정'],
-            ['', '남선미'],
-            ['', '0ohihano0 독자들'],
-          ])}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-            <div style={{
-              fontSize: '0.72rem', letterSpacing: 4, color: '#8fa39c',
-              textTransform: 'uppercase', marginBottom: 4,
-            }}>Further Reading</div>
-            <a href={BLOG_POSTS[0].href} target="_blank" rel="noopener"
-              style={{ color: '#b8d4e8', fontSize: '0.9rem', textDecoration: 'underline' }}>
-              {BLOG_POSTS[0].title}
-            </a>
-            <a href={BLOG_POSTS[1].href} target="_blank" rel="noopener"
-              style={{ color: '#b8d4e8', fontSize: '0.9rem', textDecoration: 'underline' }}>
-              {BLOG_POSTS[1].title}
-            </a>
+          <div style={{ fontSize: '0.95rem', color: '#8fa39c', letterSpacing: 6, marginTop: 8 }}>
+            2026
           </div>
 
-          <p style={{
-            fontSize: '0.72rem', color: '#556964', margin: '16px 0 0',
-            fontStyle: 'italic', letterSpacing: 1,
-          }}>
-            Built with Vite · React · Three.js · Rapier · Zustand
-          </p>
+          <button
+            onClick={() => goToChapter('START')}
+            style={{
+              marginTop: 12,
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(223, 232, 228, 0.7)',
+              fontFamily: 'inherit',
+              fontSize: '0.85rem',
+              letterSpacing: 6,
+              padding: '10px 28px',
+              cursor: 'pointer',
+              transition: 'color 0.3s ease',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.color = '#ffffff'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = 'rgba(223, 232, 228, 0.7)'
+            }}
+          >
+            [ MAIN ]
+          </button>
         </div>
       </div>
     )
