@@ -632,7 +632,7 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
   useEffect(() => {
     if (!autoExhibit || showCh5Overlay) return;
     const howls = Array.from({ length: TYPING_COUNT }, (_, i) =>
-      new Howl({ src: [`${TYPING_BASE}${i + 1}.wav`], preload: true, volume: 0.25, loop: true }),
+      new Howl({ src: [`${TYPING_BASE}${i + 1}.mp3`], preload: true, volume: 0.25, loop: true }),
     );
     let cancelled = false;
     const STAGGER_MS = 3000;
