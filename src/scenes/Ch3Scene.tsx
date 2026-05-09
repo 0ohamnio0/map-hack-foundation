@@ -840,7 +840,7 @@ export const Ch3Scene: React.FC = () => {
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
   const [cutscenePhase, setCutscenePhase] = useState<CutscenePhase>(null);
-  const { loop } = useSoundManager();
+  const { play, loop } = useSoundManager();
 
   // 마트 앰비언스 — 챕터 진입 시 loop, 엘리베이터/우주 cutscene 동안엔 정지
   useEffect(() => {
@@ -915,6 +915,7 @@ export const Ch3Scene: React.FC = () => {
       e.preventDefault();
       if (showExitPrompt) {
         triggerEvent('ch3_exit');
+        play('transition');
         goToChapter('CH4');
       } else if (showElevatorPrompt) {
         triggerEvent('ch3_elevator');

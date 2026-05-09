@@ -146,6 +146,7 @@ const Ch1Inner: React.FC = () => {
   });
 
   const handleCubeComplete = () => {
+    play('transition');
     goToChapter('CH2');
   };
 

@@ -24,6 +24,7 @@ const WALL_HEIGHT = 4;
 /** Scale factors live in @/scenes/ch2Layout to keep Ch2Scene <-> SignpostManager
  *  free of a circular import. */
 import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout';
+import { useSoundManager } from '@/hooks/useSoundManager';
 
 /*
  * S-shaped winding street layout (top-down) — base values, scaled at runtime:
@@ -708,6 +709,7 @@ export const Ch2Scene: React.FC = () => {
   const activeNoteId = useGameStore(s => s.activeNoteId);
   const visitedEvents = useGameStore(s => s.visitedEvents);
   const devMode      = useDevMode();
+  const { play } = useSoundManager();
 
   const collectedNotes = CH2_NOTES.filter(n => visitedEvents.has(`note_${n.id}`)).length;
   const totalNotes = CH2_NOTES.length;
@@ -733,6 +735,7 @@ export const Ch2Scene: React.FC = () => {
     const handler = (e: KeyboardEvent) => {
       if (e.code === 'KeyE') {
         e.preventDefault();
+        play('transition');
         goToChapter('CH3');
       }
     };
