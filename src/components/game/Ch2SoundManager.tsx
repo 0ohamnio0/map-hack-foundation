@@ -22,15 +22,15 @@ interface NPCSound {
 }
 
 const NPC_SOUND_DEFS: Omit<NPCSound, 'howl'>[] = [
-  { position: [-3, 0, -8], src: 'ch2/npc_voice_1.mp3', maxDist: 20 },
-  { position: [4, 0, -15], src: 'ch2/npc_voice_2.mp3', maxDist: 20 },
-  { position: [-2, 0, -25], src: 'ch2/npc_voice_3.mp3', maxDist: 20 },
-  { position: [18, 0, -38], src: 'ch2/npc_voice_1.mp3', maxDist: 20 },
+  { position: [-3, 0, -8], src: 'ch2/npc_voice_1.mp3', maxDist: 4 },
+  { position: [4, 0, -15], src: 'ch2/npc_voice_2.mp3', maxDist: 4 },
+  { position: [-2, 0, -25], src: 'ch2/npc_voice_3.mp3', maxDist: 4 },
+  { position: [18, 0, -38], src: 'ch2/npc_voice_1.mp3', maxDist: 4 },
   { position: [18, 0, -45], src: 'ch2/npc_special.mp3', maxDist: 8, isSpecial: true },
-  { position: [24, 0, -50], src: 'ch2/npc_voice_2.mp3', maxDist: 20 },
-  { position: [15, 0, -63], src: 'ch2/npc_voice_3.mp3', maxDist: 20 },
-  { position: [-4, 0, -72], src: 'ch2/npc_voice_1.mp3', maxDist: 20 },
-  { position: [2, 0, -80], src: 'ch2/npc_voice_2.mp3', maxDist: 20 },
+  { position: [24, 0, -50], src: 'ch2/npc_voice_2.mp3', maxDist: 4 },
+  { position: [15, 0, -63], src: 'ch2/npc_voice_3.mp3', maxDist: 4 },
+  { position: [-4, 0, -72], src: 'ch2/npc_voice_1.mp3', maxDist: 4 },
+  { position: [2, 0, -80], src: 'ch2/npc_voice_2.mp3', maxDist: 4 },
 ]
 
 export function Ch2SoundManager() {
