@@ -29,7 +29,7 @@ function TextSegment({ ko, en, preserveSpacing, size, align }: {
   return (
     <div style={{
       fontFamily: '"Unifont", monospace',
-      fontSize: size === 'small' ? 10 : 13,
+      fontSize: size === 'small' ? 'clamp(8px, 1.0vw, 9px)' : 'clamp(10px, 1.4vw, 12px)',
       lineHeight: size === 'small' ? 1.5 : 1.7,
       letterSpacing: 0.5,
       whiteSpace: preserveSpacing ? 'pre' : 'pre-wrap',
@@ -58,6 +58,8 @@ function SegmentRenderer({ segment }: { segment: PageSegment }) {
     )
   }
   if (segment.type === 'image') {
+    const pct = segment.widthPct ?? 100
+    const scaledPct = pct * 0.85
     return (
       <img
         src={`${BASE}${segment.src}`}
@@ -65,9 +67,11 @@ function SegmentRenderer({ segment }: { segment: PageSegment }) {
         draggable={false}
         style={{
           display: 'block',
-          width: `${segment.widthPct ?? 100}%`,
+          width: `${scaledPct}%`,
           height: 'auto',
-          margin: '8px auto',
+          maxHeight: 'clamp(140px, 30vh, 320px)',
+          objectFit: 'contain',
+          margin: '4px auto',
         }}
       />
     )
@@ -217,14 +221,15 @@ export function NoteReader() {
         onClick={e => e.stopPropagation()}
         key={page}
         style={{
-          // A4 비율(1654 / 2339) 고정 — viewport 높이 우선
-          height: 'min(90vh, 980px)',
+          // A4 비율(1654 / 2339) 고정 — 좁은 viewport에선 폭 기준으로도 캡
+          height: 'min(80vh, 980px, calc(92vw * 2339 / 1654))',
           aspectRatio: '1654 / 2339',
           background: '#ffffff',
           color: '#1a1a1a',
-          padding: '4.5% 5%',
+          padding: '3% 4.5%',
           boxShadow: '8px 8px 0 0 rgba(0,0,0,0.55), 16px 16px 0 0 rgba(0,0,0,0.28)',
-          overflow: 'hidden',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           cursor: 'default',
           animation: 'notePageFadeIn 0.3s ease-out',
           display: 'flex',
@@ -237,10 +242,10 @@ export function NoteReader() {
         {page === 0 && (
           <div style={{
             fontFamily: '"Unifont", monospace',
-            fontSize: 18,
+            fontSize: 'clamp(13px, 1.8vw, 16px)',
             letterSpacing: 4,
             textAlign: 'center',
-            marginBottom: 36,
+            marginBottom: 18,
             color: '#1a1a1a',
             width: '100%',
           }}>
@@ -248,14 +253,13 @@ export function NoteReader() {
           </div>
         )}
 
-        {/* Segments wrapper — 컨테이너 폭=가장 긴 segment 폭, paper 안 가운데 위치, 내부는 좌측 정렬 통일 */}
+        {/* Segments wrapper — paper 안쪽 폭에 맞춤 (좁은 viewport에서 텍스트 wrap 보장) */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
-          gap: 12,
-          width: 'fit-content',
-          maxWidth: '100%',
+          gap: 8,
+          width: '100%',
           margin: '0 auto',
         }}>
           {pageData.segments.map((seg, i) => (

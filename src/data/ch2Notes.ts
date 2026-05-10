@@ -114,7 +114,6 @@ as the generator network and the discriminator network formed an adversarial net
 비행기 안에서만 운다
 음울한 진공
 
-
 제주도에서 서울 그리고 제주도로
 내려가면
 젓가락을 밥 위에 세로로 꽂는다
@@ -127,14 +126,12 @@ as the generator network and the discriminator network formed an adversarial net
 올라가면
 층간 소음 주의
 
-
 할머니의 엄마도 나처럼
 수없이 반복되는 이터레이션 위에서
 불타는 집의 몸짓을 배웠겠지`,
             en: `I'm a flight specialist
 I only cry inside airplanes
 A gloomy vacuum
-
 
 From Jeju to Seoul and back to Jeju
 Going down,
@@ -147,7 +144,6 @@ From grandmother to mother… and from mother to me… a difference visible to t
 In front of the ancestor's portrait I peeled off one foot and stuck it to the collapsed ceiling
 Going up,
 Mind the inter-floor noise
-
 
 My grandmother's mother, like me,
 across countless iterations
@@ -163,6 +159,7 @@ must have learned the choreography of a burning house`,
             ko: `앞으로 너에게 주고 싶은 몸짓은 아직 데이터 최적화가 덜 되었다
 다들 코딩을 게으르게 했다고 한다
 진짜인지 마지막으로 다시 물어볼까
+
 //엄마와의 대화
 [나]   99:99:99  엄마는 C#이 좋아 파이썬이 좋아?
 [엄마] 00:00:00  양도소득세? 넌 알 필요 없단다
@@ -181,6 +178,7 @@ must have learned the choreography of a burning house`,
             en: `The choreography I want to give you next still isn't data-optimized enough
 They say everyone got lazy with the code
 Maybe I'll ask one last time if it's real
+
 //Conversation with mother
 [me]   99:99:99  Mom, do you prefer C# or Python?
 [mom]  00:00:00  Capital gains tax? You don't need to know.

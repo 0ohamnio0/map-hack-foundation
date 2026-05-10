@@ -380,7 +380,7 @@ const ElevatorCutscene: React.FC<{
           zIndex: 10,
           transform: 'rotate(-6deg)',
           fontFamily: '"Graffiti City", "Hammer Keys", monospace',
-          fontSize: 56,
+          fontSize: 'clamp(28px, 4.5vw, 56px)',
           letterSpacing: 2,
           color: 'rgba(235, 80, 70, 0.9)',
           textShadow: '0 0 12px rgba(220, 40, 30, 0.6), 2px 3px 0 rgba(0,0,0,0.75)',
