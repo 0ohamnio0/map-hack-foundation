@@ -364,24 +364,31 @@ const ElevatorCutscene: React.FC<{
           }} />
         </div>
 
-        {/* Graffiti City 폰트 — public/fonts/GraffitiCity.otf */}
+        {/* Graffiti City + Digital-7 폰트 (public/fonts) */}
         <style>{`
           @font-face {
             font-family: 'Graffiti City';
             src: url('${import.meta.env.BASE_URL}fonts/GraffitiCity.otf') format('opentype');
             font-display: swap;
           }
+          @font-face {
+            font-family: 'Digital-7';
+            src: url('${import.meta.env.BASE_URL}fonts/digital-7.ttf') format('truetype');
+            font-display: swap;
+          }
         `}</style>
         {/* 'look up kid...' graffiti — 좌측 중하단 (Up/W 인터랙션 안내) */}
         <div style={{
           position: 'absolute',
-          left: '6%',
-          top: '78%',
+          left: '3%',
+          top: '85%',
           zIndex: 10,
           transform: 'rotate(-6deg)',
           fontFamily: '"Graffiti City", "Hammer Keys", monospace',
-          fontSize: 'clamp(28px, 4.5vw, 56px)',
-          letterSpacing: 2,
+          // 엘베 벽이 viewport 비례(%)로 sizing되니 글자도 vmin으로 같이 비례
+          // MacBook 16" (1728×1117 / 1512×982) 기준 56px ≈ 5vmin
+          fontSize: '2.1vmin',
+          letterSpacing: '0.075vmin',
           color: 'rgba(235, 80, 70, 0.9)',
           textShadow: '0 0 12px rgba(220, 40, 30, 0.6), 2px 3px 0 rgba(0,0,0,0.75)',
           pointerEvents: 'none',
@@ -440,9 +447,8 @@ const ElevatorCutscene: React.FC<{
           textAlign: 'center',
         }}>
           <div style={{
-            fontFamily: '"Unifont", monospace',
-            fontSize: 36,
-            fontWeight: 'bold',
+            fontFamily: '"Digital-7", "Unifont", monospace',
+            fontSize: 44,
             color: '#ff3300',
             textShadow: '0 0 15px rgba(255,50,0,0.5)',
             letterSpacing: 6,
@@ -460,7 +466,7 @@ const ElevatorCutscene: React.FC<{
         {/* Button panel (right wall, near camera) */}
         <div style={{
           position: 'absolute',
-          right: '2%', top: '42%',
+          right: '5%', top: '42%',
           width: 120, height: 400,
           background: 'linear-gradient(180deg, #1c1c20, #18181c)',
           border: '1px solid rgba(255,255,255,0.06)',
@@ -470,6 +476,8 @@ const ElevatorCutscene: React.FC<{
           flexDirection: 'column',
           alignItems: 'center',
           gap: 8,
+          transform: 'scale(1.3)',
+          transformOrigin: 'top right',
         }}>
           {['★', '99', '80', '60', '40', '20', '10', '5', '1', 'B1'].map((label, i) => (
             <div key={i} style={{
@@ -490,20 +498,6 @@ const ElevatorCutscene: React.FC<{
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,200,0,0.12)', border: '1px solid rgba(255,200,0,0.25)' }} />
           </div>
         </div>
-
-        {/* Handrail (left wall, near camera) */}
-        <div style={{
-          position: 'absolute',
-          left: '2%', top: '60%', right: '75%', height: 5,
-          background: 'linear-gradient(90deg, rgba(180,180,180,0.15), rgba(180,180,180,0.06))',
-          borderRadius: 3,
-        }} />
-        <div style={{
-          position: 'absolute',
-          left: '2%', top: '58%', width: 5, height: 24,
-          background: 'rgba(180,180,180,0.1)',
-          borderRadius: 2,
-        }} />
 
         </div>{/* end viewport container */}
 
