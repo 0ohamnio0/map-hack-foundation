@@ -99,6 +99,12 @@ function makeNoiseBlock(id: number): TextFragment {
   }
 }
 
+/* ─── Perspective tunnel — 1 ring (full rectangle) per KEYS_PER_RING keypresses ─── */
+const TUNNEL_TEXT = 'mahn_mal'
+const TUNNEL_LAYERS = 8
+const TUNNEL_RATIO = 0.6
+const KEYS_PER_RING = 3
+
 const BLOG_POSTS = [
   {
     title: 'But Why?',
@@ -242,21 +248,40 @@ const GuestbookView: React.FC<{ t: Theme; onSubmitSuccess?: () => void }> = ({ t
         }}>
           {nickname || '...'}
         </div>
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder=""
-          maxLength={500}
-          style={{
-            width: '100%', minHeight: 80, padding: 12,
-            border: `1px solid ${t.borderSub}`, resize: 'vertical',
-            fontFamily: "'Nanum Myeongjo', serif",
-            fontSize: 13, color: t.fg, lineHeight: 1.9,
-            outline: 'none', background: t.inputBg,
-            boxSizing: 'border-box',
-          }}
-        />
+        <div style={{ position: 'relative' }}>
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder=""
+            maxLength={500}
+            style={{
+              width: '100%', minHeight: 80, padding: 12,
+              border: `1px solid ${t.borderSub}`, resize: 'vertical',
+              fontFamily: "'Nanum Myeongjo', serif",
+              fontSize: 13, color: t.fg, lineHeight: 1.9,
+              outline: 'none', background: t.inputBg,
+              boxSizing: 'border-box',
+              caretColor: input ? 'auto' : 'transparent',
+              display: 'block',
+            }}
+          />
+          {!input && (
+            <div style={{
+              position: 'absolute', top: 12, left: 12,
+              display: 'flex', alignItems: 'baseline',
+              fontFamily: "'Nanum Myeongjo', serif",
+              fontSize: 13, lineHeight: 1.9,
+              pointerEvents: 'none', userSelect: 'none',
+            }}>
+              <span style={{
+                animation: 'blink 1s step-end infinite',
+                color: t.fg, marginRight: 6,
+              }}>|</span>
+              <span style={{ color: t.muted }}>내용을 입력해주세요...</span>
+            </div>
+          )}
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 10, color: t.muted }}>{input.length}/500</span>
           <button
@@ -390,6 +415,118 @@ const BrowserPopup: React.FC<{
   )
 }
 
+/* ─── Draggable message popup ─── */
+const MessagePopup: React.FC<{
+  message: string
+  initialX: number
+  initialY: number
+  zIndex: number
+  onClose: () => void
+}> = ({ message, initialX, initialY, zIndex, onClose }) => {
+  const [pos, setPos] = useState({ x: initialX, y: initialY })
+  const [dragging, setDragging] = useState(false)
+  const dragOffset = useRef({ x: 0, y: 0 })
+
+  useEffect(() => {
+    if (!dragging) return
+    const onMove = (e: MouseEvent) => {
+      setPos({ x: e.clientX - dragOffset.current.x, y: e.clientY - dragOffset.current.y })
+    }
+    const onUp = () => setDragging(false)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [dragging])
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    dragOffset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }
+    setDragging(true)
+  }
+
+  return (
+    <div style={{
+      position: 'fixed',
+      left: pos.x, top: pos.y,
+      zIndex,
+      width: '100%', maxWidth: 420,
+      borderRadius: 8, overflow: 'hidden',
+      boxShadow: '0 16px 48px rgba(0,0,0,0.45)',
+      background: '#fff',
+      animation: 'popIn 0.3s ease-out',
+    }}>
+      <div
+        onMouseDown={handleMouseDown}
+        style={{
+          background: '#e8e8e8', padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 8,
+          borderBottom: '1px solid #ccc',
+          cursor: dragging ? 'grabbing' : 'grab',
+          userSelect: 'none',
+        }}
+      >
+        <div onClick={onClose}
+          style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', cursor: 'pointer' }} />
+        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e' }} />
+        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840' }} />
+      </div>
+      <div style={{
+        padding: '40px 32px',
+        fontFamily: "'Nanum Myeongjo', serif",
+        fontSize: 17, color: '#333', fontStyle: 'italic',
+        lineHeight: 1.9, textAlign: 'center',
+        background: '#fff',
+      }}>
+        {message}
+      </div>
+    </div>
+  )
+}
+
+/* ─── Single perspective ring — full rectangle (4 edges) at one inset depth ─── */
+const TunnelRing: React.FC<{
+  ringIndex: number
+  overlayMode: boolean
+}> = ({ ringIndex, overlayMode }) => {
+  const insetPct = 50 * (1 - Math.pow(TUNNEL_RATIO, ringIndex))
+  const fontSize = Math.max(14 * Math.pow(0.85, ringIndex), 5)
+  const opacity = Math.min(0.35 + ringIndex * 0.11, 1)
+  const repeated = `${TUNNEL_TEXT} `.repeat(60)
+  const color = overlayMode ? '#fff' : '#000'
+
+  const offset = fontSize * 0.55
+  const insetExpr = `${insetPct}%`
+  const offsetCalc = `calc(${insetExpr} - ${offset}px)`
+
+  const baseStyle: React.CSSProperties = {
+    position: 'absolute',
+    fontFamily: "'Nanum Myeongjo', serif",
+    fontWeight: 800,
+    fontSize,
+    color,
+    opacity,
+    letterSpacing: 1,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textAlign: 'center',
+    pointerEvents: 'none',
+    userSelect: 'none',
+    lineHeight: 1,
+    animation: 'popIn 0.35s ease-out',
+  }
+
+  return (
+    <>
+      <div style={{ ...baseStyle, top: offsetCalc, left: insetExpr, right: insetExpr }}>{repeated}</div>
+      <div style={{ ...baseStyle, top: insetExpr, bottom: insetExpr, right: offsetCalc, writingMode: 'vertical-rl' }}>{repeated}</div>
+      <div style={{ ...baseStyle, bottom: offsetCalc, left: insetExpr, right: insetExpr }}>{repeated}</div>
+      <div style={{ ...baseStyle, top: insetExpr, bottom: insetExpr, left: offsetCalc, writingMode: 'vertical-rl' }}>{repeated}</div>
+    </>
+  )
+}
+
 /* ─── Main component ─── */
 type Props = {
   /** Overlay mode: transparent bg + inverted colors (white on black ink bleed) */
@@ -411,6 +548,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   const [activeTab, setActiveTab] = useState<'blog' | 'guest'>('blog')
   const [popup1Closed, setPopup1Closed] = useState(false)
   const [popup2Closed, setPopup2Closed] = useState(false)
+  const [messagePopupClosed, setMessagePopupClosed] = useState(false)
   const [mountOpacity, setMountOpacity] = useState(overlayMode ? 0 : 1)
   const [booting, setBooting] = useState(!overlayMode)
   const [bootOpacity, setBootOpacity] = useState(!overlayMode ? 1 : 0)
@@ -450,7 +588,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   }, [play, loop, overlayMode])
 
   useEffect(() => {
-    if (count >= 5 && !showMessage) {
+    if (count >= 30 && !showMessage) {
       setShowMessage(true)
       setTimeout(() => setShowBlog1(true), 2000)
       setTimeout(() => setShowBlog2(true), 3000)
@@ -775,14 +913,68 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
                 </div>
               </div>
 
+              {/* Fake smart-editor toolbar */}
+              <div style={{
+                border: `1px solid ${t.borderSub}`,
+                borderBottom: `1px solid ${t.borderFaint}`,
+                background: t.bg,
+                fontFamily: "'Nanum Myeongjo', serif",
+                fontSize: 12, color: t.textBody,
+                userSelect: 'none',
+              }}>
+                {/* Row 1 */}
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '6px 10px', gap: 12, flexWrap: 'wrap',
+                  borderBottom: `1px solid ${t.borderFaint}`,
+                }}>
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    나눔명조 <span style={{ fontSize: 9, color: t.muted }}>▾</span>
+                  </span>
+                  <span style={{ width: 1, height: 12, background: t.borderSub }} />
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    15 <span style={{ fontSize: 9, color: t.muted }}>▾</span>
+                  </span>
+                  <span style={{ width: 1, height: 12, background: t.borderSub }} />
+                  <span style={{ cursor: 'pointer', fontWeight: 700, width: 14, textAlign: 'center' }}>B</span>
+                  <span style={{ cursor: 'pointer', fontStyle: 'italic', width: 14, textAlign: 'center' }}>I</span>
+                  <span style={{ cursor: 'pointer', textDecoration: 'underline', width: 14, textAlign: 'center' }}>U</span>
+                  <span style={{ cursor: 'pointer', textDecoration: 'line-through', width: 14, textAlign: 'center' }}>S</span>
+                  <span style={{ width: 1, height: 12, background: t.borderSub }} />
+                  <span style={{ cursor: 'pointer', letterSpacing: 2 }}>≡</span>
+                  <span style={{ cursor: 'pointer', letterSpacing: 2 }}>≡</span>
+                  <span style={{ cursor: 'pointer', letterSpacing: 2 }}>≡</span>
+                  <span style={{ width: 1, height: 12, background: t.borderSub }} />
+                  <span style={{ cursor: 'pointer' }}>❝</span>
+                  <span style={{ cursor: 'pointer' }}>↗</span>
+                  <span style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: t.mutedDark }}>A</span>
+                  <span style={{ cursor: 'pointer' }}>□</span>
+                </div>
+                {/* Row 2 */}
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '4px 10px', gap: 14, flexWrap: 'wrap',
+                  fontSize: 11, color: t.mutedDark,
+                }}>
+                  <span style={{ cursor: 'pointer' }}>•</span>
+                  <span style={{ cursor: 'pointer' }}>1.</span>
+                  <span style={{ cursor: 'pointer' }}>—</span>
+                  <span style={{ width: 1, height: 10, background: t.borderSub }} />
+                  <span style={{ cursor: 'pointer' }}>구분선</span>
+                  <span style={{ cursor: 'pointer' }}>인용구</span>
+                  <span style={{ cursor: 'pointer' }}>코드</span>
+                </div>
+              </div>
+
               {/* Typing area — chaos text renderer */}
               <div
                 ref={textareaRef}
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
                 style={{
-                  height: 300, maxHeight: 300, padding: 0,
+                  height: 480, maxHeight: 480, padding: 0,
                   border: `1px solid ${t.borderSub}`,
+                  borderTop: 'none',
                   outline: 'none', cursor: 'text',
                   background: t.inputBg,
                   position: 'relative',
@@ -827,27 +1019,44 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
                   </span>
                 ))}
 
-                {/* Cursor blink when empty */}
+                {/* Perspective tunnel — one full rectangle ring per keypress, outer→inner */}
+                {count >= 2 && (
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    pointerEvents: 'none',
+                    zIndex: 3,
+                  }}>
+                    {/* Vanishing point — same color as lines so they merge into infinity */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '48.75%', bottom: '48.75%',
+                      left: '48.75%', right: '48.75%',
+                      background: overlayMode ? '#fff' : '#000',
+                      pointerEvents: 'none',
+                      animation: 'popIn 0.4s ease-out',
+                    }} />
+                    {Array.from({ length: Math.min(1 + Math.floor((count - 2) / KEYS_PER_RING), TUNNEL_LAYERS) }).map((_, i) => (
+                      <TunnelRing key={i} ringIndex={i} overlayMode={overlayMode} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Cursor blink + placeholder when empty */}
                 {fragments.length === 0 && (
-                  <span style={{
+                  <div style={{
                     position: 'absolute', left: 16, top: 16,
-                    opacity: 0.3, animation: 'blink 1s step-end infinite',
+                    display: 'flex', alignItems: 'baseline',
                     fontSize: 15, fontFamily: "'Nanum Myeongjo', serif",
-                    color: t.fg,
-                  }}>|</span>
+                    pointerEvents: 'none', userSelect: 'none',
+                  }}>
+                    <span style={{
+                      animation: 'blink 1s step-end infinite',
+                      color: t.fg, marginRight: 6,
+                    }}>|</span>
+                    <span style={{ color: t.mutedDark }}>내용을 입력해주세요...</span>
+                  </div>
                 )}
               </div>
-
-              {showMessage && (
-                <p style={{
-                  marginTop: 24,
-                  fontFamily: "'Nanum Myeongjo', serif",
-                  fontSize: 15, color: t.textItalic, fontStyle: 'italic', lineHeight: 2,
-                  textAlign: 'center',
-                }}>
-                  I still have ten thousand words left to say...
-                </p>
-              )}
 
             </div>
           ) : (
@@ -867,6 +1076,15 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       </div>
 
       {/* Browser window popups — draggable, staggered positions */}
+      {showMessage && !messagePopupClosed && (
+        <MessagePopup
+          message="I still have ten thousand words left to say..."
+          initialX={Math.round(window.innerWidth / 2 - 210)}
+          initialY={Math.round(window.innerHeight * 0.38)}
+          zIndex={153}
+          onClose={() => setMessagePopupClosed(true)}
+        />
+      )}
       {showBlog1 && !popup1Closed && (
         <BrowserPopup
           post={BLOG_POSTS[0]}
