@@ -710,6 +710,7 @@ export const Ch2Scene: React.FC = () => {
   const goToChapter  = useGameStore(s => s.goToChapter);
   const activeNoteId = useGameStore(s => s.activeNoteId);
   const visitedEvents = useGameStore(s => s.visitedEvents);
+  const openNote     = useGameStore(s => s.openNote);
   const devMode      = useDevMode();
   const { play } = useSoundManager();
 
@@ -805,7 +806,15 @@ export const Ch2Scene: React.FC = () => {
                 viewBox="0 0 24 32"
                 width="18"
                 height="24"
-                style={{ opacity: collected ? 1 : 0.5 }}
+                style={{
+                  opacity: collected ? 1 : 0.5,
+                  cursor: collected ? 'pointer' : 'default',
+                  pointerEvents: collected ? 'auto' : 'none',
+                  transition: 'transform 0.15s ease',
+                }}
+                onClick={collected ? () => openNote(n.id) : undefined}
+                onMouseEnter={collected ? (e) => { e.currentTarget.style.transform = 'scale(1.18)'; } : undefined}
+                onMouseLeave={collected ? (e) => { e.currentTarget.style.transform = 'scale(1)'; } : undefined}
               >
                 <path
                   d="M3 2 L17 2 L21 6 L21 30 L3 30 Z"

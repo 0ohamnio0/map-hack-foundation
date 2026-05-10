@@ -479,23 +479,74 @@ const ElevatorCutscene: React.FC<{
           transform: 'scale(1.3)',
           transformOrigin: 'top right',
         }}>
-          {['★', '99', '80', '60', '40', '20', '10', '5', '1', 'B1'].map((label, i) => (
-            <div key={i} style={{
-              width: 80, height: 28,
-              borderRadius: 4,
-              background: i === 0 ? 'rgba(255,200,0,0.25)' : 'rgba(255,255,255,0.06)',
-              border: `1px solid ${i === 0 ? 'rgba(255,200,0,0.3)' : 'rgba(255,255,255,0.08)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: '"Unifont", monospace', fontSize: 14,
-              color: i === 0 ? '#ffcc00' : 'rgba(255,255,255,0.3)',
-              letterSpacing: 1,
-            }}>
-              {label}
-            </div>
-          ))}
+          {['★', '99', '80', '60', '40', '20', '10', '5', '1', 'B1'].map((label, i) => {
+            const baseBg = i === 0 ? 'rgba(255,200,0,0.25)' : 'rgba(255,255,255,0.06)';
+            const hoverBg = i === 0 ? 'rgba(255,200,0,0.45)' : 'rgba(255,255,255,0.18)';
+            return (
+              <div
+                key={i}
+                onClick={(e) => { e.stopPropagation(); play(`elevator_btn_${i}`); }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = hoverBg; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = baseBg; }}
+                style={{
+                  width: 80, height: 28,
+                  borderRadius: 4,
+                  background: baseBg,
+                  border: `1px solid ${i === 0 ? 'rgba(255,200,0,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: '"Unifont", monospace', fontSize: 14,
+                  color: i === 0 ? '#ffcc00' : 'rgba(255,255,255,0.3)',
+                  letterSpacing: 1,
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  transition: 'background 0.1s ease',
+                }}
+              >
+                {label}
+              </div>
+            );
+          })}
           <div style={{ marginTop: 8, display: 'flex', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,50,0,0.15)', border: '1px solid rgba(255,50,0,0.3)' }} />
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,200,0,0.12)', border: '1px solid rgba(255,200,0,0.25)' }} />
+            <div
+              onClick={(e) => { e.stopPropagation(); play('elevator_btn_close'); }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,50,0,0.35)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,50,0,0.15)'; }}
+              style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: 'rgba(255,50,0,0.15)',
+                border: '1px solid rgba(255,50,0,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: '"Unifont", monospace',
+                fontSize: 13,
+                color: 'rgba(255,180,160,0.85)',
+                letterSpacing: -1,
+                cursor: 'pointer',
+                userSelect: 'none',
+                transition: 'background 0.1s ease',
+              }}
+            >
+              {'>|<'}
+            </div>
+            <div
+              onClick={(e) => { e.stopPropagation(); play('elevator_btn_open'); }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,200,0,0.32)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,200,0,0.12)'; }}
+              style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: 'rgba(255,200,0,0.12)',
+                border: '1px solid rgba(255,200,0,0.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: '"Unifont", monospace',
+                fontSize: 13,
+                color: 'rgba(255,225,160,0.85)',
+                letterSpacing: -1,
+                cursor: 'pointer',
+                userSelect: 'none',
+                transition: 'background 0.1s ease',
+              }}
+            >
+              {'<|>'}
+            </div>
           </div>
         </div>
 
