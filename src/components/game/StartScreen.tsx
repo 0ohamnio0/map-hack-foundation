@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import KeyboardHints from '@/components/game/KeyboardHints';
 import { useGameStore } from '@/store/useGameStore';
 import { useFontReady } from '@/hooks/useFontReady';
 import { useGlitchText } from '@/hooks/useGlitchText';
@@ -11,10 +12,8 @@ export const StartScreen: React.FC = () => {
 
   // 한 · 영 글리치 루프 — 3쌍을 약간씩 phase shift해서 동시 동기화 방지
   const noticeLine1Texts = useMemo(() => ['이 게임은 PC 환경에서 가장 잘 작동합니다', 'This game runs best on PC'], []);
-  const noticeLine2Texts = useMemo(() => ['화살표 키 · WASD · 마우스를 사용합니다', 'Use arrow keys, WASD, and mouse'], []);
   const noticeLine3Texts = useMemo(() => ['사운드가 있어요. 이어폰 또는 스피커를 사용해주세요', 'Sound on — please use earphones or speakers'], []);
   const line1 = useGlitchText(noticeLine1Texts, { interval: 3200, scrambleMs: 700, delayMs: 0 });
-  const line2 = useGlitchText(noticeLine2Texts, { interval: 3200, scrambleMs: 700, delayMs: 350 });
   const line3 = useGlitchText(noticeLine3Texts, { interval: 3200, scrambleMs: 700, delayMs: 700 });
 
   // Map Hack 타이틀 화면 "→ 시작" 한·영 글리치
@@ -46,7 +45,7 @@ export const StartScreen: React.FC = () => {
             fontFamily: '"Unifont", monospace',
             color: '#f3eedd',
             textAlign: 'center',
-            maxWidth: 640,
+            maxWidth: 'min(95vw, 1100px)',
             padding: '0 32px',
             display: 'flex',
             flexDirection: 'column',
@@ -57,7 +56,9 @@ export const StartScreen: React.FC = () => {
           }}
         >
           <div>{line1}</div>
-          <div>{line2}</div>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <KeyboardHints />
+          </div>
           <div>{line3}</div>
         </div>
         <p
