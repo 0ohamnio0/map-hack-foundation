@@ -99,6 +99,7 @@ const keyboardMap = [
   { name: 'backward',  keys: ['ArrowDown',  'KeyS'] },
   { name: 'leftward',  keys: ['ArrowLeft',  'KeyA'] },
   { name: 'rightward', keys: ['ArrowRight', 'KeyD'] },
+  { name: 'jump',      keys: ['Space'] },
   { name: 'run',       keys: ['Shift'] },
 ];
 
@@ -629,6 +630,7 @@ const Ch2PhysicsScene: React.FC<{
             capsuleHalfHeight={0.5}
             capsuleRadius={0.2}
             maxVelLimit={freezeControls ? 0 : 5}
+            jumpVel={2.5}
             camCollision={true}
             autoBalance={false}
             disableControl={freezeControls}
@@ -693,7 +695,7 @@ const Ch2Inner: React.FC<{
 
 const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
   <button
-    onClick={onClick}
+    onClick={(e) => { onClick(); e.currentTarget.blur(); }}
     style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 3, color: '#ddd', fontFamily: '"Unifont", monospace', fontSize: 11, padding: '4px 8px', cursor: 'pointer', textAlign: 'left' }}
     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
     onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}

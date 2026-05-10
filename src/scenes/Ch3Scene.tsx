@@ -217,7 +217,7 @@ const SpaceCharacterCanvas: React.FC = () => (
 type CutscenePhase = 'elevator' | 'space' | 'returning' | null;
 
 const ELEVATOR_DURATION = 18000; // 18s elevator interior — 명상적 호흡 확보
-const SPACE_DURATION = 45000;    // 45s space scene
+const SPACE_DURATION = 42500;    // 42.5s space scene (-2.5s polish)
 const RETURN_FADE = 1500;       // 화이트아웃 → 맵 복귀 fade
 
 const ElevatorCutscene: React.FC<{
@@ -1062,7 +1062,7 @@ export const Ch3Scene: React.FC = () => {
 
 const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
   <button
-    onClick={onClick}
+    onClick={(e) => { onClick(); e.currentTarget.blur(); }}
     style={{
       background: 'rgba(255,255,255,0.08)',
       border: '1px solid rgba(255,255,255,0.15)',

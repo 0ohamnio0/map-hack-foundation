@@ -63,6 +63,20 @@ export const Game: React.FC = () => {
     playChapterMusic(chapter);
   }, [chapter]);
 
+  // Space는 점프 전용 — 마지막에 클릭한 버튼이 focus를 유지한 채 Space로 재트리거되는 것 차단
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      const active = document.activeElement;
+      if (active instanceof HTMLButtonElement) {
+        active.blur();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, []);
+
   const renderScene = () => {
     switch (chapter) {
       case 'START': return <StartScreen />;
