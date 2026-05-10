@@ -13,6 +13,8 @@ interface GameState {
   notification: string | null;
   /** CH.2 떨어진 쪽지 — 현재 열려 있는 쪽지 id (null이면 닫힌 상태) */
   activeNoteId: string | null;
+  /** 노트 본문 표시 언어 — 세션 전역 유지 (Q 키로 토글) */
+  noteLanguage: 'ko' | 'en';
   goToChapter: (chapter: Chapter) => void;
   triggerEvent: (id: string) => boolean;
   addMovement: (direction: 'left' | 'right', amount: number) => void;
@@ -22,6 +24,8 @@ interface GameState {
   setNotification: (text: string | null) => void;
   openNote: (id: string) => void;
   closeNote: () => void;
+  setNoteLanguage: (lang: 'ko' | 'en') => void;
+  toggleNoteLanguage: () => void;
   /** directionScore = rightMovement - leftMovement */
   getDirectionScore: () => number;
 }
@@ -38,6 +42,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeEffect: null,
   notification: null,
   activeNoteId: null,
+  noteLanguage: 'ko',
 
   goToChapter: (chapter: Chapter) => {
     set({ isTransitioning: true });
@@ -112,6 +117,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     newSet.add(`note_${activeNoteId}`);
     set({ visitedEvents: newSet, activeNoteId: null });
   },
+
+  setNoteLanguage: (lang) => set({ noteLanguage: lang }),
+  toggleNoteLanguage: () => set(s => ({ noteLanguage: s.noteLanguage === 'ko' ? 'en' : 'ko' })),
 
   getDirectionScore: () => {
     const { rightMovement, leftMovement } = get();

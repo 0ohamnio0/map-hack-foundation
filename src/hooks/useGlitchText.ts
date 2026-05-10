@@ -128,3 +128,64 @@ export function useGlitchText(texts: string[], opts: Options = {}): string {
 
   return display;
 }
+
+/**
+ * 단일 텍스트의 onChange-only 글리치 트랜지션.
+ * - 첫 mount: noise → text (phase2만, 좌→우 정착)
+ * - text 변경 시: 이전 text → noise(phase1, 우→좌 깨짐) → 새 text(phase2)
+ * 자동 루프 없음. NoteReader처럼 사용자 액션으로 텍스트가 바뀔 때만 발동.
+ */
+export function useScrambleTransition(text: string, scrambleMs = 800): string {
+  const [display, setDisplay] = useState('');
+  const prevRef = useRef('');
+
+  useEffect(() => {
+    const from = prevRef.current;
+    const to = text;
+    const hasPrev = from.length > 0;
+    const halfMs = hasPrev ? scrambleMs / 2 : 0;
+    const startTs = performance.now();
+    let raf = 0;
+    let cancelled = false;
+
+    const passthrough = (ch: string) => ch === ' ' || ch === '\n' || ch === '\t';
+    const phase1Thresh = Array.from(from).map((_, i) =>
+      (1 - i / Math.max(from.length, 1)) * 0.6 + Math.random() * 0.4
+    );
+    const phase2Thresh = Array.from(to).map((_, i) =>
+      (i / Math.max(to.length, 1)) * 0.6 + Math.random() * 0.4
+    );
+
+    const tick = (now: number) => {
+      if (cancelled) return;
+      const elapsed = now - startTs;
+      if (hasPrev && elapsed < halfMs) {
+        const p = elapsed / halfMs;
+        const out = Array.from(from).map((ch, i) =>
+          passthrough(ch) ? ch : (p > phase1Thresh[i] ? pick() : ch)
+        ).join('');
+        setDisplay(out);
+        raf = requestAnimationFrame(tick);
+      } else if (elapsed < scrambleMs) {
+        const denom = scrambleMs - halfMs;
+        const p2 = (elapsed - halfMs) / denom;
+        const out = Array.from(to).map((ch, i) =>
+          passthrough(ch) ? ch : (p2 > phase2Thresh[i] ? ch : pick())
+        ).join('');
+        setDisplay(out);
+        raf = requestAnimationFrame(tick);
+      } else {
+        setDisplay(to);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      prevRef.current = to;
+    };
+  }, [text, scrambleMs]);
+
+  return display;
+}

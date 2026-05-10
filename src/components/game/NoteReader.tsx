@@ -1,21 +1,22 @@
 /**
  * CH.2 떨어진 쪽지 — 본문 모달 (텍스트 + 인라인 이미지).
  * - 종이는 A4 비율(1654 / 2339) 고정 박스, 텍스트 양 무관하게 동일 사이즈
- * - 한·영 글리치 토글 (en이 채워진 segment만)
+ * - 한/영 토글 (Q 키 또는 상단 버튼) · 세션 전역 유지
  * - preserveSpacing 적용 segment는 monospace 그대로 보존 (ASCII / 코드)
  * - E/Esc 닫기 · ←→ 또는 A/D 페이지 이동 (페이지 변경 시 paper_flip)
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useGameStore } from '@/store/useGameStore'
 import { useSoundManager } from '@/hooks/useSoundManager'
-import { useGlitchText } from '@/hooks/useGlitchText'
+import { useScrambleTransition } from '@/hooks/useGlitchText'
 import { CH2_NOTES, type PageSegment } from '@/data/ch2Notes'
 
 const BASE = import.meta.env.BASE_URL
 
-function GlitchText({ ko, en }: { ko: string; en?: string }) {
-  const texts = useMemo(() => (en ? [ko, en] : [ko]), [ko, en])
-  return <>{useGlitchText(texts, { interval: 5500, scrambleMs: 900 })}</>
+function NoteText({ ko, en }: { ko: string; en?: string }) {
+  const lang = useGameStore(s => s.noteLanguage)
+  const text = lang === 'en' && en ? en : ko
+  return <>{useScrambleTransition(text)}</>
 }
 
 function TextSegment({ ko, en, preserveSpacing, size, align }: {
@@ -39,7 +40,7 @@ function TextSegment({ ko, en, preserveSpacing, size, align }: {
       width: '100%',
       textAlign: align ?? 'left',
     }}>
-      <GlitchText ko={ko} en={en} />
+      <NoteText ko={ko} en={en} />
     </div>
   )
 }
@@ -85,6 +86,9 @@ function SegmentRenderer({ segment }: { segment: PageSegment }) {
 export function NoteReader() {
   const activeNoteId = useGameStore(s => s.activeNoteId)
   const closeNote = useGameStore(s => s.closeNote)
+  const noteLanguage = useGameStore(s => s.noteLanguage)
+  const setNoteLanguage = useGameStore(s => s.setNoteLanguage)
+  const toggleNoteLanguage = useGameStore(s => s.toggleNoteLanguage)
   const { play } = useSoundManager()
   const [page, setPage] = useState(0)
 
@@ -103,6 +107,11 @@ export function NoteReader() {
       if (e.code === 'Escape' || e.code === 'KeyE') {
         e.preventDefault()
         closeNote()
+        return
+      }
+      if (e.code === 'KeyQ') {
+        e.preventDefault()
+        toggleNoteLanguage()
         return
       }
       if (totalPages > 1) {
@@ -125,7 +134,7 @@ export function NoteReader() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [note, totalPages, closeNote, play])
+  }, [note, totalPages, closeNote, play, toggleNoteLanguage])
 
   if (note === null) return null
 
@@ -151,6 +160,59 @@ export function NoteReader() {
         gap: 16,
       }}
     >
+      {/* 한/영 토글 (Q 키 또는 클릭) */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          fontFamily: '"Unifont", monospace',
+          fontSize: 12,
+          letterSpacing: 3,
+          color: '#f3eedd',
+          textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7)',
+          userSelect: 'none',
+        }}
+      >
+        <span style={{ opacity: 0.55, letterSpacing: 2 }}>[Q]</span>
+        <button
+          onClick={() => setNoteLanguage('ko')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            letterSpacing: 'inherit',
+            color: 'inherit',
+            textShadow: 'inherit',
+            opacity: noteLanguage === 'ko' ? 1 : 0.4,
+          }}
+        >
+          한국어
+        </button>
+        <span style={{ opacity: 0.4 }}>·</span>
+        <button
+          onClick={() => setNoteLanguage('en')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            letterSpacing: 'inherit',
+            color: 'inherit',
+            textShadow: 'inherit',
+            opacity: noteLanguage === 'en' ? 1 : 0.4,
+          }}
+        >
+          ENGLISH
+        </button>
+      </div>
+
       <div
         onClick={e => e.stopPropagation()}
         key={page}
@@ -182,7 +244,7 @@ export function NoteReader() {
             color: '#1a1a1a',
             width: '100%',
           }}>
-            <GlitchText ko={note.title} en={titleEn} />
+            <NoteText ko={note.title} en={titleEn} />
           </div>
         )}
 
