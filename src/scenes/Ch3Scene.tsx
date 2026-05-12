@@ -10,6 +10,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
 import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
 import { useDevMode } from '@/hooks/useDevMode';
+import { useMute } from '@/hooks/useMute';
 import { Ch3Effects } from '@/components/effects/ChapterEffects';
 import { StarNestOverlay } from '@/components/effects/StarNestOverlay';
 import { ItaewonLayer } from '@/components/game/ItaewonLayer';
@@ -907,6 +908,7 @@ export const Ch3Scene: React.FC = () => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const elevatorVisited = useGameStore(s => s.visitedEvents.has('ch3_elevator'));
   const devMode = useDevMode();
+  const [muted, toggleMute] = useMute();
 
   // Minimap markers: 시착실(=엘리베이터) magenta + 약 위치 (수집 전) + 출구(전부 모은 후).
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
@@ -1082,7 +1084,7 @@ export const Ch3Scene: React.FC = () => {
         <div style={{
           position: 'fixed',
           top: 12,
-          left: 12,
+          right: 12,
           zIndex: 9999,
           background: 'rgba(0,0,0,0.85)',
           border: '1px solid rgba(255,255,255,0.15)',
@@ -1104,7 +1106,9 @@ export const Ch3Scene: React.FC = () => {
           <DevButton label="Elevator Cutscene" onClick={() => { if (!cutscenePhase) startElevatorCutscene(); }} />
           <DevButton label="Skip → CH4" onClick={() => goToChapter('CH4')} />
           <DevButton label="Skip → CH2" onClick={() => goToChapter('CH2')} />
-          <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>Q to close</div>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <DevButton label={`Sound: ${muted ? 'OFF' : 'ON'}`} onClick={toggleMute} />
+          <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close</div>
         </div>
       )}
     </div>

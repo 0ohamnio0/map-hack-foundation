@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-/** Toggle dev mode with backtick (`) key. State persists within the session. */
+/** Toggle dev mode with P key. State persists within the session. */
 let globalDevMode = false;
 const listeners = new Set<(v: boolean) => void>();
 
@@ -20,7 +20,7 @@ export function useDevMode() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'KeyQ') {
+      if (e.code === 'KeyP') {
         e.preventDefault();
         setGlobal(!globalDevMode);
       }
