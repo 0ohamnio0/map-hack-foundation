@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useMemo, useEffect, useState, useCallback, Suspense } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@react-three/drei';
@@ -7,6 +7,8 @@ import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import Ecctrl, { EcctrlJoystick } from 'ecctrl';
 import { useGameStore } from '@/store/useGameStore';
 import { useDevMode } from '@/hooks/useDevMode';
+import { useMute } from '@/hooks/useMute';
+import { useCh2Toggles } from '@/hooks/useCh2Toggles';
 import { Ch2Effects } from '@/components/effects/ChapterEffects';
 import { CloudSkyBackground } from '@/components/effects/CloudSkyBackground';
 import { NPC } from '@/components/game/NPC';
@@ -15,6 +17,7 @@ import { Ch2SoundManager } from '@/components/game/Ch2SoundManager';
 import { Note } from '@/components/game/Note';
 import { NoteReader } from '@/components/game/NoteReader';
 import { Ch2Decor } from '@/components/game/Ch2Decor';
+import { Ch2AihubProps } from '@/components/game/Ch2AihubProps';
 import { CH2_NOTES } from '@/data/ch2Notes';
 
 const BASE = import.meta.env.BASE_URL;
@@ -58,13 +61,9 @@ const WALL_DEFS: [number, number, number, number][] = WALL_DEFS_RAW.map(
 
 // Decorative street objects — base values
 const DECOR_RAW: { x: number; z: number; w: number; d: number; h: number; color: string }[] = [
-  { x: -5, z: -6,  w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
-  { x: 5,  z: -16, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
-  { x: -5, z: -26, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
+  // (#aa8800 placeholder pole 5개 제거 — aihub pole로 대체됨)
   { x: 15, z: -35, w: 1.2,  d: 1.2,  h: 1.5, color: '#777' },
-  { x: 25, z: -48, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
   { x: 10, z: -65, w: 1.5,  d: 1.0,  h: 1.2, color: '#777' },
-  { x: -5, z: -78, w: 0.15, d: 0.15, h: 3.5, color: '#aa8800' },
 ];
 const DECOR = DECOR_RAW.map(o => ({ ...o, x: o.x * SCALE_X, z: o.z * SCALE_Z }));
 
@@ -444,41 +443,309 @@ const TriggerWatcher: React.FC<{
   return null;
 };
 
+// ---------- Road surface markings ----------
+// 원본 한글 파일명 → ASCII 슬러그 매핑 (public/assets/tex/road-markings/)
+// !속도제한30!.png       → speed-limit-30.png
+// !유턴금지!.png         → no-u-turn.png
+// !장애인!.png           → disabled.png
+// !종점!.png             → terminus.png
+// !직진!.png             → straight-ahead.png
+// !횡단보도주의!.png     → crosswalk-caution.png
+// 어 린 이 보호구역…png  → school-zone-slow.png
+// 어어_.png              → uh-uh.png
+// 일방통행_.png          → one-way.png
+// 흠_.png                → hmm.png
+
+const RM = `${BASE}assets/tex/road-markings/`;
+
+// [url, centerX(base), centerZ(base), planeW, planeH]
+// base 좌표는 SCALE 적용 전 — 위치 조정 시 이 배열만 수정하면 됨
+const ROAD_MARKING_DEFS: [string, number, number, number, number][] = [
+  [`${RM}speed-limit-30.png`,   2,   -10,  2.4, 4.0],
+  [`${RM}no-u-turn.png`,       -2,   -22,  2.4, 3.6],
+  [`${RM}straight-ahead.png`,   2,   -35,  2.0, 4.8],
+  [`${RM}school-zone-slow.png`, 18,  -44,  4.0, 2.0],
+  [`${RM}one-way.png`,          16,  -58,  2.4, 3.2],
+  [`${RM}crosswalk-caution.png`,-2,  -75,  3.2, 4.0],
+  [`${RM}terminus.png`,          2,  -85,  2.4, 3.2],
+  [`${RM}hmm.png`,              -3,  -30,  1.6, 2.4],
+  [`${RM}uh-uh.png`,            22,  -50,  1.6, 2.4],
+  [`${RM}disabled.png`,         5,   -65,  2.4, 3.2],
+];
+
+const RoadMarkings: React.FC = () => {
+  const [textures, setTextures] = useState<(THREE.Texture | null)[]>(
+    () => ROAD_MARKING_DEFS.map(() => null),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    ROAD_MARKING_DEFS.forEach(([url], i) => {
+      loader.loadAsync(url).then(tex => {
+        if (cancelled) return;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.needsUpdate = true;
+        setTextures(prev => {
+          const next = [...prev];
+          next[i] = tex;
+          return next;
+        });
+      }).catch(err => {
+        console.warn('[CH2] road marking load failed:', url, err);
+      });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <group>
+      {ROAD_MARKING_DEFS.map(([, bx, bz, pw, ph], i) => {
+        const tex = textures[i];
+        if (!tex) return null;
+        return (
+          <mesh
+            key={i}
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[bx * SCALE_X, 0.01, bz * SCALE_Z]}
+          >
+            <planeGeometry args={[pw * SCALE_X, ph * SCALE_Z]} />
+            <meshStandardMaterial
+              map={tex}
+              transparent
+              alphaTest={0.5}
+              depthWrite={false}
+              roughness={1.0}
+              metalness={0.0}
+            />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+};
+
 // ---------- Street geometry + physics ----------
 
-// 벽 PBR 텍스처 — wall-low-poly 팩에서 추출 (1024×1024)
-// (wall.glb 직접 인스턴싱은 origin offset + scale 결합 시 위치 어긋남 + WebP 디코딩 이슈로 보류)
-const WALL_TEX_BASE_URL  = `${BASE}assets/textures/wall_basecolor.jpg`;
-const WALL_TEX_NORMAL_URL = `${BASE}assets/textures/wall_normal.png`;
-const WALL_TEX_ROUGH_URL  = `${BASE}assets/textures/wall_roughness.jpg`;
+// 빌딩 텍스처 메타 — sips로 측정한 실 픽셀 사이즈 (빌드 타임 고정)
+const BUILDING_TEX_META: { slug: string; w: number; h: number }[] = [
+  { slug: 'building-019', w: 640, h: 480 },
+  { slug: 'building-026', w: 480, h: 640 },
+  { slug: 'building-027', w: 480, h: 640 },
+  { slug: 'building-028', w: 480, h: 640 },
+  { slug: 'building-031', w: 640, h: 480 },
+  { slug: 'building-035', w: 640, h: 480 },
+  { slug: 'building-036', w: 640, h: 480 },
+  { slug: 'building-037', w: 640, h: 480 },
+  { slug: 'building-050', w: 480, h: 640 },
+  { slug: 'building-074', w: 640, h: 480 },
+  { slug: 'building-096', w: 640, h: 480 },
+  { slug: 'building-097', w: 640, h: 480 },
+  { slug: 'building-098', w: 480, h: 640 },
+  { slug: 'building-104', w: 640, h: 480 },
+  { slug: 'building-122', w: 640, h: 480 },
+  { slug: 'building-134', w: 480, h: 640 },
+  { slug: 'building-135', w: 480, h: 640 },
+  { slug: 'building-148', w: 480, h: 640 },
+  { slug: 'building-149', w: 480, h: 640 },
+  { slug: 'building-150', w: 480, h: 640 },
+  { slug: 'building-151', w: 480, h: 640 },
+  { slug: 'building-172', w: 480, h: 640 },
+  { slug: 'building-178', w: 640, h: 480 },
+  { slug: 'building-179', w: 640, h: 480 },
+  { slug: 'building-219', w: 480, h: 640 },
+  { slug: 'building-233', w: 640, h: 480 },
+  { slug: 'building-234', w: 640, h: 480 },
+  { slug: 'building-235', w: 640, h: 480 },
+  { slug: 'building-236', w: 640, h: 480 },
+  { slug: 'building-237', w: 480, h: 640 },
+  { slug: 'building-251', w: 480, h: 640 },
+  { slug: 'building-257', w: 640, h: 480 },
+  { slug: 'building-258', w: 640, h: 480 },
+  { slug: 'building-267', w: 640, h: 480 },
+];
 
-useLoader.preload(THREE.TextureLoader, WALL_TEX_BASE_URL);
-useLoader.preload(THREE.TextureLoader, WALL_TEX_NORMAL_URL);
-useLoader.preload(THREE.TextureLoader, WALL_TEX_ROUGH_URL);
+// 벽 세그먼트 분할 — 각 WALL_DEF에 대해 텍스처 한 장씩, 종횡비 보존
+// segW = wallHeight * (texW / texH), 마지막 세그먼트는 남은 폭에 맞게 잘라맞춤
+type WallSegment = {
+  wallIndex: number;   // 원본 WALL_DEF index
+  texIndex: number;    // BUILDING_TEX_META index
+  offsetX: number;     // 세그먼트 좌측 끝에서의 오프셋 (긴 축 방향)
+  segW: number;        // 세그먼트 폭 (월드 단위)
+  repeatX: number;     // UV repeat.x (1.0 = 전체, <1 = 잘라맞춤)
+};
+
+function buildWallSegments(): WallSegment[] {
+  const segments: WallSegment[] = [];
+  // 의사난수 시드: 벽 index + 세그먼트 index 기반 해시
+  function pickTex(wallIdx: number, segIdx: number): number {
+    return (wallIdx * 7 + segIdx * 13) % BUILDING_TEX_META.length;
+  }
+
+  WALL_DEFS.forEach(([, , w, d], wallIdx) => {
+    // 긴 축 길이 결정: w > d 이면 가로 분할, 아니면 depth 방향 분할
+    const totalLen = w > d ? w : d;
+    let filled = 0;
+    let segIdx = 0;
+    while (filled < totalLen) {
+      const tIdx = pickTex(wallIdx, segIdx);
+      const meta = BUILDING_TEX_META[tIdx];
+      const naturalSegW = WALL_HEIGHT * (meta.w / meta.h);
+      const remaining = totalLen - filled;
+      if (naturalSegW <= remaining) {
+        segments.push({ wallIndex: wallIdx, texIndex: tIdx, offsetX: filled, segW: naturalSegW, repeatX: 1.0 });
+        filled += naturalSegW;
+      } else {
+        // 마지막 세그먼트: 남은 폭에 잘라맞춤 + UV repeat.x 비례 축소
+        const repeatX = remaining / naturalSegW;
+        segments.push({ wallIndex: wallIdx, texIndex: tIdx, offsetX: filled, segW: remaining, repeatX });
+        filled = totalLen;
+      }
+      segIdx++;
+    }
+  });
+  return segments;
+}
+
+const WALL_SEGMENTS = buildWallSegments();
+
+// 빌딩 박스 파라미터 — 각 세그먼트를 실제 3D 건물 박스로 확장
+// height: WALL_HEIGHT × [0.7, 1.6] 범위 의사난수
+// buildingDepth: [4, 8] 범위 의사난수 (도로에서 멀어지는 방향)
+// 박스 중심은 정면이 원래 벽 라인에 flush되도록 depth/2 바깥으로 이동
+type BuildingParams = {
+  height: number;        // 실제 렌더 높이
+  buildingDepth: number; // 도로 직각 방향 깊이
+};
+
+function getBuildingParams(wallIdx: number, segIdx: number): BuildingParams {
+  // LCG 의사난수 — 시드 기반으로 결정론적
+  const seed = wallIdx * 31 + segIdx * 17;
+  const r1 = ((seed * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
+  const r2 = (((seed + 99) * 22695477 + 1) & 0x7fffffff) / 0x7fffffff;
+  const height = WALL_HEIGHT * (0.7 + r1 * 0.9); // 0.7× ~ 1.6× WALL_HEIGHT
+  const buildingDepth = 4 + r2 * 4;              // 4 ~ 8 units
+  return { height, buildingDepth };
+}
+
+// wallIdx별로 segments를 미리 분류해서 segIdx를 부여
+function buildSegmentIndexMap(): Map<number, number> {
+  const map = new Map<number, number>();
+  const counters = new Map<number, number>();
+  WALL_SEGMENTS.forEach((seg, globalIdx) => {
+    const c = counters.get(seg.wallIndex) ?? 0;
+    map.set(globalIdx, c);
+    counters.set(seg.wallIndex, c + 1);
+  });
+  return map;
+}
+
+const SEG_INDEX_MAP = buildSegmentIndexMap();
+
+const ASPHALT_TEX_URL = `${BASE}assets/tex/full/ASPHALT2.jpg`;
+const DOOR09_TEX_URL = `${BASE}assets/tex/doors/door-09.png`;
 
 const StreetScene: React.FC = () => {
-  // 벽 PBR 텍스처 — sRGB 색공간 + flipY=false (GLB UV 컨벤션) + UV repeat 2×1
-  const wallBase  = useLoader(THREE.TextureLoader, WALL_TEX_BASE_URL);
-  const wallNorm  = useLoader(THREE.TextureLoader, WALL_TEX_NORMAL_URL);
-  const wallRough = useLoader(THREE.TextureLoader, WALL_TEX_ROUGH_URL);
+  // 아스팔트 텍스처 — useLoader(Suspense throw) 대신 useEffect+loadAsync로 로드
+  // StreetScene은 Suspense 경계 없이 Physics 직하에 mount되어 useLoader가 unmount를 유발함
+  const [asphaltTex, setAsphaltTex] = useState<THREE.Texture | null>(null);
+  const [doorTex, setDoorTex] = useState<THREE.Texture | null>(null);
 
-  const wallMaterial = useMemo(() => {
-    // BaseColor만 sRGB, normal/rough는 linear 유지
-    wallBase.colorSpace = THREE.SRGBColorSpace;
-    [wallBase, wallNorm, wallRough].forEach(t => {
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(2, 1);
-      t.anisotropy = 4;
-      t.needsUpdate = true;
+  useEffect(() => {
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    loader.loadAsync(ASPHALT_TEX_URL).then(tex => {
+      if (cancelled) return;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(20, 40);
+      tex.needsUpdate = true;
+      setAsphaltTex(tex);
+    }).catch(err => {
+      console.error('[CH2] asphalt texture load failed:', ASPHALT_TEX_URL, err);
     });
-    return new THREE.MeshStandardMaterial({
-      map: wallBase,
-      normalMap: wallNorm,
-      roughnessMap: wallRough,
-      roughness: 1.0,
-      metalness: 0.0,
+    return () => { cancelled = true; };
+  }, []);
+
+  const asphaltMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    map: asphaltTex ?? undefined,
+    roughness: 0.95,
+  }), [asphaltTex]);
+
+  // CH3 도어 텍스처 (DOOR0009.png — 480×640, 세로 비율 4:3)
+  useEffect(() => {
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    loader.loadAsync(DOOR09_TEX_URL).then(tex => {
+      if (cancelled) return;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.repeat.set(1, 1);
+      tex.needsUpdate = true;
+      setDoorTex(tex);
+    }).catch(err => {
+      console.warn('[CH2] door texture load failed:', DOOR09_TEX_URL, err);
     });
-  }, [wallBase, wallNorm, wallRough]);
+    return () => { cancelled = true; };
+  }, []);
+
+  const doorMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    map: doorTex ?? undefined,
+    roughness: 0.8,
+    metalness: 0.0,
+  }), [doorTex]);
+
+  // 빌딩 텍스처 — BUILDING_TEX_META 인덱스별로 한 번만 로드
+  const [buildingTextures, setBuildingTextures] = useState<(THREE.Texture | null)[]>(
+    () => BUILDING_TEX_META.map(() => null),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    // WALL_SEGMENTS에서 실제 사용하는 texIndex 집합만 로드
+    const usedIndices = new Set(WALL_SEGMENTS.map(s => s.texIndex));
+    usedIndices.forEach(i => {
+      const url = `${BASE}assets/tex/building/${BUILDING_TEX_META[i].slug}.png`;
+      loader.loadAsync(url).then(tex => {
+        if (cancelled) return;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+        tex.anisotropy = 4;
+        tex.needsUpdate = true;
+        setBuildingTextures(prev => {
+          const next = [...prev];
+          next[i] = tex;
+          return next;
+        });
+      }).catch(err => {
+        console.warn('[CH2] building texture load failed:', url, err);
+      });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // 세그먼트별 머티리얼 — repeatX 반영
+  const segmentMaterials = useMemo(() =>
+    WALL_SEGMENTS.map(seg => {
+      const tex = buildingTextures[seg.texIndex];
+      if (tex) {
+        const cloned = tex.clone();
+        cloned.repeat.set(seg.repeatX, 1.0);
+        cloned.needsUpdate = true;
+        return new THREE.MeshStandardMaterial({
+          map: cloned,
+          roughness: 0.9,
+          metalness: 0.0,
+        });
+      }
+      return new THREE.MeshStandardMaterial({
+        color: '#888888',
+        roughness: 0.9,
+        metalness: 0.0,
+      });
+    }),
+  [buildingTextures]);
 
   return (
     <>
@@ -486,20 +753,53 @@ const StreetScene: React.FC = () => {
       <RigidBody type="fixed">
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10 * SCALE_X, 0, -43 * SCALE_Z]}>
           <planeGeometry args={[50 * SCALE_X, 100 * SCALE_Z]} />
-          <meshStandardMaterial color="#666" roughness={1} />
+          <primitive object={asphaltMaterial} attach="material" />
         </mesh>
         <CuboidCollider args={[25 * SCALE_X, 0.1, 50 * SCALE_Z]} position={[10 * SCALE_X, -0.1, -43 * SCALE_Z]} />
       </RigidBody>
 
-      {/* Walls — boxGeometry + 콘크리트 PBR 머티리얼 (위치 절대 안 어긋남) */}
-      {WALL_DEFS.map(([x, z, w, d], i) => (
-        <RigidBody key={i} type="fixed" position={[x, WALL_HEIGHT / 2, z]}>
-          <mesh material={wallMaterial}>
-            <boxGeometry args={[w, WALL_HEIGHT, d]} />
-          </mesh>
-          <CuboidCollider args={[w / 2, WALL_HEIGHT / 2, d / 2]} />
-        </RigidBody>
-      ))}
+      {/* Walls — 세그먼트별 독립 3D 건물 박스 (높이·깊이 다양화) */}
+      {WALL_DEFS.map(([cx, cz, w, d], wallIdx) => {
+        const isHoriz = w > d; // 긴 축이 X면 가로 분할
+        const segs = WALL_SEGMENTS.filter(s => s.wallIndex === wallIdx);
+        const totalLen = isHoriz ? w : d;
+        // 바깥 방향 부호: 가로 벽은 z 부호, 세로 벽은 x 부호
+        // (center 좌표가 음수 → 음수 방향이 "도로 안쪽"이므로 부호 유지)
+        const outwardSignX = isHoriz ? 0 : (cx >= 0 ? 1 : -1);
+        const outwardSignZ = isHoriz ? (cz >= 0 ? 1 : -1) : 0;
+        return segs.map((seg, si) => {
+          const globalIdx = WALL_SEGMENTS.indexOf(seg);
+          const segIdx = SEG_INDEX_MAP.get(globalIdx) ?? si;
+          const { height, buildingDepth } = getBuildingParams(wallIdx, segIdx);
+          const mat = segmentMaterials[globalIdx];
+
+          // 세그먼트 중심의 긴 축 오프셋 (정면 라인 기준)
+          const localPos = seg.offsetX + seg.segW / 2 - totalLen / 2;
+
+          // 가로 세그먼트: X = localPos, Z = depth/2 바깥 이동
+          // 세로 세그먼트: Z = localPos, X = depth/2 바깥 이동
+          const posX = cx + (isHoriz ? localPos : outwardSignX * buildingDepth / 2);
+          const posZ = cz + (isHoriz ? outwardSignZ * buildingDepth / 2 : localPos);
+          const posY = height / 2;
+
+          // 박스 실 크기
+          const boxW = isHoriz ? seg.segW : buildingDepth;
+          const boxD = isHoriz ? buildingDepth : seg.segW;
+
+          return (
+            <RigidBody key={`${wallIdx}-${si}`} type="fixed" position={[posX, posY, posZ]}>
+              <mesh>
+                <boxGeometry args={[boxW, height, boxD]} />
+                <primitive object={mat} attach="material" />
+              </mesh>
+              <CuboidCollider args={[boxW / 2, height / 2, boxD / 2]} />
+            </RigidBody>
+          );
+        });
+      })}
+
+      {/* 노면 글씨 — ground보다 0.01 위, z-fighting 방지 */}
+      <RoadMarkings />
 
       {/* Decorative props (no colliders needed) */}
       {DECOR.map((obj, i) => (
@@ -509,10 +809,10 @@ const StreetScene: React.FC = () => {
         </mesh>
       ))}
 
-      {/* Exit marker */}
-      <mesh position={[0, 1.5, -87 * SCALE_Z]}>
-        <boxGeometry args={[3, 3, 0.3]} />
-        <meshStandardMaterial color="#4a4" emissive="#0f0" emissiveIntensity={0.2} />
+      {/* Exit marker — CH3 door (DOOR0009.png, 480×640 → 3×4 world units) */}
+      <mesh position={[0, 2, -87 * SCALE_Z]}>
+        <boxGeometry args={[3, 4, 0.3]} />
+        <primitive object={doorMaterial} attach="material" />
       </mesh>
     </>
   );
@@ -553,6 +853,7 @@ const Ch2PhysicsScene: React.FC<{
 
   const [physicsReady, setPhysicsReady] = useState(false);
   const handlePhysicsReady = useCallback(() => setPhysicsReady(true), []);
+  const [ch2Toggles] = useCh2Toggles();
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -608,7 +909,14 @@ const Ch2PhysicsScene: React.FC<{
       ))}
 
       {/* 거리 데코 — electric-box / trashes / concrete-pile / 도시 단편 */}
-      <Ch2Decor />
+      {ch2Toggles.showDecor && <Ch2Decor />}
+
+      {/* AI Hub 71559 도로교통 시설 — 표지판·신호등·가로등·우체통 등 */}
+      {ch2Toggles.showAihub && (
+        <Suspense fallback={null}>
+          <Ch2AihubProps />
+        </Suspense>
+      )}
 
       {/* STEP 1: Signposts + movement tracking */}
       <MovementTracker />
@@ -707,11 +1015,19 @@ const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
 export const Ch2Scene: React.FC = () => {
   const [airportActive, setAirportActive] = useState(false);
   const [atExit, setAtExit] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 2000);
+    return () => clearTimeout(t);
+  }, []);
   const goToChapter  = useGameStore(s => s.goToChapter);
   const activeNoteId = useGameStore(s => s.activeNoteId);
   const visitedEvents = useGameStore(s => s.visitedEvents);
   const openNote     = useGameStore(s => s.openNote);
   const devMode      = useDevMode();
+  const [muted, toggleMute] = useMute();
+  const [ch2Toggles, toggleCh2] = useCh2Toggles();
   const { play } = useSoundManager();
 
   const collectedNotes = CH2_NOTES.filter(n => visitedEvents.has(`note_${n.id}`)).length;
@@ -835,17 +1151,43 @@ export const Ch2Scene: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile joystick — touch devices only */}
-      {'ontouchstart' in window && <EcctrlJoystick />}
+      {/* Mobile joystick — hidden per request */}
+      {false && 'ontouchstart' in window && window.matchMedia('(pointer: coarse)').matches && <EcctrlJoystick />}
 
       {devMode && !airportActive && (
-        <div style={{ position: 'fixed', top: 12, left: 12, zIndex: 9999, background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '10px 14px', fontFamily: '"Unifont", monospace', fontSize: 11, color: '#ccc', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180 }}>
+        <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 9999, background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '10px 14px', fontFamily: '"Unifont", monospace', fontSize: 11, color: '#ccc', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180 }}>
           <div style={{ color: '#ff0', fontSize: 10, letterSpacing: 2, marginBottom: 2 }}>DEV MODE</div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label="Airport Cutscene" onClick={() => { if (!airportActive) startAirport(); }} />
           <DevButton label="Skip → CH3" onClick={() => goToChapter('CH3')} />
           <DevButton label="Skip → CH1" onClick={() => goToChapter('CH1')} />
-          <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>Q to close</div>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <DevButton label={`Decor: ${ch2Toggles.showDecor ? 'ON' : 'OFF'}`} onClick={() => toggleCh2('showDecor')} />
+          <DevButton label={`Aihub: ${ch2Toggles.showAihub ? 'ON' : 'OFF'}`} onClick={() => toggleCh2('showAihub')} />
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <DevButton label={`Sound: ${muted ? 'OFF' : 'ON'}`} onClick={toggleMute} />
+          <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close</div>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: '#000',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          color: '#f3eedd',
+          fontFamily: '"Unifont", monospace',
+          animation: 'ch2LoadingFadeOut 0.25s ease-in 1.75s forwards',
+        }}>
+          <div style={{ fontSize: 26, marginBottom: 14, animation: 'ch2LoadingSpin 1s linear infinite' }}>↻</div>
+          <div style={{ fontSize: 15, letterSpacing: 8, marginBottom: 56 }}>l o a d i n g . . .</div>
+          <div style={{ fontSize: 13, lineHeight: 1.75, textAlign: 'center' }}>
+            팁: 사정할 때 숨을 참으면 분출되는 액체가 더 멀리 날아갑니다.
+          </div>
+          <style>{`
+            @keyframes ch2LoadingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            @keyframes ch2LoadingFadeOut { to { opacity: 0; } }
+          `}</style>
         </div>
       )}
     </div>

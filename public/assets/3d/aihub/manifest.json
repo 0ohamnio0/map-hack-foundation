@@ -1,0 +1,372 @@
+[
+  {
+    "id": "RTA0101220720_0432L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0101220720_0432L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0101220720_0432L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0101220720_0432L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "신호등",
+    "gubn3": "보행등G",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0101220730_0201L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0101220730_0201L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0101220730_0201L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0101220730_0201L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "신호등",
+    "gubn3": "보행등A",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0101220801_0212L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0101220801_0212L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0101220801_0212L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0101220801_0212L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "신호등",
+    "gubn3": "보행등E",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0201220726_0076L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0201220726_0076L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0201220726_0076L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0201220726_0076L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "표지판",
+    "gubn3": "규제J",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0201220727_0040L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0201220727_0040L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0201220727_0040L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0201220727_0040L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "표지판",
+    "gubn3": "규제C",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0201220727_0042L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0201220727_0042L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0201220727_0042L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0201220727_0042L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "표지판",
+    "gubn3": "규제D",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0201220727_0044L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0201220727_0044L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0201220727_0044L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0201220727_0044L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "표지판",
+    "gubn3": "규제E",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0201220728_0050L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0201220728_0050L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0201220728_0050L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0201220728_0050L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "표지판",
+    "gubn3": "규제F",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0201220728_0051L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0201220728_0051L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0201220728_0051L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0201220728_0051L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "표지판",
+    "gubn3": "규제G",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA1001220804_0175L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA1001220804_0175L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA1001220804_0175L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA1001220804_0175L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "이정표",
+    "gubn3": "이정표G",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTA1001220829_0171L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA1001220829_0171L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA1001220829_0171L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA1001220829_0171L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "이정표",
+    "gubn3": "이정표B",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0801220812_0154L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0801220812_0154L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0801220812_0154L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0801220812_0154L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "전광표지",
+    "gubn3": "전광표지A",
+    "grade": "대형 시설물"
+  },
+  {
+    "id": "RTA0501220728_0224L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0501220728_0224L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0501220728_0224L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0501220728_0224L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "사설안내표지판",
+    "gubn3": "사설안내표지판F",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTA0501220728_0235L_02_normalization",
+    "obj": "/assets/3d/aihub/RTA0501220728_0235L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTA0501220728_0235L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTA0501220728_0235L_02_normalization.jpg",
+    "gubn1": "교통관리시설",
+    "gubn2": "사설안내표지판",
+    "gubn3": "사설안내표지판Q",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTB1101220729_0337L_02_normalization",
+    "obj": "/assets/3d/aihub/RTB1101220729_0337L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTB1101220729_0337L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTB1101220729_0337L_02_normalization.jpg",
+    "gubn1": "도로안전시설",
+    "gubn2": "가로등",
+    "gubn3": "다방향A",
+    "grade": "대형 시설물"
+  },
+  {
+    "id": "RTB1101220801_0347L_02_normalization",
+    "obj": "/assets/3d/aihub/RTB1101220801_0347L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTB1101220801_0347L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTB1101220801_0347L_02_normalization.jpg",
+    "gubn1": "도로안전시설",
+    "gubn2": "가로등",
+    "gubn3": "다방향C",
+    "grade": "대형 시설물"
+  },
+  {
+    "id": "RTF3601220720_0428L_01_normalization",
+    "obj": "/assets/3d/aihub/RTF3601220720_0428L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF3601220720_0428L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF3601220720_0428L_01_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "전주",
+    "gubn3": "전신주B",
+    "grade": "대형 시설물"
+  },
+  {
+    "id": "RTF3601220721_0427L_01_normalization",
+    "obj": "/assets/3d/aihub/RTF3601220721_0427L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF3601220721_0427L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF3601220721_0427L_01_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "전주",
+    "gubn3": "전신주C",
+    "grade": "대형 시설물"
+  },
+  {
+    "id": "RTF3901220729_0252L_02_normalization",
+    "obj": "/assets/3d/aihub/RTF3901220729_0252L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF3901220729_0252L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF3901220729_0252L_02_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "보안등",
+    "gubn3": "단방향D",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTF4001220720_0425L_01_normalization",
+    "obj": "/assets/3d/aihub/RTF4001220720_0425L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF4001220720_0425L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF4001220720_0425L_01_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "가로등분전함",
+    "gubn3": "가로등분전함F",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTF3801220720_0433L_01_normalization",
+    "obj": "/assets/3d/aihub/RTF3801220720_0433L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF3801220720_0433L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF3801220720_0433L_01_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "배전함",
+    "gubn3": "배전함F",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTF3301220722_0012L_02_normalization",
+    "obj": "/assets/3d/aihub/RTF3301220722_0012L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF3301220722_0012L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF3301220722_0012L_02_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "CCTV",
+    "gubn3": "단속용L",
+    "grade": "대형 시설물"
+  },
+  {
+    "id": "RTF4101220801_0318L_01_normalization",
+    "obj": "/assets/3d/aihub/RTF4101220801_0318L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF4101220801_0318L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF4101220801_0318L_01_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "공중전화부스",
+    "gubn3": "공중전화A",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTF4201220801_0182L_01_normalization",
+    "obj": "/assets/3d/aihub/RTF4201220801_0182L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF4201220801_0182L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF4201220801_0182L_01_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "우체통",
+    "gubn3": "우체통I",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTF3401220728_0135L_01_normalization",
+    "obj": "/assets/3d/aihub/RTF3401220728_0135L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTF3401220728_0135L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTF3401220728_0135L_01_normalization.jpg",
+    "gubn1": "도로부속시설",
+    "gubn2": "정류장안내단말기",
+    "gubn3": "정류장안내단말기B",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTB1201220926_0336L_02_normalization",
+    "obj": "/assets/3d/aihub/RTB1201220926_0336L_02_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTB1201220926_0336L_02_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTB1201220926_0336L_02_normalization.jpg",
+    "gubn1": "도로안전시설",
+    "gubn2": "도로반사경",
+    "gubn3": "양방향A",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTB1601220720_0435L_01_normalization",
+    "obj": "/assets/3d/aihub/RTB1601220720_0435L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTB1601220720_0435L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTB1601220720_0435L_01_normalization.jpg",
+    "gubn1": "도로안전시설",
+    "gubn2": "방호울타리",
+    "gubn3": "방호울타리K",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTB1601220721_0434L_01_normalization",
+    "obj": "/assets/3d/aihub/RTB1601220721_0434L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTB1601220721_0434L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTB1601220721_0434L_01_normalization.jpg",
+    "gubn1": "도로안전시설",
+    "gubn2": "방호울타리",
+    "gubn3": "방호울타리J",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTB1401220804_0312L_01_normalization",
+    "obj": "/assets/3d/aihub/RTB1401220804_0312L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTB1401220804_0312L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTB1401220804_0312L_01_normalization.jpg",
+    "gubn1": "도로안전시설",
+    "gubn2": "규제봉",
+    "gubn3": "규제봉D",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTE3201220730_0254L_01_normalization",
+    "obj": "/assets/3d/aihub/RTE3201220730_0254L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTE3201220730_0254L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTE3201220730_0254L_01_normalization.jpg",
+    "gubn1": "환경시설",
+    "gubn2": "벤치",
+    "gubn3": "벤치A",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTE3001220729_0198L_01_normalization",
+    "obj": "/assets/3d/aihub/RTE3001220729_0198L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTE3001220729_0198L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTE3001220729_0198L_01_normalization.jpg",
+    "gubn1": "환경시설",
+    "gubn2": "쓰레기통",
+    "gubn3": "쓰레기통E",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTE2901220812_0325L_01_normalization",
+    "obj": "/assets/3d/aihub/RTE2901220812_0325L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTE2901220812_0325L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTE2901220812_0325L_01_normalization.jpg",
+    "gubn1": "환경시설",
+    "gubn2": "도로화분",
+    "gubn3": "도로화분B",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTE2901220907_0324L_01_normalization",
+    "obj": "/assets/3d/aihub/RTE2901220907_0324L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTE2901220907_0324L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTE2901220907_0324L_01_normalization.jpg",
+    "gubn1": "환경시설",
+    "gubn2": "도로화분",
+    "gubn3": "도로화분A",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTE3101220512_0003L_01_normalization",
+    "obj": "/assets/3d/aihub/RTE3101220512_0003L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTE3101220512_0003L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTE3101220512_0003L_01_normalization.jpg",
+    "gubn1": "환경시설",
+    "gubn2": "소화전,수도전",
+    "gubn3": "소화전A",
+    "grade": "소형 시설물"
+  },
+  {
+    "id": "RTD2601220729_0266L_01_normalization",
+    "obj": "/assets/3d/aihub/RTD2601220729_0266L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTD2601220729_0266L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTD2601220729_0266L_01_normalization.jpg",
+    "gubn1": "주차장",
+    "gubn2": "버스/택시정류장",
+    "gubn3": "버스정류장E",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTD2501220729_0160L_01_normalization",
+    "obj": "/assets/3d/aihub/RTD2501220729_0160L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTD2501220729_0160L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTD2501220729_0160L_01_normalization.jpg",
+    "gubn1": "주차장",
+    "gubn2": "자전거보관소",
+    "gubn3": "자전거보관소A",
+    "grade": "중형 시설물"
+  },
+  {
+    "id": "RTE2701220921_0285L_01_normalization",
+    "obj": "/assets/3d/aihub/RTE2701220921_0285L_01_normalization.obj",
+    "mtl": "/assets/3d/aihub/RTE2701220921_0285L_01_normalization.mtl",
+    "tex": "/assets/3d/aihub/RTE2701220921_0285L_01_normalization.jpg",
+    "gubn1": "환경시설",
+    "gubn2": "방음벽",
+    "gubn3": "흡음형방음벽B",
+    "grade": "대형 시설물"
+  }
+]
