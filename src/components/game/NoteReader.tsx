@@ -13,6 +13,17 @@ import { CH2_NOTES, type PageSegment } from '@/data/ch2Notes'
 
 const BASE = import.meta.env.BASE_URL
 
+// 노트별 종이 텍스처 매핑 (Note.tsx와 일치)
+const NOTE_PAPER: Record<string, string> = {
+  theta:       `${BASE}assets/tex/paper/paper-01.png`,
+  entropy:     `${BASE}assets/tex/paper/paper-02.jpg`,
+  'jeju-fire': `${BASE}assets/tex/paper/paper-03.jpg`,
+  bichae:      `${BASE}assets/tex/paper/paper-04.jpg`,
+  'hell-salad':`${BASE}assets/tex/paper/paper-05.jpg`,
+  termination: `${BASE}assets/tex/paper/paper-06.jpg`,
+  highstreamer:`${BASE}assets/tex/paper/paper-07.jpg`,
+}
+
 function NoteText({ ko, en }: { ko: string; en?: string }) {
   const lang = useGameStore(s => s.noteLanguage)
   const text = lang === 'en' && en ? en : ko
@@ -224,7 +235,7 @@ export function NoteReader() {
           // A4 비율(1654 / 2339) 고정 — 좁은 viewport에선 폭 기준으로도 캡
           height: 'min(80vh, 980px, calc(92vw * 2339 / 1654))',
           aspectRatio: '1654 / 2339',
-          background: '#ffffff',
+          backgroundColor: '#ffffff',
           color: '#1a1a1a',
           padding: '3% 4.5%',
           boxShadow: '8px 8px 0 0 rgba(0,0,0,0.55), 16px 16px 0 0 rgba(0,0,0,0.28)',
@@ -236,6 +247,8 @@ export function NoteReader() {
           flexDirection: 'column',
           alignItems: 'center',
           gap: 12,
+          position: 'relative',
+          isolation: 'isolate',
         }}
       >
         {/* 제목 — 첫 페이지에만 */}
@@ -266,6 +279,25 @@ export function NoteReader() {
             <SegmentRenderer key={i} segment={seg} />
           ))}
         </div>
+
+        {/* 종이 텍스처 오버레이 — 텍스트·이미지 위에 multiply 필름 */}
+        {activeNoteId && NOTE_PAPER[activeNoteId] && (() => {
+          const fillNotes = new Set(['hell-salad', 'bichae', 'jeju-fire'])
+          const isFill = fillNotes.has(activeNoteId)
+          return (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url("${NOTE_PAPER[activeNoteId]}")`,
+              backgroundSize: isFill ? 'cover' : '240px 240px',
+              backgroundRepeat: isFill ? 'no-repeat' : 'repeat',
+              backgroundPosition: isFill ? 'center' : undefined,
+              mixBlendMode: 'multiply',
+              pointerEvents: 'none',
+              opacity: 0.3,
+            }} />
+          )
+        })()}
       </div>
 
       {/* 페이지 인디케이터 (다중 페이지일 때만) */}

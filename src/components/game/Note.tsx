@@ -4,11 +4,38 @@
  * - E 키 → store.openNote(id) → NoteReader 모달
  * - 한 번 읽으면 visitedEvents에 기록 → 월드에서 사라짐 (휘발)
  */
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
+
+// 종이 텍스처 슬러그 매핑 (소스: Archive/.../tex/paper/)
+// FIBER01.png→paper-01, SB001→paper-02, SB019→paper-03, SB020→paper-04,
+// SB036→paper-05, SB050→paper-06, SB052→paper-07, SB053→paper-08
+const BASE = import.meta.env.BASE_URL
+const PAPER_TEXTURES = [
+  `${BASE}assets/tex/paper/paper-01.png`,
+  `${BASE}assets/tex/paper/paper-02.jpg`,
+  `${BASE}assets/tex/paper/paper-03.jpg`,
+  `${BASE}assets/tex/paper/paper-04.jpg`,
+  `${BASE}assets/tex/paper/paper-05.jpg`,
+  `${BASE}assets/tex/paper/paper-06.jpg`,
+  `${BASE}assets/tex/paper/paper-07.jpg`,
+  `${BASE}assets/tex/paper/paper-08.jpg`,
+] as const
+
+// CH2_NOTES 순서 인덱스 기반 결정적 매핑 (0→paper-01, 1→paper-02, …)
+// 쪽지 7개 < 텍스처 8개 이므로 모두 고유 텍스처
+const NOTE_TEXTURE_MAP: Record<string, string> = {
+  theta:       PAPER_TEXTURES[0],
+  entropy:     PAPER_TEXTURES[1],
+  'jeju-fire': PAPER_TEXTURES[2],
+  bichae:      PAPER_TEXTURES[3],
+  'hell-salad':PAPER_TEXTURES[4],
+  termination: PAPER_TEXTURES[5],
+  highstreamer:PAPER_TEXTURES[6],
+}
 
 // 3인칭 카메라가 캐릭터 뒤로 ~3유닛 떨어져 있어, 카메라-노트 거리 기준으로 넉넉하게 설정.
 // 캐릭터 기준으로는 노트로부터 약 2~3유닛이면 [E] 줍기가 활성화됨.
@@ -25,8 +52,51 @@ export function Note({ noteId, position }: NoteProps) {
   const [near, setNear] = useState(false)
 
   const visited = useGameStore(s => s.visitedEvents.has(`note_${noteId}`))
+
+  // 종이 텍스처 — noteId 기반 결정적 매핑, 1:1 고유 텍스처
+  const paperMaterial = useMemo(() => {
+    const texturePath = NOTE_TEXTURE_MAP[noteId] ?? PAPER_TEXTURES[0]
+    const loader = new THREE.TextureLoader()
+    const mat = new THREE.MeshStandardMaterial({
+      roughness: 0.9,
+      side: THREE.DoubleSide,
+      transparent: true,
+      alphaTest: 0.1,
+    })
+    let cancelled = false
+    loader.load(
+      texturePath,
+      (tex) => {
+        if (cancelled) { tex.dispose(); return }
+        tex.colorSpace = THREE.SRGBColorSpace
+        tex.wrapS = THREE.ClampToEdgeWrapping
+        tex.wrapT = THREE.ClampToEdgeWrapping
+        tex.repeat.set(1, 1)
+        mat.map = tex
+        mat.needsUpdate = true
+      },
+      undefined,
+      (err) => { console.warn('[Note] texture load failed:', texturePath, err) }
+    )
+    return { mat, cancel: () => { cancelled = true } }
+  }, [noteId])
+
+  useEffect(() => {
+    return () => {
+      paperMaterial.cancel()
+      paperMaterial.mat.dispose()
+    }
+  }, [paperMaterial])
+
   const activeNoteId = useGameStore(s => s.activeNoteId)
   const openNote = useGameStore(s => s.openNote)
+
+  // near 상태에 따라 emissive 강도 갱신
+  useEffect(() => {
+    paperMaterial.mat.emissive.set('#fff8d0')
+    paperMaterial.mat.emissiveIntensity = near ? 0.5 : 0.18
+    paperMaterial.mat.needsUpdate = true
+  }, [near, paperMaterial])
 
   const baseY = position[1]
 
@@ -68,12 +138,9 @@ export function Note({ noteId, position }: NoteProps) {
       {/* 종이 — 바닥에 살짝 누운 상태로 떠 있음 */}
       <mesh rotation={[-Math.PI / 2.3, 0, 0.18]} castShadow>
         <planeGeometry args={[0.32, 0.45]} />
-        <meshStandardMaterial
-          color="#f3eedd"
-          emissive="#fff8d0"
-          emissiveIntensity={near ? 0.5 : 0.18}
-          side={THREE.DoubleSide}
-          roughness={0.9}
+        <primitive
+          object={paperMaterial.mat}
+          attach="material"
         />
       </mesh>
 
