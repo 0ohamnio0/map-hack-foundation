@@ -28,11 +28,7 @@ const SIGNPOST_POSITIONS_RAW = [
 ]
 const SIGNPOST_POSITIONS = SIGNPOST_POSITIONS_RAW.map(p => ({ ...p, x: p.x * SCALE_X, z: p.z * SCALE_Z }))
 
-const FLOOR_SIGNS_RAW = [
-  { x: 2, z: -5, text: '일방통행' },
-  { x: 15, z: -42, text: '어린이보호구역 30' },
-  { x: -2, z: -70, text: '일방통행' },
-]
+const FLOOR_SIGNS_RAW: { x: number; z: number; text: string }[] = []
 const FLOOR_SIGNS = FLOOR_SIGNS_RAW.map(s => ({ ...s, x: s.x * SCALE_X, z: s.z * SCALE_Z }))
 
 const NEAR_EXIT_Z = -78 * SCALE_Z
@@ -91,16 +87,11 @@ export function SignpostManager() {
     setTexts(newTexts)
   })
 
+  // Signpost(텍스트가 위치에 따라 바뀌는 가로 보드) 제거 — FloorSign만 유지.
+  // texts 상태는 directionScore 추적용으로 남겨두지만 화면엔 출력하지 않음.
+  void texts
   return (
     <>
-      {SIGNPOST_POSITIONS.map((sp, i) => (
-        <Signpost
-          key={i}
-          position={[sp.x, 0, sp.z]}
-          text={texts[i]}
-          rotation={sp.rot}
-        />
-      ))}
       {FLOOR_SIGNS.map((fs, i) => (
         <FloorSign
           key={`floor-${i}`}

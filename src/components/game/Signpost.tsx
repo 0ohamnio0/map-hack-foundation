@@ -57,36 +57,33 @@ export function Signpost({ position, text, rotation = 0 }: SignpostProps) {
     if (textRef.current) {
       if (t < 0.3) {
         textRef.current.position.x = (Math.random() - 0.5) * 0.06
-        textRef.current.position.y = 2.2 + (Math.random() - 0.5) * 0.04
+        textRef.current.position.y = 3.2 + (Math.random() - 0.5) * 0.04
       } else {
         textRef.current.position.x = 0
-        textRef.current.position.y = 2.2
+        textRef.current.position.y = 3.2
       }
     }
   })
 
+  // 벽에 부착되는 전광표지판 스타일 — pole 제거, board를 더 크게 + 벽 높이로.
+  const BOARD_Y = 3.2
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Pole */}
-      <mesh position={[0, 1.2, 0]}>
-        <cylinderGeometry args={[0.03, 0.03, 2.4, 6]} />
-        <meshStandardMaterial color="#888" />
+      {/* Board — 큰 가로 안내판 */}
+      <mesh ref={boardRef} position={[0, BOARD_Y, 0]} castShadow>
+        <boxGeometry args={[2.5, 0.85, 0.08]} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.2} roughness={0.5} />
       </mesh>
-      {/* Board */}
-      <mesh ref={boardRef} position={[0, 2.2, 0.02]}>
-        <planeGeometry args={[1.4, 0.5]} />
-        <meshStandardMaterial color="#222" />
-      </mesh>
-      {/* Text */}
+      {/* Text — 보드 앞면 */}
       <Text
         ref={textRef}
-        position={[0, 2.2, 0.04]}
-        fontSize={0.25}
+        position={[0, BOARD_Y, 0.05]}
+        fontSize={0.42}
         color="#ddd"
         font={UNIFONT_URL}
         anchorX="center"
         anchorY="middle"
-        maxWidth={1.2}
+        maxWidth={2.2}
       >
         {text}
       </Text>
