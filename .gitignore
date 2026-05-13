@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 .vite/
+.venv/
+scripts/pool_inspect.png
 
 # Editor directories and files
 .vscode/*

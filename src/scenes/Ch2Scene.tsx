@@ -59,6 +59,82 @@ const WALL_DEFS: [number, number, number, number][] = WALL_DEFS_RAW.map(
   ([cx, cz, w, d]) => [cx * SCALE_X, cz * SCALE_Z, w * SCALE_X, d * SCALE_Z],
 );
 
+// 배경 빌딩 layer — outer wall(0~7) 너머로 spawn하는 솟은 빌딩들. 도로 정면 라인
+// 뒤편에 추가 layer로 깔려 골목 너머로 보이는 5~9층 silhouette을 만듦.
+// 콜라이더 없음 (도로 영역 침범 X).
+//
+// outward 방향은 명시 lookup — wall center 부호 자동 추정이 corner wall (특히 H1
+// 위벽 wall 2: cz=-30)에서 도로 안쪽을 outward로 오판함.
+const OUTER_OUTWARD: Array<[number, number]> = [
+  [0,  1],  // wall 0: 북쪽 가로 (z=3) → +Z
+  [1,  0],  // wall 1: V1 동 (x=+7.15) → +X
+  [0,  1],  // wall 2: H1 위 (z=-30) → +Z  ★ 자동 추정이 -Z(=H1 도로 안쪽)였던 문제 fix
+  [1,  0],  // wall 3: V2 동 (x=+27.15) → +X
+  [0, -1],  // wall 4: H2 아래 (z=-70) → -Z
+  [1,  0],  // wall 5: V3 동 (x=+7.15) → +X
+  [0, -1],  // wall 6: 남쪽 가로 (z=-90) → -Z
+  [-1, 0],  // wall 7: 서쪽 outer (x=-7.15) → -X
+];
+type BgBuilding = { x: number; z: number; w: number; h: number; d: number; texSeed: number };
+const BG_BUILDINGS: BgBuilding[] = (() => {
+  const out: BgBuilding[] = [];
+  WALL_DEFS_RAW.forEach(([cx, cz, w, d], wallIdx) => {
+    if (wallIdx >= 8) return; // outer perimeter만
+    const isHoriz = w > d;
+    const totalLen = isHoriz ? w : d;
+    const [outwardSignX, outwardSignZ] = OUTER_OUTWARD[wallIdx];
+    const count = 3 + (wallIdx % 2); // wall당 3~4개
+    for (let i = 0; i < count; i++) {
+      const seed = wallIdx * 47 + i * 13;
+      const r1 = ((seed * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
+      const r2 = (((seed + 99) * 22695477 + 1) & 0x7fffffff) / 0x7fffffff;
+      const r3 = (((seed + 7)  * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+      const r4 = (((seed + 13) * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
+      const t = (i + 0.5) / count + (r1 - 0.5) * 0.4;
+      const localPos = (t - 0.5) * totalLen;
+      const offsetOutward = 5 + r2 * 7; // 정면 라인에서 5~12m 뒤로
+      const bx = (cx + (isHoriz ? localPos : outwardSignX * offsetOutward)) * SCALE_X;
+      const bz = (cz + (isHoriz ? outwardSignZ * offsetOutward : localPos)) * SCALE_Z;
+      const bw = 5 + r3 * 6;  // 5~11m
+      const bh = 12 + r4 * 16; // 12~28m (4~9층)
+      const bd = 7 + r1 * 7;  // 7~14m
+      const texSeed = wallIdx * 7 + i * 11;
+      out.push({ x: bx, z: bz, w: bw, h: bh, d: bd, texSeed });
+    }
+  });
+  return out;
+})();
+
+// 원경 layer — 도로 bbox 밖 4방향(동/서/북/남)에 솟은 고층빌딩. 30~80m. fog 위로
+// silhouette처럼 보이는 도시 거리감. 콜라이더 없음.
+const FAR_BUILDINGS: BgBuilding[] = (() => {
+  const out: BgBuilding[] = [];
+  // [중심cx, 중심cz, 개수] — raw 좌표. 도로 bbox x∈[-7,27], z∈[-90,3] 바깥.
+  const clusters: Array<[number, number, number]> = [
+    [60,   -10, 5],  // 동쪽 멀리
+    [-50,  -40, 4],  // 서쪽 멀리
+    [10,    40, 4],  // 북쪽 멀리
+    [10,  -130, 5],  // 남쪽 멀리
+  ];
+  clusters.forEach(([cx, cz, count], ci) => {
+    for (let i = 0; i < count; i++) {
+      const seed = ci * 97 + i * 31;
+      const r1 = ((seed * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
+      const r2 = (((seed + 5)  * 22695477   + 1)     & 0x7fffffff) / 0x7fffffff;
+      const r3 = (((seed + 11) * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+      const r4 = (((seed + 17) * 1664525    + 1013904223) & 0x7fffffff) / 0x7fffffff;
+      const bx = (cx + (r1 - 0.5) * 30) * SCALE_X;  // ±15 raw 분산
+      const bz = (cz + (r2 - 0.5) * 30) * SCALE_Z;
+      const bw = 8 + r3 * 10;    // 8~18m
+      const bh = 30 + r4 * 50;   // 30~80m
+      const bd = 8 + r1 * 10;
+      const texSeed = ci * 13 + i * 7;
+      out.push({ x: bx, z: bz, w: bw, h: bh, d: bd, texSeed });
+    }
+  });
+  return out;
+})();
+
 // Decorative street objects — base values
 const DECOR_RAW: { x: number; z: number; w: number; d: number; h: number; color: string }[] = [
   // (#aa8800 placeholder pole 5개 제거 — aihub pole로 대체됨)
@@ -464,13 +540,13 @@ const ROAD_MARKING_DEFS: [string, number, number, number, number][] = [
   [`${RM}speed-limit-30.png`,   2,   -10,  2.4, 4.0],
   [`${RM}no-u-turn.png`,       -2,   -22,  2.4, 3.6],
   [`${RM}straight-ahead.png`,   2,   -35,  2.0, 4.8],
-  [`${RM}school-zone-slow.png`, 18,  -44,  4.0, 2.0],
-  [`${RM}one-way.png`,          16,  -58,  2.4, 3.2],
+  [`${RM}school-zone-slow.png`, 18,  -44,  4.0, 11.4],
+  [`${RM}one-way.png`,          20,  -58,  2.4, 3.2],
   [`${RM}crosswalk-caution.png`,-2,  -75,  3.2, 4.0],
   [`${RM}terminus.png`,          2,  -85,  2.4, 3.2],
   [`${RM}hmm.png`,              -3,  -30,  1.6, 2.4],
   [`${RM}uh-uh.png`,            22,  -50,  1.6, 2.4],
-  [`${RM}disabled.png`,         5,   -65,  2.4, 3.2],
+  [`${RM}disabled.png`,        -4,   -70,  2.4, 3.2],
 ];
 
 const RoadMarkings: React.FC = () => {
@@ -500,14 +576,19 @@ const RoadMarkings: React.FC = () => {
 
   return (
     <group>
-      {ROAD_MARKING_DEFS.map(([, bx, bz, pw, ph], i) => {
+      {ROAD_MARKING_DEFS.map(([url, bx, bz, pw, ph], i) => {
         const tex = textures[i];
         if (!tex) return null;
+        const slug = url.split('/').pop()?.replace('.png', '') ?? `marking-${i}`;
         return (
           <mesh
             key={i}
             rotation={[-Math.PI / 2, 0, 0]}
             position={[bx * SCALE_X, 0.01, bz * SCALE_Z]}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              console.log(`[RoadMarking] #${i}  slug=${slug}  pos=[${bx}, ${bz}]  size=[${pw}, ${ph}]`);
+            }}
           >
             <planeGeometry args={[pw * SCALE_X, ph * SCALE_Z]} />
             <meshStandardMaterial
@@ -581,6 +662,12 @@ function buildWallSegments(): WallSegment[] {
   function pickTex(wallIdx: number, segIdx: number): number {
     return (wallIdx * 7 + segIdx * 13) % BUILDING_TEX_META.length;
   }
+  // 폭 변동 — 2.4~3.0배.
+  function pickWidthVar(wallIdx: number, segIdx: number): number {
+    const s = wallIdx * 41 + segIdx * 23;
+    const r = ((s * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
+    return 2.4 + r * 0.6;
+  }
 
   WALL_DEFS.forEach(([, , w, d], wallIdx) => {
     // 긴 축 길이 결정: w > d 이면 가로 분할, 아니면 depth 방향 분할
@@ -590,7 +677,7 @@ function buildWallSegments(): WallSegment[] {
     while (filled < totalLen) {
       const tIdx = pickTex(wallIdx, segIdx);
       const meta = BUILDING_TEX_META[tIdx];
-      const naturalSegW = WALL_HEIGHT * (meta.w / meta.h);
+      const naturalSegW = WALL_HEIGHT * (meta.w / meta.h) * pickWidthVar(wallIdx, segIdx);
       const remaining = totalLen - filled;
       if (naturalSegW <= remaining) {
         segments.push({ wallIndex: wallIdx, texIndex: tIdx, offsetX: filled, segW: naturalSegW, repeatX: 1.0 });
@@ -623,8 +710,14 @@ function getBuildingParams(wallIdx: number, segIdx: number): BuildingParams {
   const seed = wallIdx * 31 + segIdx * 17;
   const r1 = ((seed * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
   const r2 = (((seed + 99) * 22695477 + 1) & 0x7fffffff) / 0x7fffffff;
-  const height = WALL_HEIGHT * (0.7 + r1 * 0.9); // 0.7× ~ 1.6× WALL_HEIGHT
-  const buildingDepth = 4 + r2 * 4;              // 4 ~ 8 units
+  const r3 = (((seed + 7) * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  // bimodal — 35% 솟은 빌딩(8~28m, 5~9층) + 65% 낮은 점포(6~14m, 2~4층). 하한 2m는
+  // 너무 짓눌려 보였음 → 3배(6m)로. 그래도 솟은 빌딩과 명확한 두 layer 유지.
+  const isTall = r3 < 0.35;
+  const height = isTall
+    ? WALL_HEIGHT * (2.0 + r1 * 5.0)
+    : WALL_HEIGHT * (1.5 + r1 * 2.0);
+  const buildingDepth = 4 + r2 * 8;              // 4 ~ 12 units (vol감)
   return { height, buildingDepth };
 }
 
@@ -725,6 +818,40 @@ const StreetScene: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  // 원경 머티리얼 — FAR_BUILDINGS와 1:1 매핑
+  const farMaterials = useMemo(() =>
+    FAR_BUILDINGS.map(b => {
+      const tex = buildingTextures[b.texSeed % BUILDING_TEX_META.length];
+      if (tex) {
+        const cloned = tex.clone();
+        cloned.needsUpdate = true;
+        return new THREE.MeshStandardMaterial({
+          map: cloned,
+          roughness: 0.95,
+          metalness: 0.0,
+        });
+      }
+      return new THREE.MeshStandardMaterial({ color: '#1f1f1f', roughness: 0.95 });
+    }),
+  [buildingTextures]);
+
+  // 배경 빌딩 머티리얼 — BG_BUILDINGS와 1:1 매핑
+  const bgMaterials = useMemo(() =>
+    BG_BUILDINGS.map(b => {
+      const tex = buildingTextures[b.texSeed % BUILDING_TEX_META.length];
+      if (tex) {
+        const cloned = tex.clone();
+        cloned.needsUpdate = true;
+        return new THREE.MeshStandardMaterial({
+          map: cloned,
+          roughness: 0.9,
+          metalness: 0.0,
+        });
+      }
+      return new THREE.MeshStandardMaterial({ color: '#3a3a3a', roughness: 0.9 });
+    }),
+  [buildingTextures]);
+
   // 세그먼트별 머티리얼 — repeatX 반영
   const segmentMaterials = useMemo(() =>
     WALL_SEGMENTS.map(seg => {
@@ -797,6 +924,22 @@ const StreetScene: React.FC = () => {
           );
         });
       })}
+
+      {/* 배경 빌딩 layer — outer wall 너머 5~12m 뒤로 솟은 빌딩. 콜라이더 없음 */}
+      {BG_BUILDINGS.map((b, i) => (
+        <mesh key={`bg-${i}`} position={[b.x, b.h / 2, b.z]}>
+          <boxGeometry args={[b.w, b.h, b.d]} />
+          <primitive object={bgMaterials[i]} attach="material" />
+        </mesh>
+      ))}
+
+      {/* 원경 layer — 4방향 클러스터, 30~80m 고층빌딩. fog silhouette */}
+      {FAR_BUILDINGS.map((b, i) => (
+        <mesh key={`far-${i}`} position={[b.x, b.h / 2, b.z]}>
+          <boxGeometry args={[b.w, b.h, b.d]} />
+          <primitive object={farMaterials[i]} attach="material" />
+        </mesh>
+      ))}
 
       {/* 노면 글씨 — ground보다 0.01 위, z-fighting 방지 */}
       <RoadMarkings />
@@ -1018,7 +1161,7 @@ export const Ch2Scene: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 2000);
+    const t = setTimeout(() => setLoading(false), 3000);
     return () => clearTimeout(t);
   }, []);
   const goToChapter  = useGameStore(s => s.goToChapter);
@@ -1177,7 +1320,7 @@ export const Ch2Scene: React.FC = () => {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           color: '#f3eedd',
           fontFamily: '"Unifont", monospace',
-          animation: 'ch2LoadingFadeOut 0.25s ease-in 1.75s forwards',
+          animation: 'ch2LoadingFadeOut 0.25s ease-in 2.75s forwards',
         }}>
           <div style={{ fontSize: 26, marginBottom: 14, animation: 'ch2LoadingSpin 1s linear infinite' }}>↻</div>
           <div style={{ fontSize: 15, letterSpacing: 8, marginBottom: 56 }}>l o a d i n g . . .</div>

@@ -332,7 +332,7 @@ if a.dead:
   },
   {
     id: 'hell-salad',
-    position: [4, -65],
+    position: [20, -67],
     title: '지옥 샐러드',
     titleEn: 'Hell Salad',
     pages: [

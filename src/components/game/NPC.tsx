@@ -8,6 +8,7 @@ import { useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
+import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout'
 
 interface NPCProps {
   position: [number, number, number]
@@ -54,6 +55,10 @@ export function NPC({ position, isSpecial = false }: NPCProps) {
       const target = new THREE.Vector3(camera.position.x, 0, camera.position.z)
       gp.lerp(target, 0.015 * (delta / 0.016))
       gp.y = 0 // stay on ground
+
+      // V1 boundary clamp — x∈[-7,7], z∈[3,-40]. 플레이어가 V1을 벗어나도 NPC는 V1 안에서만.
+      gp.x = Math.max(-7 * SCALE_X, Math.min(7 * SCALE_X, gp.x))
+      gp.z = Math.max(-40 * SCALE_Z, Math.min(3 * SCALE_Z, gp.z))
 
       // Distance check for text
       const dist = gp.distanceTo(new THREE.Vector3(camera.position.x, 0, camera.position.z))

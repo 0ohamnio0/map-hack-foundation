@@ -15,8 +15,10 @@ import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout'
 
 const BASE = import.meta.env.BASE_URL
 const AIHUB = `${BASE}assets/3d/aihub`
-// 모양별 풀 — 자동 cropping된 원형 PNG(알파 마스크 포함). 삼각·사각·이정표·전광표지는 후속 단계.
+// 모양별 풀 — OpenCV 자동 크롭 PNG(알파 마스크 포함). 이정표·전광표지는 후속 단계.
 const CIRCLE_POOL_BASE = `${BASE}assets/3d/aihub_circle_pool`
+const SQUARE_POOL_BASE = `${BASE}assets/3d/aihub_square_pool`
+const TRIANGLE_POOL_BASE = `${BASE}assets/3d/aihub_triangle_pool`
 
 type PoolKey = 'circle' | 'triangle' | 'square' | 'direction' | 'banner'
 
@@ -31,37 +33,32 @@ interface AihubPlacement {
   poolKey?: PoolKey
 }
 
-const POLE_HEIGHT = 2.5
+const POLE_HEIGHT = 3.75
 const POLE_RADIUS = 0.04
 
+// S자 길 5구간 — V1(x∈[-7,7], z=3→-40) / H1(z=-30~-40) / V2(x∈[13,27], z=-40→-60) /
+//                H2(z=-60~-70) / V3(x∈[-7,7], z=-70→-90). 가장자리(±6, 14~26)에 배치.
 const PLACEMENTS: AihubPlacement[] = [
-  // 모든 표지판 placement에 circle pool 임시 적용 — swap 가시화 검증용. 모양 안 맞을 수 있음.
-  { id: 'RTA0201220727_0040L_02_normalization', pos: [8,  -32], rotY: -Math.PI * 0.5, pole: true, poolKey: 'circle' },
-  { id: 'RTA0201220726_0076L_02_normalization', pos: [-7, -22], rotY: Math.PI * 0.5, pole: true, poolKey: 'circle' },
-  { id: 'RTA0201220727_0042L_02_normalization', pos: [-9, -42], rotY: 0.2, pole: true, poolKey: 'circle' },
-  { id: 'RTA1001220804_0175L_02_normalization', pos: [11, -52], rotY: Math.PI * 0.4, pole: true, poolKey: 'circle' },
-  { id: 'RTA0801220812_0154L_02_normalization', pos: [13, -25], rotY: -Math.PI * 0.4, pole: true, poolKey: 'circle' },
-  // 가로등
-  { id: 'RTB1101220729_0337L_02_normalization', pos: [-10, -35], rotY: 0 },
-  { id: 'RTB1101220801_0347L_02_normalization', pos: [10, -58], rotY: Math.PI },
+  // 표지판 5종 — 모양별 풀로 분류 (square 12장 / triangle 2장 / circle 7장)
+  { id: 'RTA0201220727_0040L_02_normalization', pos: [6,  -8],  rotY: -Math.PI * 0.5, pole: true, poolKey: 'square'   },  // V1 시작 우측
+  { id: 'RTA0201220726_0076L_02_normalization', pos: [-6, -20], rotY: Math.PI * 0.5,  pole: true, poolKey: 'triangle' },  // V1 중간 좌측
+  { id: 'RTA0201220727_0042L_02_normalization', pos: [6,  -32], rotY: -Math.PI * 0.5, pole: true, poolKey: 'square'   },  // V1 끝 / H1 진입
+  { id: 'RTA1001220804_0175L_02_normalization', pos: [16, -45], rotY: -Math.PI * 0.5, pole: true, poolKey: 'circle'   },  // V2 진입 좌측
+  { id: 'RTA0801220812_0154L_02_normalization', pos: [22, -65], rotY: Math.PI,        pole: true, poolKey: 'square'   },  // V2→H2 코너
   // 전주
-  { id: 'RTF3601220720_0428L_01_normalization', pos: [-12, -60], rotY: 0 },
-  // 보안등
-  { id: 'RTF3901220729_0252L_02_normalization', pos: [12, -38], rotY: Math.PI },
-  // CCTV
-  { id: 'RTF3301220722_0012L_02_normalization', pos: [11, -30], rotY: -Math.PI * 0.4 },
+  { id: 'RTF3601220720_0428L_01_normalization', pos: [-6, -75], rotY: 0, scale: 22 },  // V3 좌측 — 거대 전주 (25 → 22, 1/8 감소)
+  // CCTV — 별도 PoleCCTV 컴포넌트로 거대 전주 상단에 mount (캐릭터 추적 yaw 회전)
   // 우체통 / 공중전화부스
-  { id: 'RTF4201220801_0182L_01_normalization', pos: [6,  -20], rotY: Math.PI * 0.5 },
-  { id: 'RTF4101220801_0318L_01_normalization', pos: [-6, -48], rotY: -Math.PI * 0.5 },
+  { id: 'RTF4201220801_0182L_01_normalization', pos: [5,  -85], rotY: Math.PI * 0.5 },   // V3 우측 후반
   // 벤치 / 쓰레기통
-  { id: 'RTE3201220730_0254L_01_normalization', pos: [5,  -38], rotY: 0.3 },
-  { id: 'RTE3001220729_0198L_01_normalization', pos: [-5, -55], rotY: -0.3 },
+  { id: 'RTE3201220730_0254L_01_normalization', pos: [-6, -38], rotY: 0.3 },       // V1 끝 좌측
+  { id: 'RTE3001220729_0198L_01_normalization', pos: [14, -58], rotY: -0.3 },      // V2 좌측 끝
   // 도로화분
-  { id: 'RTE2901220812_0325L_01_normalization', pos: [4,  -65], rotY: 0 },
+  { id: 'RTE2901220812_0325L_01_normalization', pos: [20, -67], rotY: 0 },         // H2 우측 — hell-salad 노트가 화분 안에 담김
   // 방호울타리
-  { id: 'RTB1601220720_0435L_01_normalization', pos: [-7, -68], rotY: Math.PI * 0.5 },
+  { id: 'RTB1601220720_0435L_01_normalization', pos: [-6, -68], rotY: Math.PI * 0.5 },  // H2 좌측
   // 도로반사경
-  { id: 'RTB1201220926_0336L_02_normalization', pos: [8,  -72], rotY: -Math.PI * 0.4 },
+  { id: 'RTB1201220926_0336L_02_normalization', pos: [25, -42], rotY: -Math.PI * 0.4 },  // V2 우측 진입
 ]
 
 // ---------- 텍스처 풀 (swap용) ----------
@@ -79,9 +76,11 @@ function useTexturePools(): PoolMap {
   const [pools, setPools] = useState<PoolMap>({})
   useEffect(() => {
     let cancelled = false
-    // 현재는 circle pool만 — 삼각·사각·이정표·전광표지 풀은 후속 단계에서 추가.
+    // circle/square/triangle 3풀 — 이정표·전광표지는 후속 단계.
     const sources: Array<{ key: PoolKey; base: string; ext: string }> = [
-      { key: 'circle', base: CIRCLE_POOL_BASE, ext: 'png' },
+      { key: 'circle',   base: CIRCLE_POOL_BASE,   ext: 'png' },
+      { key: 'square',   base: SQUARE_POOL_BASE,   ext: 'png' },
+      { key: 'triangle', base: TRIANGLE_POOL_BASE, ext: 'png' },
     ]
     Promise.all(sources.map(({ key, base, ext }) =>
       fetch(`${base}/manifest.json`)
@@ -181,11 +180,22 @@ const AihubProp: React.FC<AihubPropProps> = ({ p, index, pools }) => {
   const scale = p.scale ?? 2.5
   const x = p.pos[0] * SCALE_X
   const z = p.pos[1] * SCALE_Z
-  const baseY = (p.y ?? 0) + groundOffset * scale
+  // poolKey 케이스(표지판 plane만)에선 OBJ를 안 그리므로 groundOffset 보정 무관.
+  // 보정을 살리면 plane이 pole top 위로 떠올라 분리됨.
+  const baseY = p.poolKey ? (p.y ?? 0) : (p.y ?? 0) + groundOffset * scale
   const modelY = p.pole ? POLE_HEIGHT + baseY : baseY
 
   return (
-    <group position={[x, 0, z]} rotation={[p.rotX ?? 0, p.rotY ?? 0, 0]}>
+    <group
+      position={[x, 0, z]}
+      rotation={[p.rotX ?? 0, p.rotY ?? 0, 0]}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        console.log(
+          `[Aihub] #${index}  id=${p.id}  pos=[${p.pos[0]}, ${p.pos[1]}]  poolKey=${p.poolKey ?? '-'}  pole=${!!p.pole}`,
+        )
+      }}
+    >
       {p.pole && (
         <mesh position={[0, POLE_HEIGHT / 2, 0]} castShadow>
           <cylinderGeometry args={[POLE_RADIUS, POLE_RADIUS, POLE_HEIGHT, 12]} />
@@ -213,6 +223,45 @@ const AihubProp: React.FC<AihubPropProps> = ({ p, index, pools }) => {
   )
 }
 
+// 거대 전주 [-6, -75] scale=25 상단 사이드에 CCTV mount. 캐릭터(=카메라) 추적 yaw 회전.
+const POLE_CCTV_ID = 'RTF3301220722_0012L_02_normalization'
+const POLE_CCTV_POS: [number, number, number] = [-6 * SCALE_X + 0.8, 18, -75 * SCALE_Z]
+
+const PoleCCTV: React.FC = () => {
+  const obj = useLoader(OBJLoader, `${AIHUB}/${POLE_CCTV_ID}.obj`)
+  const baseTex = useLoader(THREE.TextureLoader, `${AIHUB}/${POLE_CCTV_ID}.jpg`)
+  const groupRef = useRef<THREE.Group>(null)
+
+  const cloned = useMemo(() => {
+    baseTex.colorSpace = THREE.SRGBColorSpace
+    const mat = new THREE.MeshStandardMaterial({ map: baseTex, roughness: 0.85, metalness: 0.05 })
+    const c = obj.clone(true)
+    c.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (m.isMesh && m.geometry) {
+        m.geometry = m.geometry.clone()
+        m.geometry.rotateX(-Math.PI / 2)
+        m.material = mat
+      }
+    })
+    return c
+  }, [obj, baseTex])
+
+  useFrame(({ camera }) => {
+    const g = groupRef.current
+    if (!g) return
+    const dx = camera.position.x - g.position.x
+    const dz = camera.position.z - g.position.z
+    g.rotation.y = Math.atan2(dx, dz)
+  })
+
+  return (
+    <group ref={groupRef} position={POLE_CCTV_POS} scale={2.5}>
+      <primitive object={cloned} />
+    </group>
+  )
+}
+
 export const Ch2AihubProps: React.FC = () => {
   const pools = useTexturePools()
   return (
@@ -220,6 +269,7 @@ export const Ch2AihubProps: React.FC = () => {
       {PLACEMENTS.map((p, i) => (
         <AihubProp key={`${p.id}-${i}`} p={p} index={i} pools={pools} />
       ))}
+      <PoleCCTV />
     </>
   )
 }

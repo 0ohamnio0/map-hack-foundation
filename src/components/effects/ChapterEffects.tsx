@@ -104,7 +104,7 @@ export function Ch2Effects() {
 
   return (
     <>
-      <fog attach="fog" args={['#0a0a0a', 10, 45]} />
+      <fog attach="fog" args={['#1a1525', 30, 260]} />
       <EffectComposer>
         <Vignette offset={0.3} darkness={0.8} />
         <Noise
