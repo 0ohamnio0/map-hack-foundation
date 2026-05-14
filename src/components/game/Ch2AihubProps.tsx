@@ -265,11 +265,11 @@ const PoleCCTV: React.FC = () => {
 export const Ch2AihubProps: React.FC = () => {
   const pools = useTexturePools()
   return (
-    <>
+    <group name="aihub">
       {PLACEMENTS.map((p, i) => (
         <AihubProp key={`${p.id}-${i}`} p={p} index={i} pools={pools} />
       ))}
       <PoleCCTV />
-    </>
+    </group>
   )
 }
