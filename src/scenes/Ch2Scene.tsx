@@ -18,6 +18,7 @@ import { Note } from '@/components/game/Note';
 import { NoteReader } from '@/components/game/NoteReader';
 import { Ch2Decor } from '@/components/game/Ch2Decor';
 import { Ch2AihubProps } from '@/components/game/Ch2AihubProps';
+import { Ch2Signs, type SignBuilding } from '@/components/game/Ch2Signs';
 import { CH2_NOTES } from '@/data/ch2Notes';
 
 const BASE = import.meta.env.BASE_URL;
@@ -735,6 +736,36 @@ function buildSegmentIndexMap(): Map<number, number> {
 
 const SEG_INDEX_MAP = buildSegmentIndexMap();
 
+// 간판 부착용 빌딩 인스턴스 — WALL_SEGMENTS 렌더 시 사용하는 동일 좌표/치수/정면 방향.
+// face = -outwardSign (도로 쪽). Ch2Signs가 의사난수로 ~50% 배치.
+const SIGN_BUILDINGS: SignBuilding[] = (() => {
+  const out: SignBuilding[] = [];
+  WALL_DEFS.forEach(([cx, cz, w, d], wallIdx) => {
+    const isHoriz = w > d;
+    const segs = WALL_SEGMENTS.filter(s => s.wallIndex === wallIdx);
+    const totalLen = isHoriz ? w : d;
+    const outwardSignX = isHoriz ? 0 : (cx >= 0 ? 1 : -1);
+    const outwardSignZ = isHoriz ? (cz >= 0 ? 1 : -1) : 0;
+    segs.forEach((seg, si) => {
+      const globalIdx = WALL_SEGMENTS.indexOf(seg);
+      const segIdx = SEG_INDEX_MAP.get(globalIdx) ?? si;
+      const { height, buildingDepth } = getBuildingParams(wallIdx, segIdx);
+      const localPos = seg.offsetX + seg.segW / 2 - totalLen / 2;
+      const posX = cx + (isHoriz ? localPos : outwardSignX * buildingDepth / 2);
+      const posZ = cz + (isHoriz ? outwardSignZ * buildingDepth / 2 : localPos);
+      const boxW = isHoriz ? seg.segW : buildingDepth;
+      const boxD = isHoriz ? buildingDepth : seg.segW;
+      out.push({
+        cx: posX, cy: height / 2, cz: posZ,
+        w: boxW, h: height, d: boxD,
+        faceX: -outwardSignX, faceZ: -outwardSignZ,
+        seed: wallIdx * 1009 + segIdx * 7919,
+      });
+    });
+  });
+  return out;
+})();
+
 const ASPHALT_TEX_URL = `${BASE}assets/tex/full/ASPHALT2.jpg`;
 const DOOR09_TEX_URL = `${BASE}assets/tex/doors/door-09.png`;
 
@@ -924,6 +955,9 @@ const StreetScene: React.FC = () => {
           );
         });
       })}
+
+      {/* 메인 거리 빌딩 간판 — WALL_SEGMENTS 박스의 ~50%에 정면/옆구리/옥상 배치 */}
+      <Ch2Signs buildings={SIGN_BUILDINGS} />
 
       {/* 배경 빌딩 layer — outer wall 너머 5~12m 뒤로 솟은 빌딩. 콜라이더 없음 */}
       {BG_BUILDINGS.map((b, i) => (
