@@ -92,7 +92,7 @@ const Prop: React.FC<{ def: PropDef }> = ({ def }) => {
 }
 
 export const Ch2Decor: React.FC = () => (
-  <>
+  <group name="decor">
     {PROPS.map((def, i) => <Prop key={i} def={def} />)}
-  </>
+  </group>
 )

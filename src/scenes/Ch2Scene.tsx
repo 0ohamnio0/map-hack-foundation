@@ -5,6 +5,7 @@ import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@r
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import Ecctrl, { EcctrlJoystick } from 'ecctrl';
+import type { CustomEcctrlRigidBody } from 'ecctrl';
 import { useGameStore } from '@/store/useGameStore';
 import { useDevMode } from '@/hooks/useDevMode';
 import { useMute } from '@/hooks/useMute';
@@ -576,7 +577,7 @@ const RoadMarkings: React.FC = () => {
   }, []);
 
   return (
-    <group>
+    <group name="road_markings">
       {ROAD_MARKING_DEFS.map(([url, bx, bz, pw, ph], i) => {
         const tex = textures[i];
         if (!tex) return null;
@@ -584,6 +585,7 @@ const RoadMarkings: React.FC = () => {
         return (
           <mesh
             key={i}
+            name={`road_marking-${String(i).padStart(2, '0')}-${slug}`}
             rotation={[-Math.PI / 2, 0, 0]}
             position={[bx * SCALE_X, 0.01, bz * SCALE_Z]}
             onPointerDown={(e) => {
@@ -909,7 +911,7 @@ const StreetScene: React.FC = () => {
     <>
       {/* Floor */}
       <RigidBody type="fixed">
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10 * SCALE_X, 0, -43 * SCALE_Z]}>
+        <mesh name="floor_asphalt" rotation={[-Math.PI / 2, 0, 0]} position={[10 * SCALE_X, 0, -43 * SCALE_Z]}>
           <planeGeometry args={[50 * SCALE_X, 100 * SCALE_Z]} />
           <primitive object={asphaltMaterial} attach="material" />
         </mesh>
@@ -917,6 +919,7 @@ const StreetScene: React.FC = () => {
       </RigidBody>
 
       {/* Walls — 세그먼트별 독립 3D 건물 박스 (높이·깊이 다양화) */}
+      <group name="buildings">
       {WALL_DEFS.map(([cx, cz, w, d], wallIdx) => {
         const isHoriz = w > d; // 긴 축이 X면 가로 분할
         const segs = WALL_SEGMENTS.filter(s => s.wallIndex === wallIdx);
@@ -946,7 +949,7 @@ const StreetScene: React.FC = () => {
 
           return (
             <RigidBody key={`${wallIdx}-${si}`} type="fixed" position={[posX, posY, posZ]}>
-              <mesh>
+              <mesh name={`building-w${wallIdx}-s${segIdx}-tex${seg.texIndex}`}>
                 <boxGeometry args={[boxW, height, boxD]} />
                 <primitive object={mat} attach="material" />
               </mesh>
@@ -955,36 +958,43 @@ const StreetScene: React.FC = () => {
           );
         });
       })}
+      </group>
 
       {/* 메인 거리 빌딩 간판 — WALL_SEGMENTS 박스의 ~50%에 정면/옆구리/옥상 배치 */}
       <Ch2Signs buildings={SIGN_BUILDINGS} />
 
       {/* 배경 빌딩 layer — outer wall 너머 5~12m 뒤로 솟은 빌딩. 콜라이더 없음 */}
+      <group name="bg_buildings">
       {BG_BUILDINGS.map((b, i) => (
-        <mesh key={`bg-${i}`} position={[b.x, b.h / 2, b.z]}>
+        <mesh key={`bg-${i}`} name={`bg_building-${String(i).padStart(2, '0')}`} position={[b.x, b.h / 2, b.z]}>
           <boxGeometry args={[b.w, b.h, b.d]} />
           <primitive object={bgMaterials[i]} attach="material" />
         </mesh>
       ))}
+      </group>
 
       {/* 원경 layer — 4방향 클러스터, 30~80m 고층빌딩. fog silhouette */}
+      <group name="far_buildings">
       {FAR_BUILDINGS.map((b, i) => (
-        <mesh key={`far-${i}`} position={[b.x, b.h / 2, b.z]}>
+        <mesh key={`far-${i}`} name={`far_building-${String(i).padStart(2, '0')}`} position={[b.x, b.h / 2, b.z]}>
           <boxGeometry args={[b.w, b.h, b.d]} />
           <primitive object={farMaterials[i]} attach="material" />
         </mesh>
       ))}
+      </group>
 
       {/* 노면 글씨 — ground보다 0.01 위, z-fighting 방지 */}
       <RoadMarkings />
 
       {/* Decorative props (no colliders needed) */}
+      <group name="legacy_decor">
       {DECOR.map((obj, i) => (
-        <mesh key={i} position={[obj.x, obj.h / 2, obj.z]}>
+        <mesh key={i} name={`legacy_decor-${String(i).padStart(2, '0')}`} position={[obj.x, obj.h / 2, obj.z]}>
           <boxGeometry args={[obj.w, obj.h, obj.d]} />
           <meshStandardMaterial color={obj.color} />
         </mesh>
       ))}
+      </group>
 
       {/* Exit marker — CH3 door (DOOR0009.png, 480×640 → 3×4 world units) */}
       <mesh position={[0, 2, -87 * SCALE_Z]}>
@@ -1031,6 +1041,23 @@ const Ch2PhysicsScene: React.FC<{
   const [physicsReady, setPhysicsReady] = useState(false);
   const handlePhysicsReady = useCallback(() => setPhysicsReady(true), []);
   const [ch2Toggles] = useCh2Toggles();
+  const ecctrlRef = useRef<CustomEcctrlRigidBody>(null);
+
+  // freeze 시작/지속 동안 잔류 momentum 제거 — Ecctrl의 disableControl/maxVelLimit는
+  // 새 입력만 막고 기존 linvel을 유지함. 비행기 컷씬 중에도 캐릭터가 미끄러지는 원인.
+  useEffect(() => {
+    if (!freezeControls) return;
+    const zero = { x: 0, y: 0, z: 0 };
+    const stop = () => {
+      const rb = ecctrlRef.current?.group;
+      if (!rb) return;
+      rb.setLinvel(zero, true);
+      rb.setAngvel(zero, true);
+    };
+    stop();
+    const id = setInterval(stop, 33); // 매 프레임 강제 0 — Ecctrl 내부 impulse 누적 차단
+    return () => clearInterval(id);
+  }, [freezeControls]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1072,6 +1099,7 @@ const Ch2PhysicsScene: React.FC<{
       <StreetScene />
 
       {/* STEP 2: NPCs along the S-curve */}
+      <group name="npcs">
       {NPC_POSITIONS.map((npc, i) => (
         <NPC
           key={i}
@@ -1079,11 +1107,14 @@ const Ch2PhysicsScene: React.FC<{
           isSpecial={npc.isSpecial}
         />
       ))}
+      </group>
 
       {/* 떨어진 쪽지 — 패닉어택 슈퍼스타 시 5편 */}
+      <group name="notes">
       {NOTE_POSITIONS.map(n => (
         <Note key={n.id} noteId={n.id} position={n.worldPos} />
       ))}
+      </group>
 
       {/* 거리 데코 — electric-box / trashes / concrete-pile / 도시 단편 */}
       {ch2Toggles.showDecor && <Ch2Decor />}
@@ -1105,6 +1136,7 @@ const Ch2PhysicsScene: React.FC<{
       <KeyboardControls map={keyboardMap}>
         {physicsReady && (
           <Ecctrl
+            ref={ecctrlRef}
             camInitDis={-2.5}
             camMaxDis={-3.5}
             camMinDis={-1.2}
@@ -1341,6 +1373,7 @@ export const Ch2Scene: React.FC = () => {
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label={`Decor: ${ch2Toggles.showDecor ? 'ON' : 'OFF'}`} onClick={() => toggleCh2('showDecor')} />
           <DevButton label={`Aihub: ${ch2Toggles.showAihub ? 'ON' : 'OFF'}`} onClick={() => toggleCh2('showAihub')} />
+          <DevButton label={`Signs Lineup: ${ch2Toggles.signsLineup ? 'ON' : 'OFF'}`} onClick={() => toggleCh2('signsLineup')} />
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label={`Sound: ${muted ? 'OFF' : 'ON'}`} onClick={toggleMute} />
           <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close</div>

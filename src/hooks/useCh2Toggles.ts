@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react'
 interface State {
   showDecor: boolean
   showAihub: boolean
+  signsLineup: boolean
 }
 
-let globalState: State = { showDecor: true, showAihub: true }
+let globalState: State = { showDecor: true, showAihub: true, signsLineup: false }
 const listeners = new Set<(v: State) => void>()
 
 function setGlobal(next: Partial<State>) {
