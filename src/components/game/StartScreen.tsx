@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import KeyboardHints from '@/components/game/KeyboardHints';
 import { useGameStore } from '@/store/useGameStore';
 import { useFontReady } from '@/hooks/useFontReady';
@@ -20,6 +20,19 @@ export const StartScreen: React.FC = () => {
   const startTexts = useMemo(() => ['→ 시작', '→ START'], []);
   const startLabel = useGlitchText(startTexts, { interval: 2400, scrambleMs: 500 });
 
+  // 디자인 기준 footprint 대비 뷰포트 비율로 zoom 산출 — NoteReader와 동일 패턴.
+  // 브라우저가 작아지면 1 미만으로 축소(zoom out), 기준 이상이면 1 유지(원본 충실도).
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    const DESIGN_W = 1180;
+    const DESIGN_H = 780;
+    const compute = () =>
+      setZoom(Math.min(1, window.innerWidth / DESIGN_W, window.innerHeight / DESIGN_H));
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, []);
+
   if (phase === 'notice') {
     return (
       <div
@@ -31,6 +44,7 @@ export const StartScreen: React.FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
+          overflow: 'hidden',
           zIndex: 100,
           cursor: 'pointer',
         }}
@@ -42,38 +56,49 @@ export const StartScreen: React.FC = () => {
       >
         <div
           style={{
-            fontFamily: '"Unifont", monospace',
-            color: '#f3eedd',
-            textAlign: 'center',
-            maxWidth: 'min(95vw, 1100px)',
-            padding: '0 32px',
+            transform: `scale(${zoom})`,
+            transformOrigin: 'center center',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1.8rem',
-            fontSize: '0.95rem',
-            letterSpacing: 3,
-            lineHeight: 1.6,
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          <div>{line1}</div>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <KeyboardHints />
+          <div
+            style={{
+              fontFamily: '"Unifont", monospace',
+              color: '#f3eedd',
+              textAlign: 'center',
+              width: 1100,
+              padding: '0 32px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.8rem',
+              fontSize: '0.95rem',
+              letterSpacing: 3,
+              lineHeight: 1.6,
+            }}
+          >
+            <div>{line1}</div>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <KeyboardHints />
+            </div>
+            <div>{line3}</div>
           </div>
-          <div>{line3}</div>
+          <p
+            style={{
+              marginTop: '3rem',
+              fontFamily: '"Unifont", monospace',
+              color: '#f3eedd',
+              fontSize: '0.9rem',
+              letterSpacing: 6,
+              opacity: 0.7,
+              animation: 'blink 1s step-end infinite',
+            }}
+          >
+            [ 확인 ]
+          </p>
         </div>
-        <p
-          style={{
-            marginTop: '3rem',
-            fontFamily: '"Unifont", monospace',
-            color: '#f3eedd',
-            fontSize: '0.9rem',
-            letterSpacing: 6,
-            opacity: 0.7,
-            animation: 'blink 1s step-end infinite',
-          }}
-        >
-          [ 확인 ]
-        </p>
       </div>
     );
   }
@@ -88,34 +113,46 @@ export const StartScreen: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
         zIndex: 100,
         cursor: 'pointer',
       }}
       onClick={() => goToChapter('INTRO')}
     >
-      <h1
+      <div
         style={{
-          fontFamily: '"Hammer Keys", monospace',
-          color: '#fff',
-          fontSize: '4rem',
-          letterSpacing: '0.1em',
-          marginBottom: '2rem',
-          opacity: fontReady ? 1 : 0,
-          transition: 'opacity 0.4s ease',
+          transform: `scale(${zoom})`,
+          transformOrigin: 'center center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        Map Hack
-      </h1>
-      <p
-        style={{
-          fontFamily: '"Unifont", monospace',
-          color: '#fff',
-          fontSize: '1.2rem',
-          letterSpacing: 4,
-        }}
-      >
-        {startLabel}
-      </p>
+        <h1
+          style={{
+            fontFamily: '"Hammer Keys", monospace',
+            color: '#fff',
+            fontSize: '4rem',
+            letterSpacing: '0.1em',
+            marginBottom: '2rem',
+            opacity: fontReady ? 1 : 0,
+            transition: 'opacity 0.4s ease',
+          }}
+        >
+          Map Hack
+        </h1>
+        <p
+          style={{
+            fontFamily: '"Unifont", monospace',
+            color: '#fff',
+            fontSize: '1.2rem',
+            letterSpacing: 4,
+          }}
+        >
+          {startLabel}
+        </p>
+      </div>
     </div>
   );
 };

@@ -1373,8 +1373,10 @@ export const Ch2Scene: React.FC = () => {
   }, [sendLetter]);
 
   const showMailboxPrompt = mailboxSendable && !postalActive && activeNoteId === null && !airportActive;
-  // 우체통 우선 — 편지 프롬프트 떠 있으면 문 프롬프트는 숨김 (반경 겹침)
-  const showExitPrompt = atExit && !showMailboxPrompt && activeNoteId === null && !airportActive && !postalActive;
+  // 우체통 근접 + 쪽지 미수집 — 편지를 보낼 수 없다는 안내
+  const showMailboxIncomplete = atMailbox && !allNotesCollected && !letterSent && !postalActive && activeNoteId === null && !airportActive;
+  // 우체통 우선 — 편지 프롬프트/안내 떠 있으면 문 프롬프트는 숨김 (반경 겹침)
+  const showExitPrompt = atExit && !showMailboxPrompt && !showMailboxIncomplete && activeNoteId === null && !airportActive && !postalActive;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
@@ -1433,6 +1435,28 @@ export const Ch2Scene: React.FC = () => {
           userSelect: 'none',
         }}>
           [E] 편지 보내기
+        </div>
+      )}
+
+      {showMailboxIncomplete && (
+        <div style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: '22%',
+          transform: 'translateX(-50%)',
+          zIndex: 1500,
+          fontFamily: '"Unifont", monospace',
+          fontSize: 14,
+          letterSpacing: 4,
+          color: 'rgba(243,238,221,0.45)',
+          background: 'rgba(0,0,0,0.65)',
+          padding: '8px 18px',
+          border: '1px solid rgba(243,238,221,0.18)',
+          textShadow: '0 0 6px rgba(0,0,0,0.8)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}>
+          {`쪽지를 모두 모아야 편지를 보낼 수 있습니다  (${collectedNotes}/${totalNotes})`}
         </div>
       )}
 
