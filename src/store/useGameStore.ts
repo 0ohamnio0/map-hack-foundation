@@ -15,6 +15,8 @@ interface GameState {
   activeNoteId: string | null;
   /** 노트 본문 표시 언어 — 세션 전역 유지 (Q 키로 토글) */
   noteLanguage: 'ko' | 'en';
+  /** CH.2 우체통에 편지를 보냈는지 — true면 7/7 없이도 CH.3 문 통과 가능 */
+  letterSent: boolean;
   goToChapter: (chapter: Chapter) => void;
   triggerEvent: (id: string) => boolean;
   addMovement: (direction: 'left' | 'right', amount: number) => void;
@@ -26,6 +28,8 @@ interface GameState {
   closeNote: () => void;
   setNoteLanguage: (lang: 'ko' | 'en') => void;
   toggleNoteLanguage: () => void;
+  /** 편지 전송 완료 — 수집한 시(note_*) 전부 소멸 + letterSent=true */
+  sendLetter: () => void;
   /** directionScore = rightMovement - leftMovement */
   getDirectionScore: () => number;
 }
@@ -43,6 +47,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   notification: null,
   activeNoteId: null,
   noteLanguage: 'ko',
+  letterSent: false,
 
   goToChapter: (chapter: Chapter) => {
     set({ isTransitioning: true });
@@ -120,6 +125,13 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setNoteLanguage: (lang) => set({ noteLanguage: lang }),
   toggleNoteLanguage: () => set(s => ({ noteLanguage: s.noteLanguage === 'ko' ? 'en' : 'ko' })),
+
+  sendLetter: () => {
+    const { visitedEvents } = get();
+    // 수집한 시(note_*)만 소멸 — 그 외 이벤트 기록은 보존
+    const newSet = new Set([...visitedEvents].filter(e => !e.startsWith('note_')));
+    set({ visitedEvents: newSet, letterSent: true });
+  },
 
   getDirectionScore: () => {
     const { rightMovement, leftMovement } = get();

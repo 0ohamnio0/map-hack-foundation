@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { MeshReflectorMaterial, useFBX } from '@react-three/drei';
 import { Suspense } from 'react';
 import { PlayerController, type WallAABB } from '@/components/game/PlayerController';
+import { SceneExporter } from '@/components/dev/SceneExporter';
 import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
 import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
@@ -886,6 +887,11 @@ export const Ch3Scene: React.FC = () => {
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
   const [cutscenePhase, setCutscenePhase] = useState<CutscenePhase>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 3000);
+    return () => clearTimeout(t);
+  }, []);
   const { play, loop } = useSoundManager();
 
   // 마트 앰비언스 — 챕터 진입 시 loop, 엘리베이터/우주 cutscene 동안엔 정지
@@ -984,6 +990,7 @@ export const Ch3Scene: React.FC = () => {
           onDrugPickup={handleDrugPickup}
           onCollectedChange={setCollectedSet}
         />
+        <SceneExporter chapter="ch3" />
       </Canvas>
 
       {/* Elevator cutscene overlay */}
@@ -1108,7 +1115,30 @@ export const Ch3Scene: React.FC = () => {
           <DevButton label="Skip → CH2" onClick={() => goToChapter('CH2')} />
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label={`Sound: ${muted ? 'OFF' : 'ON'}`} onClick={toggleMute} />
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <DevButton label="Export Scene → .glb" onClick={() => window.dispatchEvent(new Event('mh-export-glb'))} />
           <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close</div>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: '#000',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          color: '#f3eedd',
+          fontFamily: '"Unifont", monospace',
+          animation: 'ch3LoadingFadeOut 0.25s ease-in 2.75s forwards',
+        }}>
+          <div style={{ fontSize: 26, marginBottom: 14, animation: 'ch3LoadingSpin 1s linear infinite' }}>↻</div>
+          <div style={{ fontSize: 15, letterSpacing: 8, marginBottom: 56 }}>l o a d i n g . . .</div>
+          <div style={{ fontSize: 13, lineHeight: 1.75, textAlign: 'center' }}>
+            팁: 상대방이 말할 때 고개를 천천히 끄덕이면 경청하는 것처럼 보입니다.
+          </div>
+          <style>{`
+            @keyframes ch3LoadingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            @keyframes ch3LoadingFadeOut { to { opacity: 0; } }
+          `}</style>
         </div>
       )}
     </div>

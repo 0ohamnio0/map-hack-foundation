@@ -724,7 +724,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
           </div>
 
           {role('Created by', '송해민', 'Song Haemin')}
-          {role('Sound', '허현정', 'Heo Hyunjeong')}
+          {role('Sound', '허현정', 'Huh Hyunjung')}
           {role('Commissioned by', '화이트리버프레스', 'White River Press')}
 
           <div style={{ fontSize: '0.95rem', color: '#8fa39c', letterSpacing: 6, marginTop: 8 }}>

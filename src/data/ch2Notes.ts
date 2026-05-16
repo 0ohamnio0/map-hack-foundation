@@ -149,7 +149,7 @@ My grandmother's mother, like me,
 across countless iterations
 must have learned the choreography of a burning house`,
           },
-          { type: 'image', src: 'poems/02-entropy-graph.jpeg', widthPct: 70 },
+          { type: 'image', src: 'poems/02-entropy-graph.jpeg', widthPct: 54 },
         ],
       },
       {
