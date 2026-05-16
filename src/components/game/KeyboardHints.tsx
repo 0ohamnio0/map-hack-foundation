@@ -16,7 +16,7 @@ const ROWS: KeyDef[][] = [
     { label: 'Caps', w: 1.75 },
     { label: 'A' }, { label: 'S' }, { label: 'D' }, { label: 'F' }, { label: 'G' },
     { label: 'H' }, { label: 'J' }, { label: 'K' }, { label: 'L' },
-    { label: ';' }, { label: "'" }, { label: '↵', w: 2.25 },
+    { label: ';' }, { label: "'" }, { label: '↵', w: 2.25, id: 'Enter' },
   ],
   [
     { label: '⇧', w: 2.25, id: 'L⇧' },
@@ -105,9 +105,15 @@ const keyStyle = (w: number, active: boolean): React.CSSProperties => {
   };
 };
 
-const Key: React.FC<{ k: KeyDef; active?: boolean }> = ({ k, active }) => (
-  <div style={keyStyle(k.w ?? 1, !!active)}>{k.label}</div>
-);
+const Key: React.FC<{ k: KeyDef; active?: boolean }> = ({ k, active }) => {
+  const base = keyStyle(k.w ?? 1, !!active);
+  // 좌/우 Shift는 가운데 기호 대신 바깥쪽 정렬 (좌Shift 좌측 / 우Shift 우측)
+  const style: React.CSSProperties =
+    k.id === 'L⇧' ? { ...base, justifyContent: 'flex-start', paddingLeft: 6 }
+    : (k.id === 'R⇧' || k.id === 'Enter') ? { ...base, justifyContent: 'flex-end', paddingRight: 6 }
+    : base;
+  return <div style={style}>{k.label}</div>;
+};
 
 const Mouse: React.FC = () => (
   <div style={{

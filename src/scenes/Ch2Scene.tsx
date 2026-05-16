@@ -3,6 +3,7 @@ import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { SceneExporter } from '@/components/dev/SceneExporter';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import Ecctrl, { EcctrlJoystick } from 'ecctrl';
 import type { CustomEcctrlRigidBody } from 'ecctrl';
@@ -146,6 +147,14 @@ const DECOR_RAW: { x: number; z: number; w: number; d: number; h: number; color:
 const DECOR = DECOR_RAW.map(o => ({ ...o, x: o.x * SCALE_X, z: o.z * SCALE_Z }));
 
 const AIRPORT_TRIGGER = { x: 5 * SCALE_X, z: -16 * SCALE_Z, radius: 4.5 * SCALE_X };
+
+// 기존 aihub 우체통 prop (Ch2AihubProps PLACEMENTS: id RTF4201220801_0182L_01,
+// pos [5,-85] → world x=5*SCALE_X, z=-85*SCALE_Z). 다가가면 [E] 편지 보내기
+const MAILBOX = { x: 5 * SCALE_X, z: -85 * SCALE_Z, radius: 6 };
+// 출구 문 위치(빌딩 면 z=-90*SCALE_Z+0.1, x=0) 기준 반경 — 카메라가 캐릭터
+// 뒤로 ~3유닛 떨어지므로 반경을 넉넉히
+const DOOR = { x: 0, z: -90 * SCALE_Z + 0.1, radius: 7 };
+const POSTAL_VIDEO = `${BASE}assets/video/postal.mp4`;
 
 // STEP 2: NPC positions along the S-curve — base values
 const NPC_POSITIONS_RAW: { x: number; z: number; isSpecial?: boolean }[] = [
@@ -296,6 +305,49 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
         @keyframes airportCardFlicker { 0% { opacity:.2; } 50% { opacity:.62; } 100% { opacity:.28; } }
         @keyframes airportCameraShake { 0% { transform:translate(0,0) rotate(0deg); } 25% { transform:translate(-1px,1px) rotate(-.07deg); } 50% { transform:translate(1px,-1px) rotate(.07deg); } 75% { transform:translate(-1px,0) rotate(-.05deg); } 100% { transform:translate(1px,1px) rotate(.05deg); } }
       `}</style>
+    </div>
+  );
+};
+
+// ---------- Postal Cutscene (우체통 편지 영상) ----------
+
+const PostalCutscene: React.FC<{ active: boolean; onEnded: () => void }> = ({ active, onEnded }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const doneRef = useRef(false);
+
+  useEffect(() => {
+    if (!active) { doneRef.current = false; return; }
+    const v = videoRef.current;
+    if (v) { v.currentTime = 0; v.play().catch(() => {}); }
+  }, [active]);
+
+  if (!active) return null;
+
+  // 영상이 한 번만 끝/실패 콜백되도록 가드 (onEnded·onError 중복 방지)
+  const finish = () => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    onEnded();
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#000' }}>
+      <video
+        ref={videoRef}
+        src={POSTAL_VIDEO}
+        autoPlay
+        playsInline
+        onEnded={finish}
+        onError={finish}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          pointerEvents: 'none',
+        }}
+      />
     </div>
   );
 };
@@ -493,10 +545,12 @@ const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }
 const TriggerWatcher: React.FC<{
   onAirportTrigger: () => void;
   onExitZoneChange: (inZone: boolean) => void;
+  onMailboxZoneChange: (inZone: boolean) => void;
   disabled: boolean;
-}> = ({ onAirportTrigger, onExitZoneChange, disabled }) => {
+}> = ({ onAirportTrigger, onExitZoneChange, onMailboxZoneChange, disabled }) => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const inExitRef = useRef(false);
+  const inMailboxRef = useRef(false);
 
   useFrame(({ camera }) => {
     if (disabled) return;
@@ -510,11 +564,22 @@ const TriggerWatcher: React.FC<{
       if (triggerEvent('ch2_airport')) onAirportTrigger();
     }
 
-    // Chapter exit zone — proximity-only state, confirmed by E key in Ch2Scene
-    const inExit = pz < -82 * SCALE_Z;
+    // Chapter exit zone — 문 위치 기준 반경 (confirmed by E key in Ch2Scene)
+    const edx = px - DOOR.x;
+    const edz = pz - DOOR.z;
+    const inExit = Math.sqrt(edx * edx + edz * edz) < DOOR.radius;
     if (inExit !== inExitRef.current) {
       inExitRef.current = inExit;
       onExitZoneChange(inExit);
+    }
+
+    // Mailbox zone — proximity-only state, confirmed by E key in Ch2Scene
+    const mdx = px - MAILBOX.x;
+    const mdz = pz - MAILBOX.z;
+    const inMailbox = Math.sqrt(mdx * mdx + mdz * mdz) < MAILBOX.radius;
+    if (inMailbox !== inMailboxRef.current) {
+      inMailboxRef.current = inMailbox;
+      onMailboxZoneChange(inMailbox);
     }
   });
 
@@ -545,7 +610,7 @@ const ROAD_MARKING_DEFS: [string, number, number, number, number][] = [
   [`${RM}school-zone-slow.png`, 18,  -44,  4.0, 11.4],
   [`${RM}one-way.png`,          20,  -58,  2.4, 3.2],
   [`${RM}crosswalk-caution.png`,-2,  -75,  3.2, 4.0],
-  [`${RM}terminus.png`,          2,  -85,  2.4, 3.2],
+  [`${RM}terminus.png`,          0,  -85,  2.4, 3.2],
   [`${RM}hmm.png`,              -3,  -30,  1.6, 2.4],
   [`${RM}uh-uh.png`,            22,  -50,  1.6, 2.4],
   [`${RM}disabled.png`,        -4,   -70,  2.4, 3.2],
@@ -996,9 +1061,10 @@ const StreetScene: React.FC = () => {
       ))}
       </group>
 
-      {/* Exit marker — CH3 door (DOOR0009.png, 480×640 → 3×4 world units) */}
-      <mesh position={[0, 2, -87 * SCALE_Z]}>
-        <boxGeometry args={[3, 4, 0.3]} />
+      {/* Exit marker — CH3 door. 남쪽 perimeter 빌딩 면(z=-90*SCALE_Z)에 부착:
+          뒤 0.15는 벽에 묻히고 앞으로 ~0.35 돌출 (depth 0.5, center +0.1) */}
+      <mesh position={[0, 2, -90 * SCALE_Z + 0.1]}>
+        <boxGeometry args={[3, 4, 0.5]} />
         <primitive object={doorMaterial} attach="material" />
       </mesh>
     </>
@@ -1032,8 +1098,9 @@ const Ch2PhysicsScene: React.FC<{
   airportActive: boolean;
   onAirportTrigger: () => void;
   onExitZoneChange: (inZone: boolean) => void;
+  onMailboxZoneChange: (inZone: boolean) => void;
   freezeControls: boolean;
-}> = ({ airportActive, onAirportTrigger, onExitZoneChange, freezeControls }) => {
+}> = ({ airportActive, onAirportTrigger, onExitZoneChange, onMailboxZoneChange, freezeControls }) => {
   // Suspends here until main FBX is cached — Physics only mounts after this resolves.
   // PlayerCharacter's own useFBX call then hits the warm cache and never re-suspends.
   useFBX(MAIN_FBX_URL);
@@ -1137,6 +1204,7 @@ const Ch2PhysicsScene: React.FC<{
         {physicsReady && (
           <Ecctrl
             ref={ecctrlRef}
+            mode="FixedCamera"
             camInitDis={-2.5}
             camMaxDis={-3.5}
             camMinDis={-1.2}
@@ -1161,6 +1229,7 @@ const Ch2PhysicsScene: React.FC<{
       <TriggerWatcher
         onAirportTrigger={onAirportTrigger}
         onExitZoneChange={onExitZoneChange}
+        onMailboxZoneChange={onMailboxZoneChange}
         disabled={!physicsReady || freezeControls}
       />
     </Physics>
@@ -1173,8 +1242,9 @@ const Ch2Inner: React.FC<{
   airportActive: boolean;
   onAirportTrigger: () => void;
   onExitZoneChange: (inZone: boolean) => void;
+  onMailboxZoneChange: (inZone: boolean) => void;
   freezeControls: boolean;
-}> = ({ airportActive, onAirportTrigger, onExitZoneChange, freezeControls }) => {
+}> = ({ airportActive, onAirportTrigger, onExitZoneChange, onMailboxZoneChange, freezeControls }) => {
   return (
     <>
       <color attach="background" args={['#0a0a0a']} />
@@ -1201,9 +1271,12 @@ const Ch2Inner: React.FC<{
           airportActive={airportActive}
           onAirportTrigger={onAirportTrigger}
           onExitZoneChange={onExitZoneChange}
+          onMailboxZoneChange={onMailboxZoneChange}
           freezeControls={freezeControls}
         />
       </React.Suspense>
+
+      <SceneExporter chapter="ch2" />
     </>
   );
 };
@@ -1224,6 +1297,8 @@ const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
 export const Ch2Scene: React.FC = () => {
   const [airportActive, setAirportActive] = useState(false);
   const [atExit, setAtExit] = useState(false);
+  const [atMailbox, setAtMailbox] = useState(false);
+  const [postalActive, setPostalActive] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1234,6 +1309,8 @@ export const Ch2Scene: React.FC = () => {
   const activeNoteId = useGameStore(s => s.activeNoteId);
   const visitedEvents = useGameStore(s => s.visitedEvents);
   const openNote     = useGameStore(s => s.openNote);
+  const letterSent   = useGameStore(s => s.letterSent);
+  const sendLetter   = useGameStore(s => s.sendLetter);
   const devMode      = useDevMode();
   const [muted, toggleMute] = useMute();
   const [ch2Toggles, toggleCh2] = useCh2Toggles();
@@ -1245,7 +1322,7 @@ export const Ch2Scene: React.FC = () => {
   const startAirport = useCallback(() => setAirportActive(true),  []);
   const endAirport   = useCallback(() => setAirportActive(false), []);
 
-  const freezeControls = airportActive || activeNoteId !== null;
+  const freezeControls = airportActive || activeNoteId !== null || postalActive;
 
   // freeze 전환 시 held movement key 강제 release —
   // cutscene/모달 동안 누르고 있던 방향키가 안 풀려 끝난 뒤 계속 전진하는 문제 방지
@@ -1253,13 +1330,18 @@ export const Ch2Scene: React.FC = () => {
     ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].forEach(code => {
       window.dispatchEvent(new KeyboardEvent('keyup', { code }));
     });
-  }, [airportActive, activeNoteId]);
+  }, [airportActive, activeNoteId, postalActive]);
 
   const allNotesCollected = collectedNotes === totalNotes;
+  // 7/7 모으거나, 우체통에 편지를 보냈으면 문 통과 가능
+  const canEnter = allNotesCollected || letterSent;
+  // 우체통 반경에서 아직 편지 안 보냈으면 편지가 문 입장보다 우선
+  // (반경 겹침 — 이 상태에선 E가 CH.3 진입 대신 편지 보내기로만)
+  const mailboxSendable = atMailbox && allNotesCollected && !letterSent;
 
-  // E key — confirm exit (only when in zone, all notes collected, no note open, no airport cutscene)
+  // E key — confirm exit (in zone, 입장 조건 충족, no note open, no airport/postal cutscene)
   useEffect(() => {
-    if (!atExit || !allNotesCollected || activeNoteId !== null || airportActive) return;
+    if (!atExit || !canEnter || mailboxSendable || activeNoteId !== null || airportActive || postalActive) return;
     const handler = (e: KeyboardEvent) => {
       if (e.code === 'KeyE') {
         e.preventDefault();
@@ -1269,9 +1351,30 @@ export const Ch2Scene: React.FC = () => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [atExit, allNotesCollected, activeNoteId, airportActive, goToChapter]);
+  }, [atExit, canEnter, mailboxSendable, activeNoteId, airportActive, postalActive, goToChapter, play]);
 
-  const showExitPrompt = atExit && activeNoteId === null && !airportActive;
+  // E key — 우체통 편지 보내기 (7/7 수집 + 근접 + 미발송 + 다른 모달/컷신 없음)
+  useEffect(() => {
+    if (!mailboxSendable || postalActive || activeNoteId !== null || airportActive) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === 'KeyE') {
+        e.preventDefault();
+        setPostalActive(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [mailboxSendable, postalActive, activeNoteId, airportActive]);
+
+  // 편지 영상 종료 → 수집한 시 전부 소멸 + 문 통과 허용
+  const onPostalEnded = useCallback(() => {
+    sendLetter();
+    setPostalActive(false);
+  }, [sendLetter]);
+
+  const showMailboxPrompt = mailboxSendable && !postalActive && activeNoteId === null && !airportActive;
+  // 우체통 우선 — 편지 프롬프트 떠 있으면 문 프롬프트는 숨김 (반경 겹침)
+  const showExitPrompt = atExit && !showMailboxPrompt && activeNoteId === null && !airportActive && !postalActive;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
@@ -1280,11 +1383,13 @@ export const Ch2Scene: React.FC = () => {
           airportActive={airportActive}
           onAirportTrigger={startAirport}
           onExitZoneChange={setAtExit}
+          onMailboxZoneChange={setAtMailbox}
           freezeControls={freezeControls}
         />
       </Canvas>
 
       <AirportCutscene active={airportActive} onDone={endAirport} />
+      <PostalCutscene active={postalActive} onEnded={onPostalEnded} />
       <NoteReader />
 
       {showExitPrompt && (
@@ -1297,15 +1402,37 @@ export const Ch2Scene: React.FC = () => {
           fontFamily: '"Unifont", monospace',
           fontSize: 14,
           letterSpacing: 4,
-          color: allNotesCollected ? '#f3eedd' : 'rgba(243,238,221,0.45)',
+          color: canEnter ? '#f3eedd' : 'rgba(243,238,221,0.45)',
           background: 'rgba(0,0,0,0.65)',
           padding: '8px 18px',
-          border: `1px solid ${allNotesCollected ? 'rgba(243,238,221,0.35)' : 'rgba(243,238,221,0.18)'}`,
+          border: `1px solid ${canEnter ? 'rgba(243,238,221,0.35)' : 'rgba(243,238,221,0.18)'}`,
           textShadow: '0 0 6px rgba(0,0,0,0.8)',
           pointerEvents: 'none',
           userSelect: 'none',
         }}>
-          {allNotesCollected ? '[E] 들어가기' : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
+          {canEnter ? '[E] 들어가기' : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
+        </div>
+      )}
+
+      {showMailboxPrompt && (
+        <div style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: '22%',
+          transform: 'translateX(-50%)',
+          zIndex: 1500,
+          fontFamily: '"Unifont", monospace',
+          fontSize: 14,
+          letterSpacing: 4,
+          color: '#f3eedd',
+          background: 'rgba(0,0,0,0.65)',
+          padding: '8px 18px',
+          border: '1px solid rgba(243,238,221,0.35)',
+          textShadow: '0 0 6px rgba(0,0,0,0.8)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}>
+          [E] 편지 보내기
         </div>
       )}
 
@@ -1368,6 +1495,8 @@ export const Ch2Scene: React.FC = () => {
           <div style={{ color: '#ff0', fontSize: 10, letterSpacing: 2, marginBottom: 2 }}>DEV MODE</div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label="Airport Cutscene" onClick={() => { if (!airportActive) startAirport(); }} />
+          <DevButton label="Postal Cutscene" onClick={() => { if (!postalActive) setPostalActive(true); }} />
+          <DevButton label="Send Letter (시 소멸)" onClick={() => sendLetter()} />
           <DevButton label="Skip → CH3" onClick={() => goToChapter('CH3')} />
           <DevButton label="Skip → CH1" onClick={() => goToChapter('CH1')} />
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
@@ -1376,6 +1505,8 @@ export const Ch2Scene: React.FC = () => {
           <DevButton label={`Signs Lineup: ${ch2Toggles.signsLineup ? 'ON' : 'OFF'}`} onClick={() => toggleCh2('signsLineup')} />
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label={`Sound: ${muted ? 'OFF' : 'ON'}`} onClick={toggleMute} />
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <DevButton label="Export Scene → .glb" onClick={() => window.dispatchEvent(new Event('mh-export-glb'))} />
           <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close</div>
         </div>
       )}
