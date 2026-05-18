@@ -16,7 +16,7 @@ import { CloudSkyBackground } from '@/components/effects/CloudSkyBackground';
 import { NPC } from '@/components/game/NPC';
 import { SignpostManager, MovementTracker } from '@/components/game/SignpostManager';
 import { Ch2SoundManager } from '@/components/game/Ch2SoundManager';
-import { Note } from '@/components/game/Note';
+import { Note, SPARKLE_COLOR, DEFAULT_SPARKLE } from '@/components/game/Note';
 import { NoteReader } from '@/components/game/NoteReader';
 import { Ch2Decor } from '@/components/game/Ch2Decor';
 import { Ch2AihubProps } from '@/components/game/Ch2AihubProps';
@@ -119,7 +119,8 @@ const DECOR_RAW: { x: number; z: number; w: number; d: number; h: number; color:
 ];
 const DECOR = DECOR_RAW.map(o => ({ ...o, x: o.x * SCALE_X, z: o.z * SCALE_Z }));
 
-const AIRPORT_TRIGGER = { x: 5 * SCALE_X, z: -16 * SCALE_Z, radius: 4.5 * SCALE_X };
+// 공항 환각 트리거 — V2(3구간, base x∈[13,27] z -40→-60) 중앙
+const AIRPORT_TRIGGER = { x: 20 * SCALE_X, z: -50 * SCALE_Z, radius: 4.5 * SCALE_X };
 
 // 기존 aihub 우체통 prop (Ch2AihubProps PLACEMENTS: id RTF4201220801_0182L_01,
 // pos [5,-85] → world x=5*SCALE_X, z=-85*SCALE_Z). 다가가면 [E] 편지 보내기
@@ -135,7 +136,7 @@ const NPC_POSITIONS_RAW: { x: number; z: number; isSpecial?: boolean }[] = [
   { x: 4,  z: -15 },
   { x: -2, z: -25 },
   { x: 18, z: -38 },
-  { x: 18, z: -45, isSpecial: true },  // "살아있는 척" 특수 NPC
+  { x: 8,  z: -34, isSpecial: true },  // "살아있는 척" 특수 NPC — 2구간(H1) 이동
   { x: 24, z: -50 },
   { x: 15, z: -63 },
   { x: -4, z: -72 },
@@ -685,8 +686,8 @@ const BUILDING_TEX_META: { slug: string; w: number; h: number }[] = [
   { slug: 'building-257', w: 640, h: 480 },
   { slug: 'building-258', w: 640, h: 480 },
   { slug: 'building-267', w: 640, h: 480 },
-  { slug: 'building-787', w: 878, h: 1500 },
-  { slug: 'building-814', w: 1500, h: 1498 },
+  // building-787 / building-814 는 투명 컷아웃 — 불투명 시드 풀에서 제외하고
+  // Ch2CustomBuildings에서만 경로로 직접 로드 (여기 두면 일반 빌딩 면에 검은배경 발림)
 ];
 
 // 벽 세그먼트 분할 — 각 WALL_DEF에 대해 텍스처 한 장씩, 종횡비 보존
@@ -1082,6 +1083,8 @@ const Ch2PhysicsScene: React.FC<{
 
   const [physicsReady, setPhysicsReady] = useState(false);
   const handlePhysicsReady = useCallback(() => setPhysicsReady(true), []);
+  // 좌클릭 드래그 중 ecctrl 카메라 추종 정지 (CameraOrbitOverride 단독 제어)
+  const [camDrag, setCamDrag] = useState(false);
   const [ch2Toggles] = useCh2Toggles();
   const ecctrlRef = useRef<CustomEcctrlRigidBody>(null);
 
@@ -1205,11 +1208,16 @@ const Ch2PhysicsScene: React.FC<{
             camCollision={true}
             autoBalance={false}
             disableControl={freezeControls}
+            disableFollowCam={camDrag}
             position={[0, 2, -8]}
           >
             <PlayerCharacter airportActive={airportActive} />
           </Ecctrl>
-          <CameraOrbitOverride targetRef={ecctrlRef} enabled={!freezeControls} />
+          <CameraOrbitOverride
+            targetRef={ecctrlRef}
+            enabled={!freezeControls}
+            onDraggingChange={setCamDrag}
+          />
          </>
         )}
       </KeyboardControls>
@@ -1464,6 +1472,7 @@ export const Ch2Scene: React.FC = () => {
         }}>
           {CH2_NOTES.map(n => {
             const collected = visitedEvents.has(`note_${n.id}`);
+            const noteColor = SPARKLE_COLOR[n.id] ?? DEFAULT_SPARKLE;
             return (
               <svg
                 key={n.id}
@@ -1482,8 +1491,8 @@ export const Ch2Scene: React.FC = () => {
               >
                 <path
                   d="M3 2 L17 2 L21 6 L21 30 L3 30 Z"
-                  fill={collected ? '#ffffff' : 'transparent'}
-                  stroke={collected ? '#ffffff' : '#a0a0a0'}
+                  fill={collected ? noteColor : 'transparent'}
+                  stroke={collected ? noteColor : '#a0a0a0'}
                   strokeWidth="1.5"
                   strokeLinejoin="round"
                 />
