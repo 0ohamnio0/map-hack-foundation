@@ -10,6 +10,7 @@ import {
 import { GlitchMode, BlendFunction } from 'postprocessing'
 import { ChannelShift } from './ChannelShiftEffect'
 import { BokehBlurEffect, type BokehBlurEffectImpl } from './BokehBlurEffect'
+import { PixelateEffect, type PixelateEffectImpl } from './PixelateEffect'
 import { MedicationEffect, type MedicationEffectImpl } from './MedicationEffect'
 import { OverdoseEffect, type OverdoseEffectImpl } from './OverdoseEffect'
 import { useGameStore } from '@/store/useGameStore'
@@ -60,7 +61,7 @@ export function Ch1Effects() {
  */
 const CH2_NPC_POS: [number, number][] = [
   [-3, -8], [4, -15], [-2, -25], [18, -38],
-  [18, -45], [24, -50], [15, -63], [-4, -72], [2, -80],
+  [8, -34], [24, -50], [15, -63], [-4, -72], [2, -80],
 ]
 const SPECIAL_NPC_IDX = 4
 
@@ -70,11 +71,28 @@ const SPECIAL_NPC_IDX = 4
  */
 export function Ch2Effects() {
   const bokehRef = useRef<BokehBlurEffectImpl>(null)
+  const pixRef = useRef<PixelateEffectImpl>(null)
+  // 누적 이동거리 기반 — 시작은 최대 픽셀, FULL_DIST 만큼 걸으면 선명(원본)
+  // (뒷부분에 중요 요소 多 → 진행할수록 또렷해짐)
+  const PIX_FULL_DIST = 340
+  const traveled = useRef(0)
+  const lastPos = useRef<[number, number] | null>(null)
 
   useFrame(({ camera }) => {
-    if (!bokehRef.current) return
     const cx = camera.position.x
     const cz = camera.position.z
+
+    // 누적 이동거리 → 픽셀화 진행도
+    if (lastPos.current) {
+      const mdx = cx - lastPos.current[0]
+      const mdz = cz - lastPos.current[1]
+      const step = Math.sqrt(mdx * mdx + mdz * mdz)
+      if (step > 0.001 && step < 5) traveled.current += step // 텔레포트/점프 컷 제외
+    }
+    lastPos.current = [cx, cz]
+    pixRef.current?.setProgress(1 - traveled.current / PIX_FULL_DIST)
+
+    if (!bokehRef.current) return
 
     let maxAmount = 0
     let maxIntensity = 1
@@ -112,6 +130,7 @@ export function Ch2Effects() {
           blendFunction={BlendFunction.OVERLAY}
         />
         <BokehBlurEffect ref={bokehRef} />
+        <PixelateEffect ref={pixRef} />
       </EffectComposer>
     </>
   )
