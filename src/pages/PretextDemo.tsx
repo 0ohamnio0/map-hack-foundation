@@ -1443,7 +1443,7 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
           onDoubleClick={exhibitMode ? undefined : handleDoubleClick}
         >
           <PretextTypography
-            backgroundSrc={useBg && !exhibitMode ? `${BASE}assets/ch4/outline.png` : undefined}
+            backgroundSrc={useBg && !exhibitMode ? `${BASE}assets/ch4/outline.webp` : undefined}
             backgroundAlpha={bgAlpha}
             polygons={renderedPolygons}
             config={config}

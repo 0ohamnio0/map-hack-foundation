@@ -21,6 +21,9 @@ import { NoteReader } from '@/components/game/NoteReader';
 import { Ch2Decor } from '@/components/game/Ch2Decor';
 import { Ch2AihubProps } from '@/components/game/Ch2AihubProps';
 import { Ch2Signs, type SignBuilding } from '@/components/game/Ch2Signs';
+import { Ch2FlatProps } from '@/components/game/Ch2FlatProps';
+import { Ch2CustomBuildings } from '@/components/game/Ch2CustomBuildings';
+import { CameraOrbitOverride } from '@/components/game/CameraOrbitOverride';
 import { CH2_NOTES } from '@/data/ch2Notes';
 
 const BASE = import.meta.env.BASE_URL;
@@ -30,6 +33,7 @@ const WALL_HEIGHT = 4;
 /** Scale factors live in @/scenes/ch2Layout to keep Ch2Scene <-> SignpostManager
  *  free of a circular import. */
 import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout';
+import { FAR_BUILDINGS, type BgBuilding } from '@/scenes/ch2FarBuildings';
 import { useSoundManager } from '@/hooks/useSoundManager';
 
 /*
@@ -78,7 +82,6 @@ const OUTER_OUTWARD: Array<[number, number]> = [
   [0, -1],  // wall 6: 남쪽 가로 (z=-90) → -Z
   [-1, 0],  // wall 7: 서쪽 outer (x=-7.15) → -X
 ];
-type BgBuilding = { x: number; z: number; w: number; h: number; d: number; texSeed: number };
 const BG_BUILDINGS: BgBuilding[] = (() => {
   const out: BgBuilding[] = [];
   WALL_DEFS_RAW.forEach(([cx, cz, w, d], wallIdx) => {
@@ -102,36 +105,6 @@ const BG_BUILDINGS: BgBuilding[] = (() => {
       const bh = 12 + r4 * 16; // 12~28m (4~9층)
       const bd = 7 + r1 * 7;  // 7~14m
       const texSeed = wallIdx * 7 + i * 11;
-      out.push({ x: bx, z: bz, w: bw, h: bh, d: bd, texSeed });
-    }
-  });
-  return out;
-})();
-
-// 원경 layer — 도로 bbox 밖 4방향(동/서/북/남)에 솟은 고층빌딩. 30~80m. fog 위로
-// silhouette처럼 보이는 도시 거리감. 콜라이더 없음.
-const FAR_BUILDINGS: BgBuilding[] = (() => {
-  const out: BgBuilding[] = [];
-  // [중심cx, 중심cz, 개수] — raw 좌표. 도로 bbox x∈[-7,27], z∈[-90,3] 바깥.
-  const clusters: Array<[number, number, number]> = [
-    [60,   -10, 5],  // 동쪽 멀리
-    [-50,  -40, 4],  // 서쪽 멀리
-    [10,    40, 4],  // 북쪽 멀리
-    [10,  -130, 5],  // 남쪽 멀리
-  ];
-  clusters.forEach(([cx, cz, count], ci) => {
-    for (let i = 0; i < count; i++) {
-      const seed = ci * 97 + i * 31;
-      const r1 = ((seed * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
-      const r2 = (((seed + 5)  * 22695477   + 1)     & 0x7fffffff) / 0x7fffffff;
-      const r3 = (((seed + 11) * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
-      const r4 = (((seed + 17) * 1664525    + 1013904223) & 0x7fffffff) / 0x7fffffff;
-      const bx = (cx + (r1 - 0.5) * 30) * SCALE_X;  // ±15 raw 분산
-      const bz = (cz + (r2 - 0.5) * 30) * SCALE_Z;
-      const bw = 8 + r3 * 10;    // 8~18m
-      const bh = 30 + r4 * 50;   // 30~80m
-      const bd = 8 + r1 * 10;
-      const texSeed = ci * 13 + i * 7;
       out.push({ x: bx, z: bz, w: bw, h: bh, d: bd, texSeed });
     }
   });
@@ -604,16 +577,16 @@ const RM = `${BASE}assets/tex/road-markings/`;
 // [url, centerX(base), centerZ(base), planeW, planeH]
 // base 좌표는 SCALE 적용 전 — 위치 조정 시 이 배열만 수정하면 됨
 const ROAD_MARKING_DEFS: [string, number, number, number, number][] = [
-  [`${RM}speed-limit-30.png`,   2,   -10,  2.4, 4.0],
-  [`${RM}no-u-turn.png`,       -2,   -22,  2.4, 3.6],
-  [`${RM}straight-ahead.png`,   2,   -35,  2.0, 4.8],
-  [`${RM}school-zone-slow.png`, 18,  -44,  4.0, 11.4],
-  [`${RM}one-way.png`,          20,  -58,  2.4, 3.2],
-  [`${RM}crosswalk-caution.png`,-2,  -75,  3.2, 4.0],
-  [`${RM}terminus.png`,          0,  -85,  2.4, 3.2],
-  [`${RM}hmm.png`,              -3,  -30,  1.6, 2.4],
-  [`${RM}uh-uh.png`,            22,  -50,  1.6, 2.4],
-  [`${RM}disabled.png`,        -4,   -70,  2.4, 3.2],
+  [`${RM}speed-limit-30.webp`,   2,   -10,  2.4, 4.0],
+  [`${RM}no-u-turn.webp`,       -2,   -22,  2.4, 3.6],
+  [`${RM}straight-ahead.webp`,   2,   -35,  2.0, 4.8],
+  [`${RM}school-zone-slow.webp`, 18,  -44,  4.0, 11.4],
+  [`${RM}one-way.webp`,          20,  -58,  2.4, 3.2],
+  [`${RM}crosswalk-caution.webp`,-2,  -75,  3.2, 4.0],
+  [`${RM}terminus.webp`,          0,  -85,  2.4, 3.2],
+  [`${RM}hmm.webp`,              -3,  -30,  1.6, 2.4],
+  [`${RM}uh-uh.webp`,            22,  -50,  1.6, 2.4],
+  [`${RM}disabled.webp`,        -4,   -70,  2.4, 3.2],
 ];
 
 const RoadMarkings: React.FC = () => {
@@ -646,7 +619,7 @@ const RoadMarkings: React.FC = () => {
       {ROAD_MARKING_DEFS.map(([url, bx, bz, pw, ph], i) => {
         const tex = textures[i];
         if (!tex) return null;
-        const slug = url.split('/').pop()?.replace('.png', '') ?? `marking-${i}`;
+        const slug = url.split('/').pop()?.replace('.webp', '') ?? `marking-${i}`;
         return (
           <mesh
             key={i}
@@ -712,6 +685,8 @@ const BUILDING_TEX_META: { slug: string; w: number; h: number }[] = [
   { slug: 'building-257', w: 640, h: 480 },
   { slug: 'building-258', w: 640, h: 480 },
   { slug: 'building-267', w: 640, h: 480 },
+  { slug: 'building-787', w: 878, h: 1500 },
+  { slug: 'building-814', w: 1500, h: 1498 },
 ];
 
 // 벽 세그먼트 분할 — 각 WALL_DEF에 대해 텍스처 한 장씩, 종횡비 보존
@@ -833,8 +808,8 @@ const SIGN_BUILDINGS: SignBuilding[] = (() => {
   return out;
 })();
 
-const ASPHALT_TEX_URL = `${BASE}assets/tex/full/ASPHALT2.jpg`;
-const DOOR09_TEX_URL = `${BASE}assets/tex/doors/door-09.png`;
+const ASPHALT_TEX_URL = `${BASE}assets/tex/full/ASPHALT2.webp`;
+const DOOR09_TEX_URL = `${BASE}assets/tex/doors/door-09.webp`;
 
 const StreetScene: React.FC = () => {
   // 아스팔트 텍스처 — useLoader(Suspense throw) 대신 useEffect+loadAsync로 로드
@@ -897,7 +872,7 @@ const StreetScene: React.FC = () => {
     // WALL_SEGMENTS에서 실제 사용하는 texIndex 집합만 로드
     const usedIndices = new Set(WALL_SEGMENTS.map(s => s.texIndex));
     usedIndices.forEach(i => {
-      const url = `${BASE}assets/tex/building/${BUILDING_TEX_META[i].slug}.png`;
+      const url = `${BASE}assets/tex/building/${BUILDING_TEX_META[i].slug}.webp`;
       loader.loadAsync(url).then(tex => {
         if (cancelled) return;
         tex.colorSpace = THREE.SRGBColorSpace;
@@ -1193,6 +1168,16 @@ const Ch2PhysicsScene: React.FC<{
         </Suspense>
       )}
 
+      {/* 평면 PNG 소품 — 표지판 / 현수막 / 포스터 (고정 배치) */}
+      <Suspense fallback={null}>
+        <Ch2FlatProps />
+      </Suspense>
+
+      {/* 맞춤 건물/사인 — 원경 컷아웃 / 코너 건물 / 코너 간판 */}
+      <Suspense fallback={null}>
+        <Ch2CustomBuildings />
+      </Suspense>
+
       {/* STEP 1: Signposts + movement tracking */}
       <MovementTracker />
       <SignpostManager />
@@ -1202,6 +1187,7 @@ const Ch2PhysicsScene: React.FC<{
 
       <KeyboardControls map={keyboardMap}>
         {physicsReady && (
+         <>
           <Ecctrl
             ref={ecctrlRef}
             mode="FixedCamera"
@@ -1223,6 +1209,8 @@ const Ch2PhysicsScene: React.FC<{
           >
             <PlayerCharacter airportActive={airportActive} />
           </Ecctrl>
+          <CameraOrbitOverride targetRef={ecctrlRef} enabled={!freezeControls} />
+         </>
         )}
       </KeyboardControls>
 

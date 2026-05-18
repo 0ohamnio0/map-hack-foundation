@@ -16,13 +16,13 @@ const BASE = import.meta.env.BASE_URL
 
 // 노트별 종이 텍스처 매핑 (Note.tsx와 일치)
 const NOTE_PAPER: Record<string, string> = {
-  theta:       `${BASE}assets/tex/paper/paper-01.png`,
-  entropy:     `${BASE}assets/tex/paper/paper-02.jpg`,
-  'jeju-fire': `${BASE}assets/tex/paper/paper-03.jpg`,
-  bichae:      `${BASE}assets/tex/paper/paper-04.jpg`,
-  'hell-salad':`${BASE}assets/tex/paper/paper-05.jpg`,
-  termination: `${BASE}assets/tex/paper/paper-06.jpg`,
-  highstreamer:`${BASE}assets/tex/paper/paper-07.jpg`,
+  theta:       `${BASE}assets/tex/paper/paper-01.webp`,
+  entropy:     `${BASE}assets/tex/paper/paper-02.webp`,
+  'jeju-fire': `${BASE}assets/tex/paper/paper-03.webp`,
+  bichae:      `${BASE}assets/tex/paper/paper-04.webp`,
+  'hell-salad':`${BASE}assets/tex/paper/paper-05.webp`,
+  termination: `${BASE}assets/tex/paper/paper-06.webp`,
+  highstreamer:`${BASE}assets/tex/paper/paper-07.webp`,
 }
 
 function NoteText({ ko, en }: { ko: string; en?: string }) {

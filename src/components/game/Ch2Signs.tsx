@@ -258,6 +258,7 @@ export const Ch2Signs: React.FC<{ buildings: SignBuilding[] }> = ({ buildings })
         map: tex,
         roughness: 0.7,
         metalness: 0.0,
+        alphaTest: 0.5,
         side: p.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
         polygonOffset: true,
         polygonOffsetFactor: -1,

@@ -39,7 +39,7 @@ const POLE_RADIUS = 0.04
 // S자 길 5구간 — V1(x∈[-7,7], z=3→-40) / H1(z=-30~-40) / V2(x∈[13,27], z=-40→-60) /
 //                H2(z=-60~-70) / V3(x∈[-7,7], z=-70→-90). 가장자리(±6, 14~26)에 배치.
 const PLACEMENTS: AihubPlacement[] = [
-  // 표지판 5종 — 모양별 풀로 분류 (square 12장 / triangle 2장 / circle 7장)
+  // 표지판 5종 — 모양별 풀로 분류 (square 5장 / triangle 5장 / circle 8장)
   { id: 'RTA0201220727_0040L_02_normalization', pos: [6,  -8],  rotY: -Math.PI * 0.5, pole: true, poolKey: 'square'   },  // V1 시작 우측
   { id: 'RTA0201220726_0076L_02_normalization', pos: [-6, -20], rotY: Math.PI * 0.5,  pole: true, poolKey: 'triangle' },  // V1 중간 좌측
   { id: 'RTA0201220727_0042L_02_normalization', pos: [6,  -32], rotY: -Math.PI * 0.5, pole: true, poolKey: 'square'   },  // V1 끝 / H1 진입
@@ -78,9 +78,9 @@ function useTexturePools(): PoolMap {
     let cancelled = false
     // circle/square/triangle 3풀 — 이정표·전광표지는 후속 단계.
     const sources: Array<{ key: PoolKey; base: string; ext: string }> = [
-      { key: 'circle',   base: CIRCLE_POOL_BASE,   ext: 'png' },
-      { key: 'square',   base: SQUARE_POOL_BASE,   ext: 'png' },
-      { key: 'triangle', base: TRIANGLE_POOL_BASE, ext: 'png' },
+      { key: 'circle',   base: CIRCLE_POOL_BASE,   ext: 'webp' },
+      { key: 'square',   base: SQUARE_POOL_BASE,   ext: 'webp' },
+      { key: 'triangle', base: TRIANGLE_POOL_BASE, ext: 'webp' },
     ]
     Promise.all(sources.map(({ key, base, ext }) =>
       fetch(`${base}/manifest.json`)
@@ -115,7 +115,7 @@ interface AihubPropProps {
 
 const AihubProp: React.FC<AihubPropProps> = ({ p, index, pools }) => {
   const obj = useLoader(OBJLoader, `${AIHUB}/${p.id}.obj`)
-  const baseTex = useLoader(THREE.TextureLoader, `${AIHUB}/${p.id}.jpg`)
+  const baseTex = useLoader(THREE.TextureLoader, `${AIHUB}/${p.id}.webp`)
 
   const myPool = p.poolKey ? pools[p.poolKey] : undefined
 
@@ -229,7 +229,7 @@ const POLE_CCTV_POS: [number, number, number] = [-6 * SCALE_X + 0.8, 18, -75 * S
 
 const PoleCCTV: React.FC = () => {
   const obj = useLoader(OBJLoader, `${AIHUB}/${POLE_CCTV_ID}.obj`)
-  const baseTex = useLoader(THREE.TextureLoader, `${AIHUB}/${POLE_CCTV_ID}.jpg`)
+  const baseTex = useLoader(THREE.TextureLoader, `${AIHUB}/${POLE_CCTV_ID}.webp`)
   const groupRef = useRef<THREE.Group>(null)
 
   const cloned = useMemo(() => {

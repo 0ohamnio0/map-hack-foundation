@@ -6,7 +6,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 const BASE = import.meta.env.BASE_URL
-const SKY_URL = `${BASE}assets/sky/sky_ch2.jpg`
+const SKY_URL = `${BASE}assets/sky/sky_ch2.webp`
 
 interface CloudSkyProps {
   skycolor1?: [number, number, number]

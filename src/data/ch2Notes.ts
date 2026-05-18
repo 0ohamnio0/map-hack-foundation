@@ -54,7 +54,7 @@ export const CH2_NOTES: PoemNote[] = [
             en: `Release them! Release them! Release them!
 Step down! Step down! Step down!`,
           },
-          { type: 'image', src: 'poems/01-theta-formula.png', widthPct: 95 },
+          { type: 'image', src: 'poems/01-theta-formula.webp', widthPct: 95 },
           {
             type: 'text',
             ko: `상당히 거대한 수학 공식
@@ -149,7 +149,7 @@ My grandmother's mother, like me,
 across countless iterations
 must have learned the choreography of a burning house`,
           },
-          { type: 'image', src: 'poems/02-entropy-graph.jpeg', widthPct: 54 },
+          { type: 'image', src: 'poems/02-entropy-graph.webp', widthPct: 54 },
         ],
       },
       {
@@ -521,7 +521,7 @@ past the souvenir shop…`,
     pages: [
       {
         segments: [
-          { type: 'image', src: 'poems/07-highstreamer-img.png', widthPct: 75 },
+          { type: 'image', src: 'poems/07-highstreamer-img.webp', widthPct: 75 },
           {
             type: 'text',
             ko: `「分かりにくい話で申し訳ありませんでした。」`,

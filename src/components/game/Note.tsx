@@ -11,18 +11,18 @@ import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
 
 // 종이 텍스처 슬러그 매핑 (소스: Archive/.../tex/paper/)
-// FIBER01.png→paper-01, SB001→paper-02, SB019→paper-03, SB020→paper-04,
+// FIBER01.webp→paper-01, SB001→paper-02, SB019→paper-03, SB020→paper-04,
 // SB036→paper-05, SB050→paper-06, SB052→paper-07, SB053→paper-08
 const BASE = import.meta.env.BASE_URL
 const PAPER_TEXTURES = [
-  `${BASE}assets/tex/paper/paper-01.png`,
-  `${BASE}assets/tex/paper/paper-02.jpg`,
-  `${BASE}assets/tex/paper/paper-03.jpg`,
-  `${BASE}assets/tex/paper/paper-04.jpg`,
-  `${BASE}assets/tex/paper/paper-05.jpg`,
-  `${BASE}assets/tex/paper/paper-06.jpg`,
-  `${BASE}assets/tex/paper/paper-07.jpg`,
-  `${BASE}assets/tex/paper/paper-08.jpg`,
+  `${BASE}assets/tex/paper/paper-01.webp`,
+  `${BASE}assets/tex/paper/paper-02.webp`,
+  `${BASE}assets/tex/paper/paper-03.webp`,
+  `${BASE}assets/tex/paper/paper-04.webp`,
+  `${BASE}assets/tex/paper/paper-05.webp`,
+  `${BASE}assets/tex/paper/paper-06.webp`,
+  `${BASE}assets/tex/paper/paper-07.webp`,
+  `${BASE}assets/tex/paper/paper-08.webp`,
 ] as const
 
 // CH2_NOTES 순서 인덱스 기반 결정적 매핑 (0→paper-01, 1→paper-02, …)

@@ -1,0 +1,88 @@
+/**
+ * CH.2 평면 PNG 소품 — 표지판(pole) / 현수막(banner) / 포스터(벽면).
+ *
+ * 간판(Ch2Signs)·교통표지판 풀(Ch2AihubProps)과 달리 자동 배치/셔플 없이
+ * 맵 좌표에 고정 배치되는 알파 컷아웃 평면. pos는 base 좌표(SCALE 적용 전).
+ */
+import { useLoader } from '@react-three/fiber'
+import * as THREE from 'three'
+import { useMemo } from 'react'
+import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout'
+
+const BASE = import.meta.env.BASE_URL
+const PROPS = `${BASE}assets/tex/props`
+
+const POLE_HEIGHT = 3.0
+const POLE_RADIUS = 0.04
+
+interface FlatProp {
+  id: string
+  src: string          // props 디렉터리 파일명 (확장자 포함)
+  pos: [number, number] // base 좌표 [x, z]
+  w: number            // plane 가로 (m) — 세로는 텍스처 종횡비로 산출
+  aspect: number       // 원본 h / w (리사이즈본 기준)
+  y: number            // plane 중심 높이 (m)
+  rotY: number
+  pole?: boolean
+}
+
+const FLAT_PROPS: FlatProp[] = [
+  // 표지판처럼 배치 — 기둥 + 세로형 표지판 (IMG_0812 1081x1500)
+  { id: 'sign-0812', src: 'IMG_0812.webp', pos: [-6, -14], w: 1.0, aspect: 1500 / 1081, y: POLE_HEIGHT + 0.7, rotY: Math.PI * 0.5, pole: true },
+  // 현수막 — V1 진입부 상공 가로 배너 (IMG_0813 1500x293)
+  { id: 'banner-0813', src: 'IMG_0813.webp', pos: [0, -5], w: 6.0, aspect: 293 / 1500, y: 4.5, rotY: 0 },
+  // 포스터 — 서측 outer 벽(x=-7.15,두께0.3 → 도로면 x≈-7.0)에 밀착, +X 향
+  { id: 'poster-0822', src: 'IMG_0822.webp', pos: [-6.95, -26], w: 2.0, aspect: 986 / 1500, y: 2.0, rotY: Math.PI * 0.5 },
+  // 포스터 — 동측 outer 벽(x=27.15,두께0.3 → 도로면 x≈27.0)에 밀착, -X 향
+  { id: 'poster-0823', src: 'IMG_0823.webp', pos: [26.95, -50], w: 1.6, aspect: 1500 / 1200, y: 2.2, rotY: -Math.PI * 0.5 },
+]
+
+const FlatPropMesh: React.FC<{ p: FlatProp }> = ({ p }) => {
+  const tex = useLoader(THREE.TextureLoader, `${PROPS}/${p.src}`)
+
+  const material = useMemo(() => {
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 8
+    return new THREE.MeshStandardMaterial({
+      map: tex,
+      transparent: true,
+      alphaTest: 0.1,
+      roughness: 0.85,
+      metalness: 0.05,
+      side: THREE.DoubleSide,
+    })
+  }, [tex])
+
+  const h = p.w * p.aspect
+  const x = p.pos[0] * SCALE_X
+  const z = p.pos[1] * SCALE_Z
+
+  return (
+    <group
+      position={[x, 0, z]}
+      rotation={[0, p.rotY, 0]}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        console.log(`[Flat] id=${p.id}  pos=[${p.pos[0]}, ${p.pos[1]}]  y=${p.y}  w=${p.w}`)
+      }}
+    >
+      {p.pole && (
+        <mesh position={[0, p.y / 2, 0]} castShadow>
+          <cylinderGeometry args={[POLE_RADIUS, POLE_RADIUS, p.y, 12]} />
+          <meshStandardMaterial color="#3a3a3a" metalness={0.05} roughness={0.85} />
+        </mesh>
+      )}
+      <mesh position={[0, p.y, 0]} material={material} castShadow>
+        <planeGeometry args={[p.w, h]} />
+      </mesh>
+    </group>
+  )
+}
+
+export const Ch2FlatProps: React.FC = () => (
+  <group name="flat-props">
+    {FLAT_PROPS.map((p) => (
+      <FlatPropMesh key={p.id} p={p} />
+    ))}
+  </group>
+)
