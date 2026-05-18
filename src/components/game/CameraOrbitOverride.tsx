@@ -1,102 +1,108 @@
 /**
- * 우클릭 드래그 동안만 카메라 자유 시점 — 떼면 ecctrl FixedCamera 정면추종으로 복귀.
+ * 좌클릭 드래그 동안만 카메라 자유 시점 — 떼면 ecctrl FixedCamera 정면추종 복귀.
  *
- * ecctrl은 카메라를 parenting하지 않고 매 프레임 followCam world로 lerp +
- * lookAt(pivot.position) 만 한다(Ecctrl.js:1676-1678). 그래서 ecctrl 갱신 '이후'에
- * 도는 useFrame에서, 캐릭터 타겟 기준으로 카메라를 yaw/pitch 회전시키면 된다.
- * 드래그 중엔 누적 오프셋 유지, 떼면 0으로 감쇠 → ecctrl 프레이밍으로 자연 복귀.
+ * 핵심: 드래그 중 onDraggingChange(true) → 부모가 Ecctrl에 disableFollowCam={true}
+ * 전달 → ecctrl이 카메라를 아예 안 건드림(Ecctrl.js:1675 가드). 그동안 이 컴포넌트가
+ * 캐릭터 타겟 기준 궤도로 카메라를 단독 제어(프레임 순서 무관). 떼면 false →
+ * ecctrl 자체 lerp로 정면추종에 부드럽게 복귀.
  *
- * 이 컴포넌트는 반드시 <Ecctrl> '뒤'에 마운트(동일 priority면 등록 순서대로 실행).
+ * 드래그 시작 시 기준 구면좌표(radius/theta/phi)를 캡처하고 이후 마우스 델타만
+ * 더한다 → 누적 드리프트/거리 출렁임 없음. 캐릭터가 움직여도 타겟은 매 프레임 추종.
  */
 import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useEffect, useRef } from 'react'
 import type { CustomEcctrlRigidBody } from 'ecctrl'
 
-const SENS = 0.003          // rad / px
-const DECAY = 9             // 복귀 감쇠 강도
-const EPS = 1e-3
+const SENS = 0.004          // rad / px
 // 캐릭터 위 타겟 = camTargetPos.y(0.8) + capsuleHalfHeight(0.5) + capsuleRadius/2(0.1)
 const TARGET_Y = 1.4
+const PHI_MIN = 0.15
+const PHI_MAX = Math.PI * 0.82
 
 interface Props {
   targetRef: React.RefObject<CustomEcctrlRigidBody | null>
   enabled: boolean
+  onDraggingChange: (dragging: boolean) => void
 }
 
-export const CameraOrbitOverride: React.FC<Props> = ({ targetRef, enabled }) => {
+export const CameraOrbitOverride: React.FC<Props> = ({ targetRef, enabled, onDraggingChange }) => {
   const camera = useThree((s) => s.camera)
-  const gl = useThree((s) => s.gl)
 
   const dragging = useRef(false)
-  const yaw = useRef(0)
-  const pitch = useRef(0)
+  const needBase = useRef(false)        // 드래그 첫 프레임에 기준 구면좌표 캡처
+  const baseTheta = useRef(0)
+  const basePhi = useRef(Math.PI / 2)
+  const radius = useRef(4)
+  const dYaw = useRef(0)                // 드래그 시작 이후 마우스 누적 델타
+  const dPitch = useRef(0)
 
   const T = useRef(new THREE.Vector3())
-  const offset = useRef(new THREE.Vector3())
+  const off = useRef(new THREE.Vector3())
   const sph = useRef(new THREE.Spherical())
 
   useEffect(() => {
-    const el = gl.domElement
-
-    const onDown = (e: PointerEvent) => {
-      if (e.button !== 2 || !enabled) return
-      dragging.current = true
-      el.setPointerCapture(e.pointerId)
-    }
-    const onMove = (e: PointerEvent) => {
-      if (!dragging.current) return
-      yaw.current -= e.movementX * SENS
-      pitch.current += e.movementY * SENS
-    }
-    const onUp = (e: PointerEvent) => {
+    // mouse 이벤트 + window 레벨: 우클릭 시 pointercancel(contextmenu 동반)이
+    // 드래그를 즉시 끊는 문제 회피 + DOM 오버레이가 캔버스를 덮어도 수신.
+    const stop = () => {
       if (!dragging.current) return
       dragging.current = false
-      try { el.releasePointerCapture(e.pointerId) } catch { /* noop */ }
+      onDraggingChange(false)
     }
-    const onCtx = (e: Event) => e.preventDefault() // 우클릭 메뉴 차단
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 0 || !enabled) return
+      dragging.current = true
+      needBase.current = true
+      dYaw.current = 0
+      dPitch.current = 0
+      onDraggingChange(true)
+    }
+    const onMove = (e: MouseEvent) => {
+      if (!dragging.current) return
+      dYaw.current -= e.movementX * SENS
+      dPitch.current += e.movementY * SENS
+    }
+    const onUp = (e: MouseEvent) => {
+      if (e.button === 0) stop()
+    }
+    const onBlur = () => stop()
 
-    el.addEventListener('pointerdown', onDown)
-    el.addEventListener('pointermove', onMove)
-    el.addEventListener('pointerup', onUp)
-    el.addEventListener('pointercancel', onUp)
-    el.addEventListener('contextmenu', onCtx)
+    window.addEventListener('mousedown', onDown)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('blur', onBlur)
     return () => {
-      el.removeEventListener('pointerdown', onDown)
-      el.removeEventListener('pointermove', onMove)
-      el.removeEventListener('pointerup', onUp)
-      el.removeEventListener('pointercancel', onUp)
-      el.removeEventListener('contextmenu', onCtx)
+      window.removeEventListener('mousedown', onDown)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('blur', onBlur)
     }
-  }, [gl, enabled])
+  }, [enabled, onDraggingChange])
 
-  useFrame((_, delta) => {
-    if (!dragging.current) {
-      if (!enabled) { yaw.current = 0; pitch.current = 0 }
-      // 떼면 지수 감쇠로 ecctrl 프레이밍에 복귀
-      const k = 1 - Math.exp(-DECAY * delta)
-      yaw.current *= 1 - k
-      pitch.current *= 1 - k
-      if (Math.abs(yaw.current) < EPS && Math.abs(pitch.current) < EPS) return // ecctrl가 카메라 소유
-    }
+  useFrame(() => {
+    if (!dragging.current) return // ecctrl이 카메라 소유 (disableFollowCam=false)
 
     const rb = targetRef.current?.group
     if (!rb) return
     const p = rb.translation()
     T.current.set(p.x, p.y + TARGET_Y, p.z)
 
-    // ecctrl가 이번 프레임에 이미 배치한 카메라 위치를 base로 회전만 덧입힘
-    offset.current.copy(camera.position).sub(T.current)
-    sph.current.setFromVector3(offset.current)
-    sph.current.theta += yaw.current
-    sph.current.phi = THREE.MathUtils.clamp(
-      sph.current.phi - pitch.current,
-      0.15,
-      Math.PI * 0.82,
-    )
+    if (needBase.current) {
+      // 드래그 직전 ecctrl 프레이밍을 기준으로 캡처
+      off.current.copy(camera.position).sub(T.current)
+      sph.current.setFromVector3(off.current)
+      radius.current = sph.current.radius
+      baseTheta.current = sph.current.theta
+      basePhi.current = sph.current.phi
+      needBase.current = false
+    }
+
+    sph.current.radius = radius.current
+    sph.current.theta = baseTheta.current + dYaw.current
+    sph.current.phi = THREE.MathUtils.clamp(basePhi.current - dPitch.current, PHI_MIN, PHI_MAX)
     sph.current.makeSafe()
-    offset.current.setFromSpherical(sph.current)
-    camera.position.copy(T.current).add(offset.current)
+    off.current.setFromSpherical(sph.current)
+    camera.position.copy(T.current).add(off.current)
     camera.lookAt(T.current)
   })
 
