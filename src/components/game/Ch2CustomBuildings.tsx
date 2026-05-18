@@ -90,7 +90,14 @@ const CornerBuilding: React.FC = () => {
   const mats = useMemo(() => {
     tex.colorSpace = THREE.SRGBColorSpace
     tex.anisotropy = 8
-    const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, metalness: 0.0 })
+    const face = new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.9,
+      metalness: 0.0,
+      transparent: true,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    })
     const dark = new THREE.MeshStandardMaterial({ color: '#262626', roughness: 0.95 })
     // 정면 = 도로쪽 -X(슬롯1), 우측 = 진입쪽 +Z(슬롯4)
     return [dark, face, dark, dark, face, dark]
