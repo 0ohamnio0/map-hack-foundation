@@ -1,9 +1,9 @@
 /**
  * CH.2 맞춤 건물/사인 — 절차 생성 BG/FAR 빌딩과 별개로 손배치되는 메시.
  *
- *  1) 원경 고층 위쪽 투명 컷아웃 (building-787 / 1777194386697)
- *  2) 코너 건물 — building-814를 정면+우측 면에만 도포, 무왜곡 높이
- *  3) 중간높이 건물 + 상단 코너 래핑 간판 (IMG_0818, 직각 2면)
+ *  1) 코너 건물 — building-814를 정면+우측 면에만 도포, 무왜곡 높이
+ *  2) 중간높이 건물 + 상단 코너 래핑 간판 (IMG_0818, 직각 2면)
+ *  3) 독립 랜드마크 빌딩 (building-787 벌꿀 / 1777 사랑으로 808) — 단일 plane
  *
  * pos는 base 좌표(SCALE 적용 전), y/크기는 월드 m. 클릭 시 콘솔 로그.
  */
@@ -11,7 +11,6 @@ import { useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useMemo } from 'react'
 import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout'
-import { FAR_BUILDINGS } from '@/scenes/ch2FarBuildings'
 
 const BASE = import.meta.env.BASE_URL
 const TEX = `${BASE}assets/tex`
@@ -32,56 +31,12 @@ function useCutoutMat(url: string): THREE.MeshStandardMaterial {
   }, [tex])
 }
 
-// ---------- 1) 원경 고층 위쪽 투명 컷아웃 — FAR_BUILDINGS 정렬 ----------
-
-// FAR_BUILDINGS flat 순서: 동E 0~4 / 서W 5~8 / 북N 9~12 / 남S 13~17
-interface SkyCutout {
-  id: string
-  url: string
-  farIndex: number          // 부착할 FAR 빌딩 (단일 출처: ch2FarBuildings.FAR_BUILDINGS)
-  face: '+Z' | '-X'         // 도로/플레이어를 향하는 면
-  aspect: number            // 원본 h / w
-  widthFrac: number         // 빌딩 폭 대비 plane 가로 비율
-  topMargin: number         // 빌딩 꼭대기에서 plane 상단까지 여백 (m)
-}
-
-const SKY_CUTOUTS: SkyCutout[] = [
-  // building-787 (878x1500) — 남S i=4 (idx17), 진입 플레이어 정면(+Z)
-  { id: 'sky-787', url: `${TEX}/building/building-787.webp`, farIndex: 17, face: '+Z', aspect: 1500 / 878, widthFrac: 0.92, topMargin: 4 },
-  // 1777194386697 (645x741) — 동E i=2 (idx2), 도로쪽(-X)
-  { id: 'sky-1777', url: `${TEX}/signs/1777194386697_rtnqj03wua.webp`, farIndex: 2, face: '-X', aspect: 741 / 645, widthFrac: 0.92, topMargin: 4 },
-]
-
-const SkyCutoutMesh: React.FC<{ c: SkyCutout }> = ({ c }) => {
-  const mat = useCutoutMat(c.url)
-  const b = FAR_BUILDINGS[c.farIndex]
-  if (!b) return null
-  // b.x/b.z = world(SCALE 적용 완료), y∈[0, b.h]
-  const planeW = b.w * c.widthFrac
-  const planeH = planeW * c.aspect
-  const centerY = b.h - c.topMargin - planeH / 2
-  const pos: [number, number, number] = c.face === '+Z'
-    ? [b.x, centerY, b.z + b.d / 2 + 0.15]
-    : [b.x - b.w / 2 - 0.15, centerY, b.z]
-  const rotY = c.face === '+Z' ? 0 : -Math.PI / 2
-  return (
-    <mesh
-      position={pos}
-      rotation={[0, rotY, 0]}
-      material={mat}
-      onPointerDown={(e) => { e.stopPropagation(); console.log(`[Custom] ${c.id} farIdx=${c.farIndex} face=${c.face} bH=${b.h.toFixed(1)} planeW=${planeW.toFixed(1)} y=${centerY.toFixed(1)}`) }}
-    >
-      <planeGeometry args={[planeW, planeH]} />
-    </mesh>
-  )
-}
-
-// ---------- 2) 코너 건물 — building-814 정면+우측 ----------
+// ---------- 1) 코너 건물 — building-814 정면+우측 ----------
 
 // boxGeometry material 슬롯: 0:+X 1:-X 2:+Y 3:-Y 4:+Z 5:-Z
 const CORNER_B = {
-  pos: [29, -36] as [number, number], // 동쪽 도로 가장자리(x=27) 바깥, H1/V2 코너
-  w: 14, h: 14, d: 14,                 // building-814 ≈정사각(1500x1498) → 무왜곡 큐브
+  pos: [29, -64] as [number, number], // H2 턴(V2→서) 골목 꺾이는 곳, 동측 도로 밖
+  w: 21, h: 21, d: 21,                 // 1.5배 (14→21), building-814 ≈정사각 무왜곡
   rotY: 0,
 }
 
@@ -95,7 +50,7 @@ const CornerBuilding: React.FC = () => {
       roughness: 0.9,
       metalness: 0.0,
       transparent: true,
-      alphaTest: 0.5,
+      alphaTest: 0.1,   // lossy webp 알파 열화로 0.5는 빌딩까지 과키잉 → 0.1
       side: THREE.DoubleSide,
     })
     const dark = new THREE.MeshStandardMaterial({ color: '#262626', roughness: 0.95 })
@@ -114,19 +69,23 @@ const CornerBuilding: React.FC = () => {
   )
 }
 
-// ---------- 3) 중간높이 건물 + 상단 코너 래핑 간판 ----------
+// ---------- 2) 중간높이 건물 + 상단 코너 래핑 간판 ----------
 
 const MID_B = {
   pos: [-10, -20] as [number, number], // V1 서측 벽 너머
   w: 10, h: 16, d: 10,                 // 중간높이
 }
 const SIGN_W = 5
-const SIGN_ASPECT = 1154 / 1500       // IMG_0818 h/w
+// 코너 2면 분리 이미지 — A: +X면(레이어3 777x1111), B: +Z면(레이어2 738x1127)
+const SIGN_ASPECT_A = 1111 / 777
+const SIGN_ASPECT_B = 1127 / 738
 const SIGN_Y = MID_B.h - 3            // 상단 근처
 
 const CornerSignBuilding: React.FC = () => {
-  const mat = useCutoutMat(`${TEX}/signs/IMG_0818.webp`)
-  const signH = SIGN_W * SIGN_ASPECT
+  const matA = useCutoutMat(`${TEX}/signs/IMG_0818_a.webp`)
+  const matB = useCutoutMat(`${TEX}/signs/IMG_0818_b.webp`)
+  const signHA = SIGN_W * SIGN_ASPECT_A
+  const signHB = SIGN_W * SIGN_ASPECT_B
   const bx = MID_B.pos[0] * SCALE_X
   const bz = MID_B.pos[1] * SCALE_Z
   const hx = MID_B.w / 2
@@ -140,21 +99,68 @@ const CornerSignBuilding: React.FC = () => {
         <boxGeometry args={[MID_B.w, MID_B.h, MID_B.d]} />
         <meshStandardMaterial color="#33312e" roughness={0.95} />
       </mesh>
-      {/* 간판 — +X/+Z 코너(도로·플레이어 방향) 직각 2면, 면에서 0.06 띄움 */}
-      <mesh position={[bx + hx + 0.06, SIGN_Y, bz + hz - SIGN_W / 2]} rotation={[0, Math.PI / 2, 0]} material={mat}>
-        <planeGeometry args={[SIGN_W, signH]} />
+      {/* 간판 A — +X면 (면에서 0.06 띄움) */}
+      <mesh position={[bx + hx + 0.06, SIGN_Y, bz + hz - SIGN_W / 2]} rotation={[0, Math.PI / 2, 0]} material={matA}>
+        <planeGeometry args={[SIGN_W, signHA]} />
       </mesh>
-      <mesh position={[bx + hx - SIGN_W / 2, SIGN_Y, bz + hz + 0.06]} rotation={[0, 0, 0]} material={mat}>
-        <planeGeometry args={[SIGN_W, signH]} />
+      {/* 간판 B — +Z면 */}
+      <mesh position={[bx + hx - SIGN_W / 2, SIGN_Y, bz + hz + 0.06]} rotation={[0, 0, 0]} material={matB}>
+        <planeGeometry args={[SIGN_W, signHB]} />
       </mesh>
     </group>
   )
 }
 
+// ---------- 3) 독립 랜드마크 빌딩 — 시드 풀 밖, fog 가시 범위 내 단일 plane ----------
+// (이전 원경 SkyCutout은 fog로 안 보여 폐기 → 잘 보이는 독립 빌딩으로 전환)
+
+interface Landmark {
+  id: string
+  url: string
+  pos: [number, number]   // base [x, z]
+  h: number               // 높이(m) — 폭은 aspect로 산출
+  aspect: number          // 원본 w / h  (planeW = h * aspect)
+  rotY: number            // 도로/플레이어 향
+}
+
+const LANDMARKS: Landmark[] = [
+  // 벌꿀 빌딩 building-787 (878x1500) — H1→V2 코너 동측, -X 향
+  { id: 'bee-787', url: `${TEX}/building/building-787.webp`, pos: [32, -40], h: 28, aspect: 878 / 1500, rotY: -Math.PI / 2 },
+  // 사랑으로 808 1777194386697 (645x741) — 서측 원경 backdrop, +X 향
+  { id: 'sarang-1777', url: `${TEX}/signs/1777194386697_rtnqj03wua.webp`, pos: [-26, -52], h: 30, aspect: 645 / 741, rotY: Math.PI / 2 },
+]
+
+const LandmarkMesh: React.FC<{ m: Landmark }> = ({ m }) => {
+  const tex = useLoader(THREE.TextureLoader, m.url)
+  const mat = useMemo(() => {
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 8
+    return new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.92,
+      metalness: 0.0,
+      transparent: true,
+      alphaTest: 0.1,   // lossy webp 알파 안전
+      side: THREE.DoubleSide,
+    })
+  }, [tex])
+  const w = m.h * m.aspect
+  return (
+    <mesh
+      position={[m.pos[0] * SCALE_X, m.h / 2, m.pos[1] * SCALE_Z]}
+      rotation={[0, m.rotY, 0]}
+      material={mat}
+      onPointerDown={(e) => { e.stopPropagation(); console.log(`[Custom] ${m.id} pos=[${m.pos}] w/h=${w.toFixed(1)}/${m.h}`) }}
+    >
+      <planeGeometry args={[w, m.h]} />
+    </mesh>
+  )
+}
+
 export const Ch2CustomBuildings: React.FC = () => (
   <group name="custom-buildings">
-    {SKY_CUTOUTS.map((c) => <SkyCutoutMesh key={c.id} c={c} />)}
     <CornerBuilding />
     <CornerSignBuilding />
+    {LANDMARKS.map((m) => <LandmarkMesh key={m.id} m={m} />)}
   </group>
 )
