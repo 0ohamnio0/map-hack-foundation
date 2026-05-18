@@ -190,7 +190,8 @@ export const Ch2Signs: React.FC<{ buildings: SignBuilding[] }> = ({ buildings })
 
     SIGN_META.forEach((meta, signIdx) => {
       const preferred: Mount[] =
-        meta.category === 'vertical' ? ['side', 'front', 'roof']
+        meta.forceMount ? [meta.forceMount]
+        : meta.category === 'vertical' ? ['side', 'front', 'roof']
         : meta.category === 'horizontal' ? ['front', 'roof', 'side']
         : ['front', 'side', 'roof']
 
