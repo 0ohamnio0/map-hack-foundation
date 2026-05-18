@@ -27,14 +27,16 @@ interface FlatProp {
 }
 
 const FLAT_PROPS: FlatProp[] = [
-  // 표지판처럼 배치 — 기둥 + 세로형 표지판 (IMG_0812 1081x1500)
-  { id: 'sign-0812', src: 'IMG_0812.webp', pos: [-6, -14], w: 1.0, aspect: 1500 / 1081, y: POLE_HEIGHT + 0.7, rotY: Math.PI * 0.5, pole: true },
+  // (mirror-0812 = 도로반사경 → Ch2Scene.Ch2RoofMirror로 이관: 제일 낮은 빌딩 윗면)
   // 현수막 — V1 진입부 상공 가로 배너 (IMG_0813 1500x293)
   { id: 'banner-0813', src: 'IMG_0813.webp', pos: [0, -5], w: 6.0, aspect: 293 / 1500, y: 4.5, rotY: 0 },
   // 포스터 — 서측 벽 빌딩 박스 도로면(base x=cx=-7.15)에 밀착(+0.02 epsilon), +X 향
   { id: 'poster-0822', src: 'IMG_0822.webp', pos: [-7.13, -26], w: 3.0, aspect: 986 / 1500, y: 2.0, rotY: Math.PI * 0.5 },
   // 포스터 — 동측 벽 빌딩 박스 도로면(base x=cx=27.15)에 밀착(-0.02 epsilon), -X 향
   { id: 'poster-0823', src: 'IMG_0823.webp', pos: [27.13, -50], w: 2.4, aspect: 1500 / 1200, y: 2.2, rotY: -Math.PI * 0.5 },
+  // 개 출입금지 — V1 동측 벽(cx=7.15) ~5채째, 눈높이(y1.5), 작은 포스터, -X 향
+  { id: 'nodog', src: 'nodog.webp', pos: [7.10, -20], w: 0.7, aspect: 612 / 612, y: 1.5, rotY: -Math.PI * 0.5 },
+  // (signboard-stack → Ch2Scene.Ch2StackSign으로 이관: TTZZ 건물 좌측면 부착)
 ]
 
 const FlatPropMesh: React.FC<{ p: FlatProp }> = ({ p }) => {

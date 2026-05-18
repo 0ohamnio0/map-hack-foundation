@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback, Suspense } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
-import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@react-three/drei';
+import { KeyboardControls, useFBX, useAnimations, useKeyboardControls, Outlines } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { SceneExporter } from '@/components/dev/SceneExporter';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
@@ -113,9 +113,7 @@ const BG_BUILDINGS: BgBuilding[] = (() => {
 
 // Decorative street objects — base values
 const DECOR_RAW: { x: number; z: number; w: number; d: number; h: number; color: string }[] = [
-  // (#aa8800 placeholder pole 5개 제거 — aihub pole로 대체됨)
-  { x: 15, z: -35, w: 1.2,  d: 1.2,  h: 1.5, color: '#777' },
-  { x: 10, z: -65, w: 1.5,  d: 1.0,  h: 1.2, color: '#777' },
+  // 초기 더미 그레이박스(#777) 2개 제거 — 실제 prop으로 대체됨
 ];
 const DECOR = DECOR_RAW.map(o => ({ ...o, x: o.x * SCALE_X, z: o.z * SCALE_Z }));
 
@@ -128,7 +126,8 @@ const MAILBOX = { x: 5 * SCALE_X, z: -85 * SCALE_Z, radius: 6 };
 // 출구 문 위치(빌딩 면 z=-90*SCALE_Z+0.1, x=0) 기준 반경 — 카메라가 캐릭터
 // 뒤로 ~3유닛 떨어지므로 반경을 넉넉히
 const DOOR = { x: 0, z: -90 * SCALE_Z + 0.1, radius: 7 };
-const POSTAL_VIDEO = `${BASE}assets/video/postal.mp4`;
+const POSTAL_VIDEO = `${BASE}assets/video/letter.mp4`;
+const AIRPORT_VIDEO = `${BASE}assets/video/airport.mp4`;
 
 // STEP 2: NPC positions along the S-curve — base values
 const NPC_POSITIONS_RAW: { x: number; z: number; isSpecial?: boolean }[] = [
@@ -185,6 +184,15 @@ const FlickerLight: React.FC = () => {
 
 const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ active, onDone }) => {
   const [phase, setPhase] = useState<'in' | 'show' | 'out' | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // 공항 환각 영상 — active 동안 처음부터 재생, 끝나면 정지
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (active) { v.currentTime = 0; v.play().catch(() => {}); }
+    else { v.pause(); }
+  }, [active]);
 
   useEffect(() => {
     if (!active) { setPhase(null); return; }
@@ -207,77 +215,32 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
       overflow: 'hidden',
       pointerEvents: 'none',
       background: 'transparent',
-      animation: 'airportCameraShake 0.18s steps(1, end) infinite',
     }}>
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(180deg, rgba(159,208,255,0.72) 0%, rgba(125,183,243,0.6) 42%, rgba(217,231,247,0.5) 43%, rgba(240,243,248,0.4) 100%)',
-        filter: 'contrast(1.08) saturate(1.08)',
-        mixBlendMode: 'screen',
-      }} />
-      <div style={{
-        position: 'absolute', left: '8%', right: '8%', top: '12%', bottom: '20%',
-        border: '8px solid rgba(235,245,255,0.65)',
-        boxShadow: 'inset 0 0 0 1px rgba(120,160,210,0.35)',
-        background: 'linear-gradient(180deg, rgba(152,201,255,0.95) 0%, rgba(202,229,255,0.95) 65%, rgba(230,240,250,0.95) 100%)',
-        opacity: 0.72, mixBlendMode: 'screen',
-      }}>
-        {[18, 36, 54, 72].map(x => (
-          <div key={x} style={{ position: 'absolute', top: 0, bottom: 0, left: `${x}%`, width: 2, background: 'rgba(195,215,240,0.7)' }} />
-        ))}
-      </div>
-      <div style={{
-        position: 'absolute', top: '18%', left: '50%', transform: 'translateX(-50%)',
-        fontFamily: '"Unifont", monospace', color: 'rgba(19,42,84,0.95)', letterSpacing: 7, fontSize: 15,
-        textShadow: '0 0 15px rgba(255,255,255,0.7)',
-        animation: 'airportPulse 0.2s steps(2, end) infinite',
-      }}>GATE 14</div>
-      <div style={{
-        position: 'absolute', left: '15%', right: '15%', bottom: '22%', height: '28%',
-        transform: 'skewY(-18deg)',
-        borderTop: '1px solid rgba(202,220,255,0.22)',
-        filter: 'blur(0.4px)',
-      }}>
-        <div style={{ position: 'absolute', left: '62%', bottom: '30%', width: 10, height: 56, background: 'rgba(244,126,126,0.82)', boxShadow: '0 0 22px rgba(255,84,84,0.7)', animation: 'airportSlide 0.9s linear infinite' }} />
-        <div style={{ position: 'absolute', left: '60%', bottom: '63%', width: 42, height: 5,  background: 'rgba(244,126,126,0.82)', boxShadow: '0 0 22px rgba(255,84,84,0.7)', animation: 'airportSlide 0.9s linear infinite' }} />
-      </div>
-      {[
-        { left: '6%',  top: '10%', rot: -8, tint: 'rgba(255,70,70,0.34)',   label: 'ANGEL' },
-        { left: '67%', top: '22%', rot:  9, tint: 'rgba(70,120,255,0.28)',  label: 'CROSS' },
-        { left: '22%', top: '58%', rot: -5, tint: 'rgba(255,255,255,0.3)',  label: 'RUNWAY' },
-      ].map((card, i) => (
-        <div key={card.label} style={{
-          position: 'absolute', left: card.left, top: card.top, width: 190, height: 108,
-          transform: `rotate(${card.rot}deg)`,
-          background: `linear-gradient(135deg, rgba(255,255,255,0.62), ${card.tint})`,
-          border: '1px solid rgba(255,255,255,0.65)',
-          boxShadow: '0 10px 24px rgba(0,0,0,0.2)',
+      {/* 공항 환각 = 영상 자체. overlay 블렌드로 투명하게 겹침 + 사운드 재생 */}
+      <video
+        ref={videoRef}
+        src={AIRPORT_VIDEO}
+        playsInline
+        loop
+        autoPlay
+        style={{
+          // 16:9(영상 원비율) 박스, 화면 정중앙, ~0.5배 — 레터박스 없음
+          position: 'absolute', left: '50%', top: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 'min(50vw, 89vh)', aspectRatio: '16 / 9',
+          height: 'auto', objectFit: 'fill',
           mixBlendMode: 'screen',
-          animation: `airportCardFlicker ${0.65 + i * 0.1}s steps(2, end) infinite`,
-        }}>
-          <div style={{ position: 'absolute', left: 10, top: 10, fontFamily: '"Unifont", monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(14,28,54,0.8)' }}>{card.label}</div>
-          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 40%, rgba(255,255,255,0.7) 0%, transparent 52%)' }} />
-        </div>
-      ))}
-      <div style={{
-        position: 'absolute', left: '8%', top: '12%', fontFamily: '"Unifont", monospace',
-        color: 'rgba(255,255,255,0.85)', fontSize: 12, letterSpacing: 2, lineHeight: 1.8,
-        textTransform: 'uppercase',
-        animation: 'airportGlitch 0.14s steps(2, end) infinite', mixBlendMode: 'screen',
-      }}>
-        <div>boarding</div><div>departure</div><div>where are you</div>
-      </div>
-      <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 1px, transparent 3px)', mixBlendMode: 'screen', opacity: 0.24, animation: 'airportRoll 0.24s linear infinite' }} />
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.9)', mixBlendMode: 'color-dodge', animation: 'airportStrobe 0.36s steps(2, end) infinite' }} />
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(255,40,40,0.16), transparent 28%, transparent 72%, rgba(80,140,255,0.16))', mixBlendMode: 'screen', animation: 'airportGlitch 0.15s steps(2, end) infinite' }} />
+          opacity: 0.2,
+          pointerEvents: 'none',
+          animation: 'airportGlowFlicker 0.16s steps(2, end) infinite',
+        }}
+      />
       <style>{`
-        @keyframes airportPulse { 0% { opacity:.45; transform:translateX(-50%) scale(.995); } 100% { opacity:1; transform:translateX(-50%) scale(1.025); } }
-        @keyframes airportGlitch { 0% { transform:translate(0,0); opacity:.95; } 50% { transform:translate(-2px,1px); opacity:.55; } 100% { transform:translate(2px,-1px); opacity:.95; } }
-        @keyframes airportSlide { 0% { transform:translate(0,0); opacity:.95; } 100% { transform:translate(-220px,-110px); opacity:.16; } }
-        @keyframes airportRoll { 0% { transform:translateY(0); } 100% { transform:translateY(3px); } }
-        @keyframes airportStrobe { 0%,42% { opacity:0; } 43%,56% { opacity:.35; } 57%,100% { opacity:0; } }
-        @keyframes airportCardFlicker { 0% { opacity:.2; } 50% { opacity:.62; } 100% { opacity:.28; } }
-        @keyframes airportCameraShake { 0% { transform:translate(0,0) rotate(0deg); } 25% { transform:translate(-1px,1px) rotate(-.07deg); } 50% { transform:translate(1px,-1px) rotate(.07deg); } 75% { transform:translate(-1px,0) rotate(-.05deg); } 100% { transform:translate(1px,1px) rotate(.05deg); } }
+        @keyframes airportGlowFlicker {
+          0%   { box-shadow: 0 0 18px 4px rgba(159,208,255,0.55), 0 0 40px 10px rgba(120,180,255,0.30); }
+          50%  { box-shadow: 0 0 8px 2px rgba(159,208,255,0.25), 0 0 22px 6px rgba(120,180,255,0.14); }
+          100% { box-shadow: 0 0 26px 7px rgba(200,225,255,0.70), 0 0 56px 16px rgba(120,180,255,0.40); }
+        }
       `}</style>
     </div>
   );
@@ -690,6 +653,17 @@ const BUILDING_TEX_META: { slug: string; w: number; h: number }[] = [
   // Ch2CustomBuildings에서만 경로로 직접 로드 (여기 두면 일반 빌딩 면에 검은배경 발림)
 ];
 
+// 폐허/잔해 텍스처 — 정형 박스 대신 '잔해 무더기'로 렌더 + 간판 배치 제외
+const RUIN_SLUGS = new Set(['building-233', 'building-234', 'building-235', 'building-236']);
+const RUIN_TEX_INDICES = new Set(
+  BUILDING_TEX_META.map((m, i) => (RUIN_SLUGS.has(m.slug) ? i : -1)).filter(i => i >= 0),
+);
+
+// building-814 매핑 대상 — 이 base 좌표에 '가장 가까운 단일 WALL 세그먼트'에만 적용
+// (반경 매칭은 도로 맞은편 건물까지 잡혀 1채만 선택하도록 변경)
+const B814_TARGET: [number, number] = [12, -68];
+const B814_FWD = 6; // 814 박스를 도로쪽으로 미는 양(앞 얇은 건물 가림 회피, world units)
+
 // 벽 세그먼트 분할 — 각 WALL_DEF에 대해 텍스처 한 장씩, 종횡비 보존
 // segW = wallHeight * (texW / texH), 마지막 세그먼트는 남은 폭에 맞게 잘라맞춤
 type WallSegment = {
@@ -713,13 +687,27 @@ function buildWallSegments(): WallSegment[] {
     return 2.4 + r * 0.6;
   }
 
+  // 폐허는 맵 전체에서 최대 2곳만 — 초과분은 일반 건물 텍스처로 복구
+  let ruinUsed = 0;
+  const RUIN_MAX = 2;
+
   WALL_DEFS.forEach(([, , w, d], wallIdx) => {
     // 긴 축 길이 결정: w > d 이면 가로 분할, 아니면 depth 방향 분할
     const totalLen = w > d ? w : d;
     let filled = 0;
     let segIdx = 0;
     while (filled < totalLen) {
-      const tIdx = pickTex(wallIdx, segIdx);
+      let tIdx = pickTex(wallIdx, segIdx);
+      if (RUIN_TEX_INDICES.has(tIdx)) {
+        if (ruinUsed < RUIN_MAX) {
+          ruinUsed++;
+        } else {
+          // 초과 폐허 → 가장 가까운 비-폐허 텍스처로 치환 (일반 건물 복구)
+          let s = (tIdx + 1) % BUILDING_TEX_META.length;
+          while (RUIN_TEX_INDICES.has(s)) s = (s + 1) % BUILDING_TEX_META.length;
+          tIdx = s;
+        }
+      }
       const meta = BUILDING_TEX_META[tIdx];
       const naturalSegW = WALL_HEIGHT * (meta.w / meta.h) * pickWidthVar(wallIdx, segIdx);
       const remaining = totalLen - filled;
@@ -779,6 +767,34 @@ function buildSegmentIndexMap(): Map<number, number> {
 
 const SEG_INDEX_MAP = buildSegmentIndexMap();
 
+// 타깃 base 좌표에 가장 가까운 비-폐허 WALL 세그먼트의 globalIdx
+function nearestSeg(target: [number, number]): number {
+  let best = -1;
+  let bestD = Infinity;
+  WALL_DEFS.forEach(([cx, cz, w, d], wallIdx) => {
+    const isHoriz = w > d;
+    const segs = WALL_SEGMENTS.filter(s => s.wallIndex === wallIdx);
+    const totalLen = isHoriz ? w : d;
+    const outwardSignX = isHoriz ? 0 : (cx >= 0 ? 1 : -1);
+    const outwardSignZ = isHoriz ? (cz >= 0 ? 1 : -1) : 0;
+    segs.forEach((seg, si) => {
+      if (RUIN_TEX_INDICES.has(seg.texIndex)) return;
+      const globalIdx = WALL_SEGMENTS.indexOf(seg);
+      const segIdx = SEG_INDEX_MAP.get(globalIdx) ?? si;
+      const { buildingDepth } = getBuildingParams(wallIdx, segIdx);
+      const localPos = seg.offsetX + seg.segW / 2 - totalLen / 2;
+      const posX = cx + (isHoriz ? localPos : outwardSignX * buildingDepth / 2);
+      const posZ = cz + (isHoriz ? outwardSignZ * buildingDepth / 2 : localPos);
+      const dist = Math.hypot(posX / SCALE_X - target[0], posZ / SCALE_Z - target[1]);
+      if (dist < bestD) { bestD = dist; best = globalIdx; }
+    });
+  });
+  return best;
+}
+const B814_SEG = nearestSeg(B814_TARGET);          // building-814 (보류, 미렌더)
+const TTZZ_TARGET: [number, number] = [22, -65];   // SCR-ttzz 건물 ≈ Aihub #4
+const TTZZ_SEG = nearestSeg(TTZZ_TARGET);          // ttzz 간판 제외 → 타 빌딩 이동
+
 // 간판 부착용 빌딩 인스턴스 — WALL_SEGMENTS 렌더 시 사용하는 동일 좌표/치수/정면 방향.
 // face = -outwardSign (도로 쪽). Ch2Signs가 의사난수로 ~50% 배치.
 const SIGN_BUILDINGS: SignBuilding[] = (() => {
@@ -791,6 +807,7 @@ const SIGN_BUILDINGS: SignBuilding[] = (() => {
     const outwardSignZ = isHoriz ? (cz >= 0 ? 1 : -1) : 0;
     segs.forEach((seg, si) => {
       const globalIdx = WALL_SEGMENTS.indexOf(seg);
+      if (RUIN_TEX_INDICES.has(seg.texIndex)) return; // 폐허 빌딩엔 간판 X (자동 타 빌딩 이동)
       const segIdx = SEG_INDEX_MAP.get(globalIdx) ?? si;
       const { height, buildingDepth } = getBuildingParams(wallIdx, segIdx);
       const localPos = seg.offsetX + seg.segW / 2 - totalLen / 2;
@@ -803,14 +820,106 @@ const SIGN_BUILDINGS: SignBuilding[] = (() => {
         w: boxW, h: height, d: boxD,
         faceX: -outwardSignX, faceZ: -outwardSignZ,
         seed: wallIdx * 1009 + segIdx * 7919,
+        noSign: globalIdx === B814_SEG || globalIdx === TTZZ_SEG || undefined, // 814·ttzz 건물 간판 제외 → 타 빌딩 이동
       });
     });
   });
   return out;
 })();
 
+// 가장 낮은 빌딩 (도로반사경을 그 윗면에 올림)
+const LOWEST_BLDG = SIGN_BUILDINGS.reduce(
+  (a, b) => (b.h < a.h ? b : a), SIGN_BUILDINGS[0],
+);
+
+// 도로반사경(IMG_0812) — 제일 낮은 빌딩 윗면, 약간 우측 치우침, x2 크기
+const MIRROR_URL = `${BASE}assets/tex/props/IMG_0812.webp`;
+const MIRROR_W = 5.8;                          // 보정 기준(2.9) x2
+const MIRROR_H = MIRROR_W * (1500 / 1081);     // IMG_0812 aspect
+const Ch2RoofMirror: React.FC = () => {
+  const tex = useLoader(THREE.TextureLoader, MIRROR_URL);
+  const mat = useMemo(() => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return new THREE.MeshStandardMaterial({
+      map: tex, transparent: true, alphaTest: 0.1,
+      roughness: 0.85, metalness: 0.05, side: THREE.DoubleSide,
+    });
+  }, [tex]);
+  const b = LOWEST_BLDG;
+  if (!b) return null;
+  // 빌딩 정면(faceX,faceZ) 기준 오른쪽 = (faceZ, -faceX)
+  const rOff = 0.28 * b.w;
+  const x = b.cx + b.faceZ * rOff;
+  const z = b.cz - b.faceX * rOff;
+  const y = b.h + MIRROR_H / 2;
+  const rotY = Math.atan2(b.faceX, b.faceZ);
+  return (
+    <mesh position={[x, y, z]} rotation={[0, rotY, 0]} material={mat} castShadow
+      onPointerDown={(e) => { e.stopPropagation(); console.log(`[RoofMirror] bldg h=${b.h.toFixed(1)} pos=[${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}]`); }}>
+      <planeGeometry args={[MIRROR_W, MIRROR_H]} />
+    </mesh>
+  );
+};
+
+// 스택 간판(레이어2) — TTZZ 건물 좌측면 상단에 부착 (실제 빌딩 지오메트리 기준)
+const TTZZ_BLDG = SIGN_BUILDINGS.reduce(
+  (a, b) => (
+    Math.hypot(b.cx / SCALE_X - TTZZ_TARGET[0], b.cz / SCALE_Z - TTZZ_TARGET[1]) <
+    Math.hypot(a.cx / SCALE_X - TTZZ_TARGET[0], a.cz / SCALE_Z - TTZZ_TARGET[1]) ? b : a
+  ),
+  SIGN_BUILDINGS[0],
+);
+const STACK_URL = `${BASE}assets/tex/props/signboard-stack.webp`;
+const Ch2StackSign: React.FC = () => {
+  const tex = useLoader(THREE.TextureLoader, STACK_URL);
+  const mat = useMemo(() => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return new THREE.MeshStandardMaterial({
+      map: tex, transparent: true, alphaTest: 0.1,
+      roughness: 0.9, side: THREE.DoubleSide,
+    });
+  }, [tex]);
+  const b = TTZZ_BLDG;
+  if (!b) return null;
+  // 좌측면 = 정면(faceX,faceZ)에 수직 왼쪽 = (-faceZ, faceX)
+  const sx = -b.faceZ;
+  const sz = b.faceX;
+  const sideHalf = b.faceX !== 0 ? b.d / 2 : b.w / 2;
+  const planeH = b.h * 0.5;
+  const planeW = planeH * (738 / 1127);
+  const x = b.cx + sx * (sideHalf + 0.06);
+  const z = b.cz + sz * (sideHalf + 0.06);
+  const y = b.h - planeH / 2 - 0.4;            // 상단
+  const rotY = Math.atan2(sx, sz);
+  return (
+    <mesh position={[x, y, z]} rotation={[0, rotY, 0]} material={mat} castShadow
+      onPointerDown={(e) => { e.stopPropagation(); console.log(`[StackSign] bldg pos=[${(b.cx / SCALE_X).toFixed(1)}, ${(b.cz / SCALE_Z).toFixed(1)}] h=${b.h.toFixed(1)} mesh=[${x.toFixed(1)},${y.toFixed(1)},${z.toFixed(1)}]`); }}>
+      <planeGeometry args={[planeW, planeH]} />
+    </mesh>
+  );
+};
+
 const ASPHALT_TEX_URL = `${BASE}assets/tex/full/ASPHALT2.webp`;
 const DOOR09_TEX_URL = `${BASE}assets/tex/doors/door-09.webp`;
+const B814_FRONT_URL = `${BASE}assets/tex/building/building-814-front.webp`;
+const B814_SIDE_URL = `${BASE}assets/tex/building/building-814-side.webp`;
+
+// 폐허 텍스처 세그먼트 — 그냥 낮은 육면체 (정상 높이의 35~55%, 주변보다 낮음)
+const RubbleMound: React.FC<{ boxW: number; boxD: number; height: number; mat: THREE.Material; seed: number }>
+  = ({ boxW, boxD, height, mat, seed }) => {
+  const lcg = (n: number) => (((n * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff);
+  const bodyH = height * (0.35 + lcg(seed) * 0.20);
+  return (
+    <>
+      <mesh position={[0, bodyH / 2, 0]} material={mat} castShadow receiveShadow>
+        <boxGeometry args={[boxW, bodyH, boxD]} />
+      </mesh>
+      <CuboidCollider args={[boxW / 2, bodyH / 2, boxD / 2]} position={[0, bodyH / 2, 0]} />
+    </>
+  );
+};
 
 const StreetScene: React.FC = () => {
   // 아스팔트 텍스처 — useLoader(Suspense throw) 대신 useEffect+loadAsync로 로드
@@ -861,6 +970,40 @@ const StreetScene: React.FC = () => {
     roughness: 0.8,
     metalness: 0.0,
   }), [doorTex]);
+
+  // building-814 코너 건물 — 정면(레이어3)/좌측면(레이어4) 텍스처
+  const [b814Front, setB814Front] = useState<THREE.Texture | null>(null);
+  const [b814Side, setB814Side] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    loader.loadAsync(B814_FRONT_URL).then(t => { if (!cancelled) { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; setB814Front(t); } }).catch(() => {});
+    loader.loadAsync(B814_SIDE_URL).then(t => { if (!cancelled) { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; setB814Side(t); } }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const b814Mats = useMemo(() => {
+    // 불투명 — 건물 면을 꽉 채우는 표면 텍스처(컷아웃 구멍 X)
+    const front = new THREE.MeshStandardMaterial({ map: b814Front ?? undefined, roughness: 0.9 });
+    const side = new THREE.MeshStandardMaterial({ map: b814Side ?? undefined, roughness: 0.9 });
+    const dark = new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.95 });
+    return { front, side, dark };
+  }, [b814Front, b814Side]);
+  // 박스 6면 [+X0,-X1,+Y2,-Y3,+Z4,-Z5]. 정면=도로면(faceX/faceZ),
+  // 측면=정면에 수직인 두 면 모두(코너에서 어느 쪽이 보이든 측면 이미지 보장).
+  const make814Array = (faceX: number, faceZ: number): THREE.Material[] => {
+    const a: THREE.Material[] = [b814Mats.dark, b814Mats.dark, b814Mats.dark, b814Mats.dark, b814Mats.dark, b814Mats.dark];
+    // front↔side 스왑: 도로면=side 이미지, 수직 양면=front 이미지
+    if (faceX !== 0) {
+      a[faceX === 1 ? 0 : 1] = b814Mats.side;  // 도로쪽 X면
+      a[4] = b814Mats.front;                   // +Z 면
+      a[5] = b814Mats.front;                   // -Z 면
+    } else {
+      a[faceZ === 1 ? 4 : 5] = b814Mats.side;  // 도로쪽 Z면
+      a[0] = b814Mats.front;                   // +X 면
+      a[1] = b814Mats.front;                   // -X 면
+    }
+    return a;
+  };
 
   // 빌딩 텍스처 — BUILDING_TEX_META 인덱스별로 한 번만 로드
   const [buildingTextures, setBuildingTextures] = useState<(THREE.Texture | null)[]>(
@@ -988,13 +1131,37 @@ const StreetScene: React.FC = () => {
           const boxW = isHoriz ? seg.segW : buildingDepth;
           const boxD = isHoriz ? buildingDepth : seg.segW;
 
+          const isRuin = RUIN_TEX_INDICES.has(seg.texIndex);
+          const is814 = !isRuin && globalIdx === B814_SEG;
+          if (is814) return null; // building-814 보류 — 해당 건물 자체 미렌더
+          const arr814: THREE.Material[] | null = null;
+          // 814 박스는 도로쪽으로 B814_FWD 만큼 밀어 앞 얇은 건물 가림 회피
+          const b814Pos: [number, number, number] = arr814
+            ? [posX + (-outwardSignX) * B814_FWD, posY, posZ + (-outwardSignZ) * B814_FWD]
+            : [posX, posY, posZ];
           return (
-            <RigidBody key={`${wallIdx}-${si}`} type="fixed" position={[posX, posY, posZ]}>
-              <mesh name={`building-w${wallIdx}-s${segIdx}-tex${seg.texIndex}`}>
-                <boxGeometry args={[boxW, height, boxD]} />
-                <primitive object={mat} attach="material" />
-              </mesh>
-              <CuboidCollider args={[boxW / 2, height / 2, boxD / 2]} />
+            <RigidBody key={`${wallIdx}-${si}`} type="fixed" position={isRuin ? [posX, 0, posZ] : b814Pos}>
+              {isRuin ? (
+                <RubbleMound boxW={boxW} boxD={boxD} height={height} mat={mat} seed={wallIdx * 1009 + segIdx * 7919} />
+              ) : arr814 ? (
+                <>
+                  <mesh
+                    name={`building814-w${wallIdx}-s${segIdx}`}
+                    geometry={new THREE.BoxGeometry(boxW, height, boxD)}
+                    material={arr814}
+                    onPointerDown={(e) => { e.stopPropagation(); console.log(`[B814] w${wallIdx} s${segIdx} face=[${-outwardSignX},${-outwardSignZ}] box=[${boxW.toFixed(1)},${height.toFixed(1)},${boxD.toFixed(1)}]`); }}
+                  />
+                  <CuboidCollider args={[boxW / 2, height / 2, boxD / 2]} />
+                </>
+              ) : (
+                <>
+                  <mesh name={`building-w${wallIdx}-s${segIdx}-tex${seg.texIndex}`}>
+                    <boxGeometry args={[boxW, height, boxD]} />
+                    <primitive object={mat} attach="material" />
+                  </mesh>
+                  <CuboidCollider args={[boxW / 2, height / 2, boxD / 2]} />
+                </>
+              )}
             </RigidBody>
           );
         });
@@ -1040,8 +1207,16 @@ const StreetScene: React.FC = () => {
       {/* Exit marker — CH3 door. 남쪽 perimeter 빌딩 면(z=-90*SCALE_Z)에 부착:
           뒤 0.15는 벽에 묻히고 앞으로 ~0.35 돌출 (depth 0.5, center +0.1) */}
       <mesh position={[0, 2, -90 * SCALE_Z + 0.1]}>
-        <boxGeometry args={[3, 4, 0.5]} />
+        <boxGeometry args={[2.475, 4, 0.5]} />
         <primitive object={doorMaterial} attach="material" />
+        {/* 가장자리 글로우 — 문 테두리 */}
+        <Outlines thickness={6} color="#ffd27a" transparent opacity={0.9} toneMapped={false} />
+      </mesh>
+      {/* 가장자리 글로우 — 우체통 (위치에 테두리 박스) */}
+      <mesh position={[MAILBOX.x, 1.1, MAILBOX.z]}>
+        <boxGeometry args={[1.0, 2.2, 0.6]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        <Outlines thickness={5} color="#ffd27a" transparent opacity={0.85} toneMapped={false} />
       </mesh>
     </>
   );
@@ -1083,8 +1258,6 @@ const Ch2PhysicsScene: React.FC<{
 
   const [physicsReady, setPhysicsReady] = useState(false);
   const handlePhysicsReady = useCallback(() => setPhysicsReady(true), []);
-  // 좌클릭 드래그 중 ecctrl 카메라 추종 정지 (CameraOrbitOverride 단독 제어)
-  const [camDrag, setCamDrag] = useState(false);
   const [ch2Toggles] = useCh2Toggles();
   const ecctrlRef = useRef<CustomEcctrlRigidBody>(null);
 
@@ -1174,6 +1347,8 @@ const Ch2PhysicsScene: React.FC<{
       {/* 평면 PNG 소품 — 표지판 / 현수막 / 포스터 (고정 배치) */}
       <Suspense fallback={null}>
         <Ch2FlatProps />
+        <Ch2RoofMirror />
+        <Ch2StackSign />
       </Suspense>
 
       {/* 맞춤 건물/사인 — 원경 컷아웃 / 코너 건물 / 코너 간판 */}
@@ -1208,16 +1383,11 @@ const Ch2PhysicsScene: React.FC<{
             camCollision={true}
             autoBalance={false}
             disableControl={freezeControls}
-            disableFollowCam={camDrag}
             position={[0, 2, -8]}
           >
             <PlayerCharacter airportActive={airportActive} />
           </Ecctrl>
-          <CameraOrbitOverride
-            targetRef={ecctrlRef}
-            enabled={!freezeControls}
-            onDraggingChange={setCamDrag}
-          />
+          <CameraOrbitOverride targetRef={ecctrlRef} enabled={!freezeControls} />
          </>
         )}
       </KeyboardControls>

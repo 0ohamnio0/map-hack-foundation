@@ -19,6 +19,7 @@ export type SignBuilding = {
   w: number; h: number; d: number        // 박스 크기 (X, Y, Z)
   faceX: number; faceZ: number           // 정면 unit vector (도로 쪽)
   seed: number                           // 결정론 시드
+  noSign?: boolean                       // true면 간판 배치 제외 (배열 길이/순서는 유지 → 타 간판 불변)
 }
 
 type Mount = 'front' | 'side' | 'roof'
@@ -53,6 +54,23 @@ function planSignsForBuilding(b: SignBuilding, key: string, mount: Mount, signId
   if (mount === 'front') {
     const meta = SIGN_META[signIdx]
     const ratio = meta.w / meta.h
+
+    // 입구 이미지 — 정면 하단(지면) 정렬, 5배 대형
+    if (meta.entrance) {
+      const baseW = frontWidth * (0.45 + lcg(s + 41) * 0.3) * SIGN_SCALE
+      let planeW = baseW * 5
+      if (planeW > frontWidth * 0.98) planeW = frontWidth * 0.98
+      const planeH = planeW / ratio
+      return [{
+        buildingKey: key,
+        signIdx,
+        position: [frontX, planeH / 2 - 2.0, frontZ], // 하단을 빌딩 바닥에 꽉(살짝 묻힘)
+        rotation: [0, rotYFront, 0],
+        width: planeW,
+        height: planeH,
+        doubleSided: false,
+      }]
+    }
 
     // 70% 옥상 바로 아래 / 30% 1F 점포 입구 위
     const isUpper = lcg(s + 31) < 0.7
@@ -199,6 +217,7 @@ export const Ch2Signs: React.FC<{ buildings: SignBuilding[] }> = ({ buildings })
       const tryPlace = (allowReuse: boolean): boolean => {
         for (let bOff = 0; bOff < ordered.length; bOff++) {
           const bIdx = (startBldg + bOff) % ordered.length
+          if (ordered[bIdx].noSign) continue   // 제외 빌딩 — 다음 빌딩으로 넘김 (길이/순서 불변)
           for (const mount of preferred) {
             const slot = `${bIdx}-${mount}`
             if (!allowReuse && usedSlots.has(slot)) continue

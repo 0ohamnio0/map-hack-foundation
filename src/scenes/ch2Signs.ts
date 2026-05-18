@@ -16,6 +16,8 @@ export type SignMeta = {
   category: SignCategory;
   /** 지정 시 category 무관하게 이 mount로 강제 (예: 옆구리 돌출 원형 간판) */
   forceMount?: 'front' | 'side' | 'roof';
+  /** 건물 정면 하단(지면) 정렬 대형 입구 이미지 — 5배 크게 */
+  entrance?: boolean;
 };
 
 export const SIGN_META: SignMeta[] = [
@@ -23,14 +25,14 @@ export const SIGN_META: SignMeta[] = [
   { file: '1776729463932_73ycytf6x83.webp', w: 1080, h: 810, category: 'square' },
   // 1776781721572_tutvpw0yz8 = 셔터문 (간판 아님 — SIGN_META에서 제외)
   { file: '1776843179758_wnktbdxnstg.webp', w: 564, h: 564, category: 'square' },
-  { file: '1776932608987_alatxeoo5uj.webp', w: 811, h: 1080, category: 'vertical' },
+  { file: '1776932608987_alatxeoo5uj.webp', w: 811, h: 1080, category: 'vertical', forceMount: 'front', entrance: true },
   { file: '1776937116388_cxst7iy0f.webp', w: 370, h: 244, category: 'square' },
   { file: '1777118560024_d8hvmzgjibt.webp', w: 800, h: 606, category: 'square' },
-  { file: '1777194386697_rtnqj03wua.webp', w: 810, h: 1080, category: 'vertical' },
-  { file: '1777684504281_gawu13nlw5.webp', w: 810, h: 1080, category: 'vertical' },
+  // 1777194386697 = 원경 건물(sarang-1777 LANDMARK) — SIGN_META 제외
+  { file: '1777684504281_gawu13nlw5.webp', w: 810, h: 1080, category: 'vertical', forceMount: 'front', entrance: true },
   // 1778130927141_drxo7cvrpnl = 유리 현관문 (간판 아님 — SIGN_META에서 제외)
   { file: 'SCR-20260513-ttbp.webp', w: 826, h: 234, category: 'horizontal' },
-  { file: 'SCR-20260513-ttfj.webp', w: 731, h: 902, category: 'square' },
+  { file: 'SCR-20260513-ttfj.webp', w: 731, h: 902, category: 'square', forceMount: 'front', entrance: true },
   { file: 'SCR-20260513-ttjq.webp', w: 1140, h: 338, category: 'horizontal' },
   { file: 'SCR-20260513-ttmo.webp', w: 1164, h: 263, category: 'horizontal' },
   { file: 'SCR-20260513-ttoi.webp', w: 181, h: 962, category: 'vertical' },
@@ -45,7 +47,6 @@ export const SIGN_META: SignMeta[] = [
   { file: 'SCR-20260513-tvfh.webp', w: 1042, h: 484, category: 'horizontal' },
   { file: 'SCR-20260513-tvkd.webp', w: 386, h: 440, category: 'square' },
   { file: 'IMG_0817.webp', w: 1500, h: 894, category: 'horizontal' },
-  { file: 'IMG_0818.webp', w: 1500, h: 1154, category: 'square' },
 ];
 
 export const SIGNS_BY_CATEGORY: Record<SignCategory, number[]> = {

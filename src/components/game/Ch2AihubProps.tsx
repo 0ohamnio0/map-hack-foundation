@@ -58,7 +58,7 @@ const PLACEMENTS: AihubPlacement[] = [
   // 방호울타리
   { id: 'RTB1601220720_0435L_01_normalization', pos: [-6, -68], rotY: Math.PI * 0.5 },  // H2 좌측
   // 도로반사경
-  { id: 'RTB1201220926_0336L_02_normalization', pos: [27, -42], y: 3, rotY: -Math.PI * 0.4 },  // V2 우측 진입 — 도로 거울(건물쪽 + 3m 상승)
+  { id: 'RTB1201220926_0336L_02_normalization', pos: [-4.5, -75], y: 15, scale: 3.75, rotY: -Math.PI * 0.4 },  // 도로 거울 — 전주에서 돌출, CCTV 아래, 1.5배
 ]
 
 // ---------- 텍스처 풀 (swap용) ----------
