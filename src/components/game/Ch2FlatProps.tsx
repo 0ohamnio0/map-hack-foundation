@@ -30,8 +30,7 @@ const FLAT_PROPS: FlatProp[] = [
   // (mirror-0812 = 도로반사경 → Ch2Scene.Ch2RoofMirror로 이관: 제일 낮은 빌딩 윗면)
   // 현수막 — V1 진입부 상공 가로 배너 (IMG_0813 1500x293)
   { id: 'banner-0813', src: 'IMG_0813.webp', pos: [0, -5], w: 6.0, aspect: 293 / 1500, y: 4.5, rotY: 0 },
-  // 포스터 — 서측 벽 빌딩 박스 도로면(base x=cx=-7.15)에 밀착(+0.02 epsilon), +X 향
-  { id: 'poster-0822', src: 'IMG_0822.webp', pos: [-7.13, -26], w: 3.0, aspect: 986 / 1500, y: 2.0, rotY: Math.PI * 0.5 },
+  // (poster-0822 IMG_0822 → Ch2Scene.PINNED_SIGNS 'img0822'로 이관: building-219 텍스처 건물)
   // 포스터 — 동측 벽 빌딩 박스 도로면(base x=cx=27.15)에 밀착(-0.02 epsilon), -X 향
   { id: 'poster-0823', src: 'IMG_0823.webp', pos: [27.13, -50], w: 2.4, aspect: 1500 / 1200, y: 2.2, rotY: -Math.PI * 0.5 },
   // 개 출입금지 — V1 동측 벽(cx=7.15) ~5채째, 눈높이(y1.5), 작은 포스터, -X 향

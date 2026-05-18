@@ -49,7 +49,7 @@ const PLACEMENTS: AihubPlacement[] = [
   { id: 'RTF3601220720_0428L_01_normalization', pos: [-6, -75], rotY: 0, scale: 22 },  // V3 좌측 — 거대 전주 (25 → 22, 1/8 감소)
   // CCTV — 별도 PoleCCTV 컴포넌트로 거대 전주 상단에 mount (캐릭터 추적 yaw 회전)
   // 우체통 / 공중전화부스
-  { id: 'RTF4201220801_0182L_01_normalization', pos: [5,  -85], rotY: Math.PI * 0.5 },   // V3 우측 후반
+  { id: 'RTF4201220801_0182L_01_normalization', pos: [5,  -85], scale: 3.0, rotY: Math.PI * 0.5 },   // 우체통 — 1.2배 (눈에 띄게)
   // 벤치 / 쓰레기통
   { id: 'RTE3201220730_0254L_01_normalization', pos: [-6, -38], rotY: 0.3 },       // V1 끝 좌측
   { id: 'RTE3001220729_0198L_01_normalization', pos: [14, -58], rotY: -0.3 },      // V2 좌측 끝
@@ -58,7 +58,7 @@ const PLACEMENTS: AihubPlacement[] = [
   // 방호울타리
   { id: 'RTB1601220720_0435L_01_normalization', pos: [-6, -68], rotY: Math.PI * 0.5 },  // H2 좌측
   // 도로반사경
-  { id: 'RTB1201220926_0336L_02_normalization', pos: [-4.5, -75], y: 15, scale: 3.75, rotY: -Math.PI * 0.4 },  // 도로 거울 — 전주에서 돌출, CCTV 아래, 1.5배
+  { id: 'RTB1201220926_0336L_02_normalization', pos: [-5.6, -75], y: 14, scale: 3.75, rotY: -Math.PI * 0.4 },  // 도로 거울 — 전주 표면 부착, CCTV(y18) 아래
 ]
 
 // ---------- 텍스처 풀 (swap용) ----------

@@ -29,8 +29,8 @@ interface Landmark {
 const LANDMARKS: Landmark[] = [
   // 벌꿀 빌딩 building-787 (878x1500) — H1→V2 코너 동측, -X 향
   { id: 'bee-787', url: `${TEX}/building/building-787.webp`, pos: [32, -40], h: 28, aspect: 878 / 1500, rotY: -Math.PI / 2 },
-  // 사랑으로 808 1777194386697 (645x741) — 서측 원경 backdrop, +X 향
-  { id: 'sarang-1777', url: `${TEX}/signs/1777194386697_rtnqj03wua.webp`, pos: [-26, -52], h: 30, aspect: 645 / 741, rotY: Math.PI / 2 },
+  // 사랑으로 808 1777194386697 (645x741) — 서측 원경 backdrop, +X 향 (가깝게·크게)
+  { id: 'sarang-1777', url: `${TEX}/signs/1777194386697_rtnqj03wua.webp`, pos: [-64, -78], h: 116, aspect: 645 / 741, rotY: Math.PI / 2 },
 ]
 
 const LandmarkMesh: React.FC<{ m: Landmark }> = ({ m }) => {

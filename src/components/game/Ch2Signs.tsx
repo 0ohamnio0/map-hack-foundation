@@ -32,6 +32,8 @@ type SignPlacement = {
   width: number
   height: number
   doubleSided: boolean
+  /** 측면 돌출 간판 ↔ 건물 연결 막대 */
+  bar?: { position: [number, number, number]; rotation: [number, number, number]; length: number; thickness: number }
 }
 
 const SURFACE_OFFSET = 0.03
@@ -84,14 +86,20 @@ function planSignsForBuilding(b: SignBuilding, key: string, mount: Mount, signId
       planeW = planeH * ratio
     }
 
-    const y = isUpper
+    let y = isUpper
       ? b.h - planeH / 2 - 0.3
       : 5.0 + lcg(s + 37) * 1.0
+    if (meta.ground) y = planeH / 2 + 0.2 // 하단을 빌딩 바닥에 정렬
+
+    // 좌(-)/우(+) 수평 이동 — face와 수직인 수평축
+    const leftUx = b.faceZ
+    const leftUz = -b.faceX
+    const xf = meta.xFrac ?? 0
 
     return [{
       buildingKey: key,
       signIdx,
-      position: [frontX, y, frontZ],
+      position: [frontX + leftUx * (xf * frontWidth), y, frontZ + leftUz * (xf * frontWidth)],
       rotation: [0, rotYFront, 0],
       width: planeW,
       height: planeH,
@@ -119,10 +127,13 @@ function planSignsForBuilding(b: SignBuilding, key: string, mount: Mount, signId
     let planeH = planeW / ratio
     if (planeH > 3.5 * SIGN_SCALE) planeH = 3.5 * SIGN_SCALE
 
-    // plane을 정면 방향으로 (planeW/2 - bury)만큼 밀어내서 도로 쪽으로 튀어나오게
+    // plane을 정면 방향으로 (planeW/2 - bury + SIDE_PROTRUDE)만큼 밀어내서
+    // 인접 건물 사이에 끼지 않게 — 중간 정도 돌출
     const bury = 0.15
-    const px = surfaceX + b.faceX * (planeW / 2 - bury)
-    const pz = surfaceZ + b.faceZ * (planeW / 2 - bury)
+    const SIDE_PROTRUDE = 0.7
+    const protrudeDist = planeW / 2 - bury + SIDE_PROTRUDE // 측면 표면 → plane 중심 거리
+    const px = surfaceX + b.faceX * protrudeDist
+    const pz = surfaceZ + b.faceZ * protrudeDist
 
     // 70% 옥상 부근 / 30% 1F 점포 위
     const isUpperSide = lcg(s + 67) < 0.7
@@ -131,6 +142,10 @@ function planSignsForBuilding(b: SignBuilding, key: string, mount: Mount, signId
       : 5.0 + lcg(s + 31) * 1.0
 
     const rotY = Math.atan2(sideUx, sideUz)
+    // 건물 측면 표면 → 간판 텍스처의 건물 쪽 가장자리를 잇는 막대 (face 축 방향)
+    const barLen = protrudeDist - planeW / 2 // surface → plane 안쪽 끝
+    const barMidX = surfaceX + b.faceX * (barLen / 2)
+    const barMidZ = surfaceZ + b.faceZ * (barLen / 2)
     return [{
       buildingKey: key,
       signIdx,
@@ -139,6 +154,12 @@ function planSignsForBuilding(b: SignBuilding, key: string, mount: Mount, signId
       width: planeW,
       height: planeH,
       doubleSided: true,
+      bar: {
+        position: [barMidX, y, barMidZ],
+        rotation: [0, rotYFront, 0],
+        length: barLen,
+        thickness: 0.08,
+      },
     }]
   }
 
@@ -180,6 +201,7 @@ export const Ch2Signs: React.FC<{ buildings: SignBuilding[] }> = ({ buildings })
       const maxDim = CELL - MARGIN
       const Z = -15
       SIGN_META.forEach((meta, signIdx) => {
+        if (meta.disabled) return
         const ratio = meta.w / meta.h
         // 셀 안에 letterbox로 맞춤 — 가로형이면 W=maxDim, 세로형이면 H=maxDim
         const w = ratio >= 1 ? maxDim : maxDim * ratio
@@ -207,6 +229,7 @@ export const Ch2Signs: React.FC<{ buildings: SignBuilding[] }> = ({ buildings })
     const result: SignPlacement[] = []
 
     SIGN_META.forEach((meta, signIdx) => {
+      if (meta.disabled) return // 미배치 — 단 signIdx는 forEach가 유지 → 타 간판 위치 불변
       const preferred: Mount[] =
         meta.forceMount ? [meta.forceMount]
         : meta.category === 'vertical' ? ['side', 'front', 'roof']
@@ -223,7 +246,10 @@ export const Ch2Signs: React.FC<{ buildings: SignBuilding[] }> = ({ buildings })
             if (!allowReuse && usedSlots.has(slot)) continue
             usedSlots.add(slot)
             const b = ordered[bIdx]
-            result.push(...planSignsForBuilding(b, `b${bIdx}-s${signIdx}`, mount, signIdx, signIdx * 1009))
+            const planned = planSignsForBuilding(b, `b${bIdx}-s${signIdx}`, mount, signIdx, signIdx * 1009)
+            const dy = SIGN_META[signIdx].yOffset ?? 0
+            if (dy) planned.forEach(pl => { pl.position[1] += dy })
+            result.push(...planned)
             return true
           }
         }
@@ -297,15 +323,22 @@ export const Ch2Signs: React.FC<{ buildings: SignBuilding[] }> = ({ buildings })
         if (!mat) return null
         const slug = SIGN_META[p.signIdx].file.replace(/\.[a-z]+$/i, '')
         return (
-          <mesh
-            key={`sign-${p.buildingKey}-${i}`}
-            name={`sign-${String(p.signIdx).padStart(2, '0')}-${slug}`}
-            position={p.position}
-            rotation={p.rotation}
-          >
-            <planeGeometry args={[p.width, p.height]} />
-            <primitive object={mat} attach="material" />
-          </mesh>
+          <group key={`sign-${p.buildingKey}-${i}`}>
+            <mesh
+              name={`sign-${String(p.signIdx).padStart(2, '0')}-${slug}`}
+              position={p.position}
+              rotation={p.rotation}
+            >
+              <planeGeometry args={[p.width, p.height]} />
+              <primitive object={mat} attach="material" />
+            </mesh>
+            {p.bar && (
+              <mesh position={p.bar.position} rotation={p.bar.rotation}>
+                <boxGeometry args={[p.bar.thickness, p.bar.thickness, p.bar.length]} />
+                <meshStandardMaterial color="#2a2a2a" roughness={0.6} metalness={0.4} />
+              </mesh>
+            )}
+          </group>
         )
       })}
     </group>

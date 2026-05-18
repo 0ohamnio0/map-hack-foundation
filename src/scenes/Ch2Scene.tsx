@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback, Suspense } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
-import { KeyboardControls, useFBX, useAnimations, useKeyboardControls, Outlines } from '@react-three/drei';
+import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { SceneExporter } from '@/components/dev/SceneExporter';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
@@ -791,6 +791,37 @@ function nearestSeg(target: [number, number]): number {
   });
   return best;
 }
+// 특정 텍스처 slug이 발린 비-폐허 세그먼트 중 ref base좌표에 가장 가까운 것의 base [x,z]
+function segCoordByTexNear(slug: string, ref: [number, number]): [number, number] | null {
+  const tIdx = BUILDING_TEX_META.findIndex(m => m.slug === slug);
+  if (tIdx < 0) return null;
+  let best: [number, number] | null = null;
+  let bestD = Infinity;
+  WALL_DEFS.forEach(([cx, cz, w, d], wallIdx) => {
+    const isHoriz = w > d;
+    const segs = WALL_SEGMENTS.filter(s => s.wallIndex === wallIdx);
+    const totalLen = isHoriz ? w : d;
+    const outwardSignX = isHoriz ? 0 : (cx >= 0 ? 1 : -1);
+    const outwardSignZ = isHoriz ? (cz >= 0 ? 1 : -1) : 0;
+    segs.forEach((seg, si) => {
+      if (seg.texIndex !== tIdx || RUIN_TEX_INDICES.has(seg.texIndex)) return;
+      const globalIdx = WALL_SEGMENTS.indexOf(seg);
+      const segIdx = SEG_INDEX_MAP.get(globalIdx) ?? si;
+      const { buildingDepth } = getBuildingParams(wallIdx, segIdx);
+      const localPos = seg.offsetX + seg.segW / 2 - totalLen / 2;
+      const posX = cx + (isHoriz ? localPos : outwardSignX * buildingDepth / 2);
+      const posZ = cz + (isHoriz ? outwardSignZ * buildingDepth / 2 : localPos);
+      const bx = posX / SCALE_X, bz = posZ / SCALE_Z;
+      const dd = Math.hypot(bx - ref[0], bz - ref[1]);
+      if (dd < bestD) { bestD = dd; best = [bx, bz]; }
+    });
+  });
+  return best;
+}
+// IMG_0822 → building-267 텍스처 건물 (옛 위치서 제일 먼 곳 = Aihub#9 [20,-67] 인근)
+// building-267 배정 세그먼트: [8.7,-17.7] / [24.0,-71.6] / [-8.1,-70.0] → [24,-71.6] 선택
+const IMG0822_TARGET: [number, number] = segCoordByTexNear('building-267', [20, -67]) ?? [24, -71.6];
+
 const B814_SEG = nearestSeg(B814_TARGET);          // building-814 (보류, 미렌더)
 const TTZZ_TARGET: [number, number] = [22, -65];   // SCR-ttzz 건물 ≈ Aihub #4
 const TTZZ_SEG = nearestSeg(TTZZ_TARGET);          // ttzz 간판 제외 → 타 빌딩 이동
@@ -900,6 +931,58 @@ const Ch2StackSign: React.FC = () => {
     </mesh>
   );
 };
+
+// 지정 건물 고정 부착 사인 — target base 최근접 빌딩의 지정 면에. 자동 사인계와 분리.
+type PinnedSign = {
+  id: string; url: string; target: [number, number];
+  face: 'front' | 'left' | 'right'; hFrac: number; aspectWH: number;
+  yMode: 'ground' | 'top' | 'mid';
+};
+const PINNED_SIGNS: PinnedSign[] = [
+  // SCR-ttfj — Aihub#7 벤치([-6,-38])가 바라보는 길 건너 건물 정면 (입구형: 지면 정렬)
+  { id: 'ttfj', url: `${BASE}assets/tex/signs/SCR-20260513-ttfj.webp`, target: [-2, -38], face: 'front', hFrac: 0.6, aspectWH: 731 / 902, yMode: 'ground' }, // [7,-38]에서 서측 -2채
+  // SCR-tuvg — ttfj 건물에서 -1채 (서측), 정면
+  { id: 'tuvg', url: `${BASE}assets/tex/signs/SCR-20260513-tuvg.webp`, target: [-7, -20], face: 'front', hFrac: 0.28, aspectWH: 718 / 612, yMode: 'mid' }, // 서측벽, [-24]·[-17] 사이 건물, 0.7배
+  // 셔터문 1776781721572 — 다시 -1채, 입구이미지 방식(정면·지면)
+  { id: 'shutter', url: `${BASE}assets/tex/signs/1776781721572_tutvpw0yz8.webp`, target: [-11, -38], face: 'front', hFrac: 0.39, aspectWH: 1080 / 870, yMode: 'ground' }, // 1.3배, 하단 정중앙
+  // 1776932608987 입구 이미지 — 초기 target 임시값, dev 클릭 로그로 정확 건물 확정 예정
+  { id: 'door-1776932', url: `${BASE}assets/tex/signs/1776932608987_alatxeoo5uj.webp`, target: [7, -50], face: 'front', hFrac: 0.85, aspectWH: 811 / 1080, yMode: 'ground' },
+  // IMG_0817 가로 간판 — 초기 target 임시값, dev 클릭 로그로 정확 건물 확정 예정
+  { id: 'img0817', url: `${BASE}assets/tex/signs/IMG_0817.webp`, target: [-7, -30], face: 'front', hFrac: 0.3, aspectWH: 1500 / 894, yMode: 'top' },
+  // IMG_0822 — building-219 텍스처 건물 정면(런타임 산출 좌표)
+  { id: 'img0822', url: `${BASE}assets/tex/props/IMG_0822.webp`, target: IMG0822_TARGET, face: 'front', hFrac: 0.5, aspectWH: 1500 / 986, yMode: 'mid' },
+  // 1778130927141 유리 현관문 — 자동배치서 겹쳐 PINNED 이관. target 임시값, dev 클릭 로그로 sign 없는 건물 확정 예정
+  { id: 'door-1778', url: `${BASE}assets/tex/signs/1778130927141_drxo7cvrpnl.webp`, target: [7, -60], face: 'front', hFrac: 0.85, aspectWH: 810 / 1080, yMode: 'ground' },
+];
+const PinnedSignMesh: React.FC<{ p: PinnedSign }> = ({ p }) => {
+  const tex = useLoader(THREE.TextureLoader, p.url);
+  const mat = useMemo(() => {
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+    return new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.1, roughness: 0.9, side: THREE.DoubleSide });
+  }, [tex]);
+  const b = SIGN_BUILDINGS.reduce(
+    (a, c) => (
+      Math.hypot(c.cx / SCALE_X - p.target[0], c.cz / SCALE_Z - p.target[1]) <
+      Math.hypot(a.cx / SCALE_X - p.target[0], a.cz / SCALE_Z - p.target[1]) ? c : a
+    ), SIGN_BUILDINGS[0]);
+  if (!b) return null;
+  // 면 노멀: front=(faceX,faceZ), left=(-faceZ,faceX), right=(faceZ,-faceX)
+  const nx = p.face === 'front' ? b.faceX : p.face === 'left' ? -b.faceZ : b.faceZ;
+  const nz = p.face === 'front' ? b.faceZ : p.face === 'left' ? b.faceX : -b.faceX;
+  const half = Math.abs(nx) > 0.5 ? b.w / 2 : b.d / 2;
+  const planeH = b.h * p.hFrac;
+  const planeW = planeH * p.aspectWH;
+  const y = p.yMode === 'ground' ? planeH / 2 - 1.5 : p.yMode === 'top' ? b.h - planeH / 2 - 0.3 : b.h / 2;
+  const x = b.cx + nx * (half + 0.06);
+  const z = b.cz + nz * (half + 0.06);
+  return (
+    <mesh position={[x, y, z]} rotation={[0, Math.atan2(nx, nz), 0]} material={mat} castShadow
+      onPointerDown={(e) => { e.stopPropagation(); console.log(`[Pinned ${p.id}] bldg=[${(b.cx / SCALE_X).toFixed(1)}, ${(b.cz / SCALE_Z).toFixed(1)}] mesh=[${x.toFixed(1)},${y.toFixed(1)},${z.toFixed(1)}]`); }}>
+      <planeGeometry args={[planeW, planeH]} />
+    </mesh>
+  );
+};
+const Ch2PinnedSigns: React.FC = () => (<>{PINNED_SIGNS.map(p => <PinnedSignMesh key={p.id} p={p} />)}</>);
 
 const ASPHALT_TEX_URL = `${BASE}assets/tex/full/ASPHALT2.webp`;
 const DOOR09_TEX_URL = `${BASE}assets/tex/doors/door-09.webp`;
@@ -1206,17 +1289,10 @@ const StreetScene: React.FC = () => {
 
       {/* Exit marker — CH3 door. 남쪽 perimeter 빌딩 면(z=-90*SCALE_Z)에 부착:
           뒤 0.15는 벽에 묻히고 앞으로 ~0.35 돌출 (depth 0.5, center +0.1) */}
-      <mesh position={[0, 2, -90 * SCALE_Z + 0.1]}>
-        <boxGeometry args={[2.475, 4, 0.5]} />
+      {/* 출구 문 — 1.2배 (글로우 제거, 크기로 눈에 띄게) */}
+      <mesh position={[0, 2.4, -90 * SCALE_Z + 0.1]}>
+        <boxGeometry args={[2.97, 4.8, 0.6]} />
         <primitive object={doorMaterial} attach="material" />
-        {/* 가장자리 글로우 — 문 테두리 */}
-        <Outlines thickness={6} color="#ffd27a" transparent opacity={0.9} toneMapped={false} />
-      </mesh>
-      {/* 가장자리 글로우 — 우체통 (위치에 테두리 박스) */}
-      <mesh position={[MAILBOX.x, 1.1, MAILBOX.z]}>
-        <boxGeometry args={[1.0, 2.2, 0.6]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-        <Outlines thickness={5} color="#ffd27a" transparent opacity={0.85} toneMapped={false} />
       </mesh>
     </>
   );
@@ -1349,6 +1425,7 @@ const Ch2PhysicsScene: React.FC<{
         <Ch2FlatProps />
         <Ch2RoofMirror />
         <Ch2StackSign />
+        <Ch2PinnedSigns />
       </Suspense>
 
       {/* 맞춤 건물/사인 — 원경 컷아웃 / 코너 건물 / 코너 간판 */}
@@ -1641,7 +1718,8 @@ export const Ch2Scene: React.FC = () => {
           filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.8))',
         }}>
           {CH2_NOTES.map(n => {
-            const collected = visitedEvents.has(`note_${n.id}`);
+            // 편지 발송 후엔 손에서 소멸 — 빈 슬롯으로 표시(맵 재생성과 무관, note_*는 보존됨)
+            const collected = !letterSent && visitedEvents.has(`note_${n.id}`);
             const noteColor = SPARKLE_COLOR[n.id] ?? DEFAULT_SPARKLE;
             return (
               <svg
