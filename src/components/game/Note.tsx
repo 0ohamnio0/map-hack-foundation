@@ -70,6 +70,8 @@ export function Note({ noteId, position }: NoteProps) {
     const texturePath = NOTE_TEXTURE_MAP[noteId] ?? PAPER_TEXTURES[0]
     const loader = new THREE.TextureLoader()
     const mat = new THREE.MeshStandardMaterial({
+      // 텍스처에 곱해져 종이 자체가 쪽지색으로 틴트됨 (반짝이/글로우와 통일)
+      color: new THREE.Color(SPARKLE_COLOR[noteId] ?? DEFAULT_SPARKLE),
       roughness: 0.9,
       side: THREE.DoubleSide,
       transparent: true,
@@ -105,10 +107,10 @@ export function Note({ noteId, position }: NoteProps) {
 
   // near 상태에 따라 emissive 강도 갱신
   useEffect(() => {
-    paperMaterial.mat.emissive.set('#fff8d0')
+    paperMaterial.mat.emissive.set(SPARKLE_COLOR[noteId] ?? DEFAULT_SPARKLE)
     paperMaterial.mat.emissiveIntensity = near ? 0.5 : 0.18
     paperMaterial.mat.needsUpdate = true
-  }, [near, paperMaterial])
+  }, [near, paperMaterial, noteId])
 
   const baseY = position[1]
 
