@@ -28,7 +28,7 @@ interface GameState {
   closeNote: () => void;
   setNoteLanguage: (lang: 'ko' | 'en') => void;
   toggleNoteLanguage: () => void;
-  /** 편지 전송 완료 — 수집한 시(note_*) 전부 소멸 + letterSent=true */
+  /** 편지 전송 완료 — note_* 기록은 보존(맵 재생성 방지), letterSent=true (HUD에선 소멸 표시) */
   sendLetter: () => void;
   /** directionScore = rightMovement - leftMovement */
   getDirectionScore: () => number;
@@ -127,10 +127,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   toggleNoteLanguage: () => set(s => ({ noteLanguage: s.noteLanguage === 'ko' ? 'en' : 'ko' })),
 
   sendLetter: () => {
-    const { visitedEvents } = get();
-    // 수집한 시(note_*)만 소멸 — 그 외 이벤트 기록은 보존
-    const newSet = new Set([...visitedEvents].filter(e => !e.startsWith('note_')));
-    set({ visitedEvents: newSet, letterSent: true });
+    // 시(note_*)는 visitedEvents에 그대로 보존 — 맵에 재생성되면 안 됨(영영 우체통行).
+    // letterSent=true 만 세팅 → HUD에선 발송됨(소멸)으로 표시, 문 통과 허용.
+    set({ letterSent: true });
   },
 
   getDirectionScore: () => {
