@@ -6,7 +6,7 @@
  */
 import { useRef, useState, useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
+import { Html, Sparkles } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
 
@@ -36,6 +36,18 @@ const NOTE_TEXTURE_MAP: Record<string, string> = {
   termination: PAPER_TEXTURES[5],
   highstreamer:PAPER_TEXTURES[6],
 }
+
+// 쪽지별 색 — 반짝이/글로우/수집 UI 공용. 시 분위기 기반, 어두운 CH.2 팔레트에서 구분
+export const SPARKLE_COLOR: Record<string, string> = {
+  theta:       '#6fd3e0', // 뇌파 — 청록
+  entropy:     '#b58cff', // 엔트로피 — 보라
+  'jeju-fire': '#ff8a4c', // 제주 불 — 잉걸 주황
+  bichae:      '#8fe0a0', // 비채 — 연두
+  'hell-salad':'#d6e85a', // 헬샐러드 — 산성 옐로우그린
+  termination: '#ff6b6b', // 종료 — 창백한 적
+  highstreamer:'#ffd27a', // 하이스트리머 — 골드
+}
+export const DEFAULT_SPARKLE = '#fff5c8'
 
 // 3인칭 카메라가 캐릭터 뒤로 ~3유닛 떨어져 있어, 카메라-노트 거리 기준으로 넉넉하게 설정.
 // 캐릭터 기준으로는 노트로부터 약 2~3유닛이면 [E] 줍기가 활성화됨.
@@ -137,15 +149,25 @@ export function Note({ noteId, position }: NoteProps) {
     <group ref={groupRef} position={position}>
       {/* 종이 — 바닥에 살짝 누운 상태로 떠 있음 */}
       <mesh rotation={[-Math.PI / 2.3, 0, 0.18]} castShadow>
-        <planeGeometry args={[0.32, 0.45]} />
+        <planeGeometry args={[0.48, 0.675]} />
         <primitive
           object={paperMaterial.mat}
           attach="material"
         />
       </mesh>
 
+      {/* 은은한 반짝이 입자 — 멀리서도 종이 위치가 보이도록 (near 게이트 없음) */}
+      <Sparkles
+        count={14}
+        scale={[0.7, 0.5, 0.7]}
+        size={near ? 4 : 3}
+        speed={0.3}
+        color={SPARKLE_COLOR[noteId] ?? DEFAULT_SPARKLE}
+        position={[0, 0.12, 0]}
+      />
+
       {/* 근접 시 은은한 발광 */}
-      {near && <pointLight color="#fff5c8" intensity={0.7} distance={2.4} decay={2} />}
+      {near && <pointLight color={SPARKLE_COLOR[noteId] ?? DEFAULT_SPARKLE} intensity={0.9} distance={3.6} decay={2} />}
 
       {/* "[E] 줍기" 오버레이 */}
       {near && (
