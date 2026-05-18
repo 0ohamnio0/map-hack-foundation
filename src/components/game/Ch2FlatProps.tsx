@@ -31,10 +31,10 @@ const FLAT_PROPS: FlatProp[] = [
   { id: 'sign-0812', src: 'IMG_0812.webp', pos: [-6, -14], w: 1.0, aspect: 1500 / 1081, y: POLE_HEIGHT + 0.7, rotY: Math.PI * 0.5, pole: true },
   // 현수막 — V1 진입부 상공 가로 배너 (IMG_0813 1500x293)
   { id: 'banner-0813', src: 'IMG_0813.webp', pos: [0, -5], w: 6.0, aspect: 293 / 1500, y: 4.5, rotY: 0 },
-  // 포스터 — 서측 outer 벽(x=-7.15,두께0.3 → 도로면 x≈-7.0)에 밀착, +X 향
-  { id: 'poster-0822', src: 'IMG_0822.webp', pos: [-6.95, -26], w: 2.0, aspect: 986 / 1500, y: 2.0, rotY: Math.PI * 0.5 },
-  // 포스터 — 동측 outer 벽(x=27.15,두께0.3 → 도로면 x≈27.0)에 밀착, -X 향
-  { id: 'poster-0823', src: 'IMG_0823.webp', pos: [26.95, -50], w: 1.6, aspect: 1500 / 1200, y: 2.2, rotY: -Math.PI * 0.5 },
+  // 포스터 — 서측 벽 빌딩 박스 도로면(base x=cx=-7.15)에 밀착(+0.02 epsilon), +X 향
+  { id: 'poster-0822', src: 'IMG_0822.webp', pos: [-7.13, -26], w: 3.0, aspect: 986 / 1500, y: 2.0, rotY: Math.PI * 0.5 },
+  // 포스터 — 동측 벽 빌딩 박스 도로면(base x=cx=27.15)에 밀착(-0.02 epsilon), -X 향
+  { id: 'poster-0823', src: 'IMG_0823.webp', pos: [27.13, -50], w: 2.4, aspect: 1500 / 1200, y: 2.2, rotY: -Math.PI * 0.5 },
 ]
 
 const FlatPropMesh: React.FC<{ p: FlatProp }> = ({ p }) => {
