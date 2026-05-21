@@ -2,13 +2,62 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+import { DEFAULT_TUNING, type RetroPCTuning } from './retroPCTuning'
 
 const MODEL_URL = `${import.meta.env.BASE_URL}assets/ch5/retro_pc.glb`
 
 type Props = {
   /** html2canvas dataURL — replaces the baked Windows 98 screen with the blog snapshot */
   screenDataUrl?: string | null
+  tuning?: RetroPCTuning
 }
+
+const BODY_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  varying float vLocalY;
+  varying vec3 vWorldNormal;
+  void main() {
+    vUv = uv;
+    vLocalY = position.y;
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const BODY_FRAGMENT = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  varying float vLocalY;
+  varying vec3 vWorldNormal;
+  uniform sampler2D uBaseMap;
+  uniform float uHasMap;
+  uniform float uYMin;
+  uniform float uYMax;
+  uniform float uGradientTop;
+  uniform float uGradientBottom;
+  uniform vec3 uLightDir;
+  uniform float uLightAmbient;
+  uniform float uLightIntensity;
+  uniform float uSaturation;
+
+  void main() {
+    vec3 base = uHasMap > 0.5 ? texture2D(uBaseMap, vUv).rgb : vec3(0.78, 0.76, 0.70);
+
+    // Saturation — luminance-preserving desaturate (0=grayscale, 1=original, >1=boosted)
+    float lum = dot(base, vec3(0.299, 0.587, 0.114));
+    base = mix(vec3(lum), base, uSaturation);
+
+    float t = clamp((vLocalY - uYMin) / max(1e-4, uYMax - uYMin), 0.0, 1.0);
+    t = smoothstep(0.0, 1.0, t);
+    float gradient = mix(uGradientBottom, uGradientTop, t);
+
+    vec3 lightDir = normalize(uLightDir);
+    float NdotL = max(dot(vWorldNormal, lightDir), 0.0);
+    float lighting = uLightAmbient + NdotL * uLightIntensity;
+
+    gl_FragColor = vec4(base * gradient * lighting, 1.0);
+  }
+`
 
 const CRT_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -94,8 +143,13 @@ const CRT_FRAGMENT = /* glsl */ `
   }
 `
 
-export const RetroPC: React.FC<Props> = ({ screenDataUrl }) => {
-  const { scene, materials } = useGLTF(MODEL_URL)
+export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNING }) => {
+  const { scene: rawScene, materials } = useGLTF(MODEL_URL)
+  // Clone so each mount gets fresh meshes — useGLTF caches the scene at module
+  // level, and we swap materials per-mesh. Without cloning, the second mount
+  // sees our ShaderMaterial as the "original" → .map extraction fails and the
+  // base texture is lost.
+  const scene = useMemo(() => rawScene.clone(true), [rawScene])
 
   const crtMaterial = useMemo(
     () =>
@@ -114,6 +168,30 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl }) => {
     [],
   )
 
+  const bodyMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: {
+          uBaseMap: { value: null as THREE.Texture | null },
+          uHasMap: { value: 0 },
+          uYMin: { value: 0 },
+          uYMax: { value: 1 },
+          uGradientTop: { value: DEFAULT_TUNING.gradientTop },
+          uGradientBottom: { value: DEFAULT_TUNING.gradientBottom },
+          uLightDir: { value: new THREE.Vector3(DEFAULT_TUNING.lightDirX, DEFAULT_TUNING.lightDirY, DEFAULT_TUNING.lightDirZ) },
+          uLightAmbient: { value: DEFAULT_TUNING.lightAmbient },
+          uLightIntensity: { value: DEFAULT_TUNING.lightIntensity },
+          uSaturation: { value: DEFAULT_TUNING.saturation },
+        },
+        vertexShader: BODY_VERTEX,
+        fragmentShader: BODY_FRAGMENT,
+      }),
+    [],
+  )
+
+  // Track all per-mesh material clones so we can broadcast tuning changes
+  const clonedMatsRef = useRef<THREE.ShaderMaterial[]>([])
+
   const screenTexture = useMemo(() => {
     if (!screenDataUrl) return null
     const tex = new THREE.TextureLoader().load(screenDataUrl)
@@ -128,15 +206,24 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl }) => {
 
   useEffect(() => {
     if (appliedRef.current) return
+
     scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh
       if (!mesh.isMesh) return
-      // Every mesh casts + receives shadows so parts self-shadow (e.g. monitor
-      // onto keyboard). The Screen face is handled below — it skips shadowing
-      // since the CRT shader is self-illuminated and already uses a custom material.
       if (obj.name !== 'Screen') {
-        mesh.castShadow = true
-        mesh.receiveShadow = true
+        // Keep original baked PSX texture as base, overlay gradient + lambertian
+        const geom = mesh.geometry as THREE.BufferGeometry
+        if (!geom.boundingBox) geom.computeBoundingBox()
+        const bb = geom.boundingBox!
+        const origMat = mesh.material as THREE.MeshStandardMaterial | undefined
+        const baseMap = origMat && 'map' in origMat ? (origMat.map as THREE.Texture | null) : null
+        const meshMat = bodyMaterial.clone()
+        meshMat.uniforms.uBaseMap.value = baseMap
+        meshMat.uniforms.uHasMap.value = baseMap ? 1 : 0
+        meshMat.uniforms.uYMin.value = bb.min.y
+        meshMat.uniforms.uYMax.value = bb.max.y
+        clonedMatsRef.current.push(meshMat)
+        mesh.material = meshMat
         return
       }
       const geom = mesh.geometry as THREE.BufferGeometry
@@ -161,12 +248,26 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl }) => {
     })
     appliedRef.current = true
     void materials
-  }, [scene, crtMaterial, materials])
+  }, [scene, crtMaterial, bodyMaterial, materials])
 
   useEffect(() => {
     crtMaterial.uniforms.uMap.value = screenTexture
     crtMaterial.uniforms.uHasMap.value = screenTexture ? 1 : 0
   }, [screenTexture, crtMaterial])
+
+  // Broadcast tuning changes to every per-mesh material clone
+  useEffect(() => {
+    for (const mat of clonedMatsRef.current) {
+      mat.uniforms.uGradientTop.value = tuning.gradientTop
+      mat.uniforms.uGradientBottom.value = tuning.gradientBottom
+      mat.uniforms.uLightAmbient.value = tuning.lightAmbient
+      mat.uniforms.uLightIntensity.value = tuning.lightIntensity
+      mat.uniforms.uSaturation.value = tuning.saturation
+      ;(mat.uniforms.uLightDir.value as THREE.Vector3).set(
+        tuning.lightDirX, tuning.lightDirY, tuning.lightDirZ,
+      )
+    }
+  }, [tuning])
 
   useFrame((_, dt) => {
     crtMaterial.uniforms.uTime.value += dt

@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows } from '@react-three/drei'
-import { EffectComposer, Bloom } from '@react-three/postprocessing'
-import { KernelSize } from 'postprocessing'
+import { EffectComposer } from '@react-three/postprocessing'
+import { BloomEffect, KernelSize } from 'postprocessing'
 import * as THREE from 'three'
 import { RetroPC } from './RetroPC'
+import { DEFAULT_TUNING, type RetroPCTuning } from './retroPCTuning'
+import { useDevMode } from '../../hooks/useDevMode'
 
 /**
  * CameraRig — animates camera from "inside monitor screen" (t=0) to
@@ -76,6 +77,28 @@ type Props = {
  */
 export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1 }) => {
   const crtFill = useRef<THREE.PointLight | null>(null)
+  const [tuning, setTuning] = useState<RetroPCTuning>(DEFAULT_TUNING)
+  const devMode = useDevMode()
+
+  // Build the BloomEffect ourselves so we can mutate intensity directly.
+  // @react-three/postprocessing's <Bloom ref=...> blows up (KawaseBlurPass.resolution
+  // is a circular structure that React tries to JSON.stringify) — use primitive attach.
+  const bloomEffect = useMemo(
+    () =>
+      new BloomEffect({
+        intensity: DEFAULT_TUNING.screenGlow,
+        luminanceThreshold: 0.35,
+        luminanceSmoothing: 0.4,
+        kernelSize: KernelSize.LARGE,
+        mipmapBlur: true,
+      }),
+    [],
+  )
+
+  useEffect(() => {
+    bloomEffect.intensity = tuning.screenGlow
+  }, [tuning.screenGlow, bloomEffect])
+
   return (
     <div style={{
       position: 'fixed', inset: 0,
@@ -83,59 +106,105 @@ export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1 }) => {
       opacity,
       transition: 'opacity 0.4s ease',
       zIndex: 2,
+      background: '#000000',
     }}>
       <Canvas
         flat
-        shadows
         camera={{ fov: 35, near: 0.001, far: 10 }}
         gl={{ antialias: true, alpha: true }}
       >
-        <color attach="background" args={['#0a0a0c']} />
-        {/* 네온 컬러 라이팅 해제 — 중성/warm-white 키 + 약한 fill */}
-        <ambientLight intensity={0.55} color="#ffffff" />
-        <directionalLight
-          castShadow
-          position={[-10, 2.6, 3]}
-          intensity={1.1}
-          color="#fffaf0"
-          shadow-mapSize={[2048, 2048]}
-          shadow-bias={-0.0005}
-          shadow-camera-near={0.1}
-          shadow-camera-far={20}
-          shadow-camera-left={-1.5}
-          shadow-camera-right={1.5}
-          shadow-camera-top={1.5}
-          shadow-camera-bottom={-1.5}
-        />
-        <directionalLight position={[-0.5, 4.4, 10]} intensity={0.45} color="#ffe8c8" />
+        {/* PC body는 자체 셰이더라 standard light 무시. 라이팅은 future use용 최소 유지 */}
+        <ambientLight intensity={0.95} color="#ffffff" />
         <pointLight
           ref={crtFill}
-          intensity={0.5}
+          intensity={0.25}
           distance={0.9}
           decay={0.8}
           color="#fff5e0"
         />
-        <RetroPC screenDataUrl={snapshot} />
-        <ContactShadows
-          position={[0, -0.02, 0]}
-          opacity={0.4}
-          scale={3}
-          blur={2.5}
-          far={1}
-          frames={1}
-          color="#ffffff"
-        />
+
+        <RetroPC screenDataUrl={snapshot} tuning={tuning} />
         <CameraRig t={t} fill={crtFill} />
         <EffectComposer>
-          <Bloom
-            intensity={1.2}
-            luminanceThreshold={0.6}
-            luminanceSmoothing={0.4}
-            kernelSize={KernelSize.LARGE}
-            mipmapBlur
-          />
+          <primitive object={bloomEffect} dispose={null} />
         </EffectComposer>
       </Canvas>
+      {devMode && <TuningPanel tuning={tuning} setTuning={setTuning} />}
+    </div>
+  )
+}
+
+const SLIDERS: Array<{ key: keyof RetroPCTuning; min: number; max: number; step: number }> = [
+  { key: 'gradientTop',    min: 0.5, max: 2.0, step: 0.01 },
+  { key: 'gradientBottom', min: 0.0, max: 1.5, step: 0.01 },
+  { key: 'lightAmbient',   min: 0.0, max: 1.5, step: 0.01 },
+  { key: 'lightIntensity', min: 0.0, max: 1.5, step: 0.01 },
+  { key: 'lightDirX',      min: -1,  max: 1,   step: 0.01 },
+  { key: 'lightDirY',      min: -1,  max: 1,   step: 0.01 },
+  { key: 'lightDirZ',      min: -1,  max: 1,   step: 0.01 },
+  { key: 'saturation',     min: 0,   max: 1.5, step: 0.01 },
+  { key: 'screenGlow',     min: 0,   max: 2.5, step: 0.01 },
+]
+
+const TuningPanel: React.FC<{
+  tuning: RetroPCTuning
+  setTuning: React.Dispatch<React.SetStateAction<RetroPCTuning>>
+}> = ({ tuning, setTuning }) => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        width: 280,
+        padding: 14,
+        background: 'rgba(20, 16, 40, 0.86)',
+        color: '#e8e0ff',
+        font: '11px ui-monospace, monospace',
+        borderRadius: 6,
+        pointerEvents: 'auto',
+        zIndex: 10,
+        backdropFilter: 'blur(6px)',
+      }}
+    >
+      <div style={{ marginBottom: 8, opacity: 0.7, letterSpacing: 1 }}>RETRO-PC · P to toggle</div>
+      {SLIDERS.map(({ key, min, max, step }) => (
+        <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ flex: '0 0 110px' }}>{key}</span>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={tuning[key]}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value)
+              setTuning((prev) => ({ ...prev, [key]: v }))
+            }}
+            style={{ flex: 1 }}
+          />
+          <span style={{ flex: '0 0 44px', textAlign: 'right' }}>{tuning[key].toFixed(2)}</span>
+        </label>
+      ))}
+      <button
+        onClick={() => setTuning(DEFAULT_TUNING)}
+        style={{
+          marginTop: 8,
+          width: '100%',
+          padding: '6px 8px',
+          background: 'rgba(255,255,255,0.08)',
+          color: '#e8e0ff',
+          border: '1px solid rgba(255,255,255,0.18)',
+          borderRadius: 4,
+          cursor: 'pointer',
+          font: 'inherit',
+        }}
+      >
+        Reset
+      </button>
+      <pre style={{ marginTop: 8, padding: 6, background: 'rgba(0,0,0,0.35)', borderRadius: 4, fontSize: 10, overflow: 'auto' }}>
+{JSON.stringify(tuning, null, 2)}
+      </pre>
     </div>
   )
 }
