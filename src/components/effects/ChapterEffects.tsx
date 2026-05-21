@@ -164,7 +164,7 @@ export function Ch3Effects() {
   const effectDuration: Record<string, number> = {
     desaturate: 8,
     blur: 10,
-    darken: 9999,
+    darken: 8,
     anxiolytic: 6,
     whiteflash: 1.8,
   }
@@ -180,6 +180,10 @@ export function Ch3Effects() {
       if (medRef.current) {
         medRef.current.setEffectType(effectTypeMap[activeEffect] ?? 0)
       }
+    } else if (!activeEffect) {
+      // activeEffect=null (NPC encounter로 종료) → 효과 즉시 reset
+      medActive.current = false
+      if (medRef.current) medRef.current.reset()
     }
   }, [activeEffect])
 
