@@ -688,48 +688,47 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
     const role = (heading: string, ko: string, en: string) => (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
         <div style={{
-          fontSize: '0.72rem', letterSpacing: 5, color: '#8fa39c',
+          fontSize: '0.62rem', letterSpacing: 5, color: '#ffffff',
           textTransform: 'uppercase', marginBottom: 6,
         }}>{heading}</div>
-        <div style={{ fontSize: '1.05rem', color: '#f0f6f2', letterSpacing: 1 }}>{ko}</div>
-        <div style={{ fontSize: '0.85rem', color: '#a8b8b3', letterSpacing: 1 }}>{en}</div>
+        <div style={{ fontSize: '0.88rem', color: '#ffffff', letterSpacing: 1 }}>{ko}</div>
+        <div style={{ fontSize: '0.72rem', color: '#ffffff', letterSpacing: 1 }}>{en}</div>
       </div>
     )
 
     return (
       <div style={{
-        position: 'fixed', inset: 0, backgroundColor: '#0a0f14',
+        position: 'fixed', inset: 0, backgroundColor: '#000000',
         zIndex: overlayMode ? 20 : 100, opacity: endingOpacity, transition: 'opacity 2s ease',
         overflow: 'hidden',
       }}>
         <RetroPCScene t={1} snapshot={blogSnapshot} />
         <div style={{
           position: 'absolute', right: '7vw', top: '50%',
-          transform: 'translateY(-50%) scale(1.2)',
+          transform: 'translateY(-38%) scale(1.2)',
           transformOrigin: 'right center',
           width: 'min(32vw, 480px)', maxHeight: '90vh', overflow: 'auto',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          gap: 36,
-          fontFamily: '"Unifont", monospace', color: '#dfe8e4',
+          gap: 32,
+          fontFamily: '"Unifont", monospace', color: '#ffffff',
           zIndex: 3,
           textAlign: 'center',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <h1 style={{
               fontFamily: '"Hammer Keys", monospace',
-              fontSize: '4.2rem', margin: 0, letterSpacing: 8, fontWeight: 800,
-              color: '#f0f6f2',
+              fontSize: '2.8rem', margin: 0, letterSpacing: 6, fontWeight: 600,
+              color: '#ffffff',
             }}>Map Hack</h1>
-            <div style={{ fontSize: '1rem', color: '#a8b8b3', letterSpacing: 4 }}>맵 핵</div>
+            <div style={{ fontSize: '0.82rem', color: '#ffffff', letterSpacing: 4 }}>맵 핵</div>
+            <div style={{ fontSize: '0.78rem', color: '#ffffff', letterSpacing: 6 }}>
+              2026
+            </div>
           </div>
 
           {role('Created by', '송해민', 'Song Haemin')}
           {role('Sound', '허현정', 'Huh Hyunjung')}
           {role('Commissioned by', '화이트리버프레스', 'White River Press')}
-
-          <div style={{ fontSize: '0.95rem', color: '#8fa39c', letterSpacing: 6, marginTop: 8 }}>
-            2026
-          </div>
 
           <button
             onClick={() => goToChapter('START')}
@@ -737,9 +736,9 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
               marginTop: 12,
               background: 'transparent',
               border: 'none',
-              color: 'rgba(223, 232, 228, 0.7)',
+              color: 'rgba(255, 255, 255, 0.7)',
               fontFamily: 'inherit',
-              fontSize: '0.85rem',
+              fontSize: '0.72rem',
               letterSpacing: 6,
               padding: '10px 28px',
               cursor: 'pointer',
@@ -749,7 +748,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
               e.currentTarget.style.color = '#ffffff'
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.color = 'rgba(223, 232, 228, 0.7)'
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)'
             }}
           >
             [ MAIN ]
