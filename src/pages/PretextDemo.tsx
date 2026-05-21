@@ -246,7 +246,8 @@ const EXHIBIT_POLY_DELAY = 0;
 /** Max concurrent polygon typings in exhibit mode — K-lane worker pool. */
 const EXHIBIT_TYPING_LANES = 2;
 /** Settle phase duration — glitch fades back to EN before ink bleed */
-const EXHIBIT_SETTLE_DURATION = 2000;
+const EXHIBIT_SETTLE_DURATION = 3500;
+const EXHIBIT_HOLD_BEFORE_INK = 1000;
 
 // ── Flicker FSM: fluorescent-tube-style phased transitions per sentence ──
 // Each sentence cycles: idle (EN) → ramp-in (fade EN→KO w/ jitter) → hold (KO, occasional blip) → ramp-out → idle.
@@ -336,12 +337,14 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
   const [polygons, setPolygons] = useState<TextPolygon[]>(
     () => saved.current?.polygons ?? JSON.parse(JSON.stringify(DEFAULT_POLYGONS)),
   );
-  const [bgAlpha, setBgAlpha] = useState(saved.current?.bgAlpha ?? 0.2);
+  const [bgAlpha, setBgAlpha] = useState(saved.current?.bgAlpha ?? 0.6);
   const [useBg, setUseBg] = useState(saved.current?.useBg ?? true);
   const [editMode, setEditMode] = useState(true);
   const [selectedPoly, setSelectedPoly] = useState<string | null>(null);
   const [expandedText, setExpandedText] = useState<string | null>(null);
   const [inkBleedActive, setInkBleedActive] = useState(false);
+  // ch4_2 overlay phase: 'idle' → 'fadeIn' (multiply 0.65, 5s) → 'normal' (multiply→0, normal→1.0, 5s) → 'fadeOut' (normal→0, 5s)
+  const [ch4_2Phase, setCh4_2Phase] = useState<'idle' | 'fadeIn' | 'normal' | 'fadeOut'>('idle');
   const pretextCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // ── Language + typewriter state ──
@@ -730,7 +733,8 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
           window.clearInterval(tick);
           glitchAlphasRef.current = {};
           setGlitchAlphas({});
-          setExhibitPhase('inkBleed');
+          // 글씨 안정 후 1초 hold → inkBleed (갑작스러움 완화)
+          window.setTimeout(() => setExhibitPhase('inkBleed'), EXHIBIT_HOLD_BEFORE_INK);
           return;
         }
         // Scale all current alphas down linearly over settle window
@@ -851,6 +855,17 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
       }
     }
   }, [exhibitMode, exhibitPhase, inkBleedActive]);
+
+  // ch4_2 overlay phase 시퀀스 — inkBleed 시작 시 fadeIn(5s) → 5s 후 normal(5s 동안 multiply→0, normal→1)
+  useEffect(() => {
+    if (!inkBleedActive) {
+      setCh4_2Phase('idle');
+      return;
+    }
+    setCh4_2Phase('fadeIn');
+    const t = window.setTimeout(() => setCh4_2Phase("normal"), 9000);
+    return () => window.clearTimeout(t);
+  }, [inkBleedActive]);
 
   // ESC to exit exhibit mode
   useEffect(() => {
@@ -1443,7 +1458,7 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
           onDoubleClick={exhibitMode ? undefined : handleDoubleClick}
         >
           <PretextTypography
-            backgroundSrc={useBg && !exhibitMode ? `${BASE}assets/ch4/outline.webp` : undefined}
+            backgroundSrc={(useBg || exhibitMode) ? `${BASE}assets/ch4/ch4_1_1.png` : undefined}
             backgroundAlpha={bgAlpha}
             polygons={renderedPolygons}
             config={config}
@@ -1453,8 +1468,48 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
             style={{
               boxShadow: exhibitMode ? 'none' : '0 4px 20px rgba(0,0,0,0.15)',
               display: 'block',
+              transition: 'opacity 9s ease-in',
+              opacity: inkBleedActive ? 0 : 1,
             }}
           />
+
+          {/* ch4_2 overlay — 2 layer (multiply + normal) phased crossfade */}
+          {exhibitMode && (
+            <>
+              {/* Soft layer — fadeIn 시 visible (opacity 0.65), normal phase 시 fade out */}
+              <img
+                src={`${BASE}assets/ch4/ch4_2.png`}
+                alt=""
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  opacity: ch4_2Phase === 'fadeIn' ? 0.65 : 0,
+                  transition: 'opacity 9s ease-in',
+                  pointerEvents: 'none',
+                  zIndex: 9999,
+                }}
+              />
+              {/* Main layer — normal phase 시 fade in (opacity 0.80) */}
+              <img
+                src={`${BASE}assets/ch4/ch4_2.png`}
+                alt=""
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  opacity: ch4_2Phase === 'normal' ? 0.8 : 0,
+                  transition: 'opacity 9s ease-in',
+                  pointerEvents: 'none',
+                  zIndex: 10000,
+                }}
+              />
+            </>
+          )}
 
           {/* SVG 핸들 오버레이 — 3레이어: fill → outlines → handles */}
           {!exhibitMode && editMode && (
@@ -1574,10 +1629,17 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
               onStop={() => setInkBleedActive(false)}
               onRampComplete={() => {
                 if (exhibitMode) {
-                  // CH.5 진입: CH.4 ending BGM 정지 + boot 사운드
-                  stopAllMusic();
-                  playSfx('boot_sound');
-                  setShowCh5Overlay(true);
+                  // 1s hold → ch4_2 fade out (5s) → 1s hold → CH.5 진입
+                  window.setTimeout(() => {
+                    setCh4_2Phase('fadeOut');
+                    window.setTimeout(() => {
+                      window.setTimeout(() => {
+                        stopAllMusic();
+                        playSfx('boot_sound');
+                        setShowCh5Overlay(true);
+                      }, 1000);
+                    }, 9000);
+                  }, 1000);
                 }
               }}
               hideTuning={exhibitMode}
