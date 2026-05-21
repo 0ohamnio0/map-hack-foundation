@@ -23,6 +23,8 @@ interface GameState {
   addToCart: (medicine: string) => void;
   removeFromCart: (index: number) => void;
   setActiveEffect: (effect: string | null, duration?: number) => void;
+  /** ghost encounter 발생 신호 — setActiveEffect의 minimum duration 후 effect 종료 트리거 */
+  markGhostEncounter: () => void;
   setNotification: (text: string | null) => void;
   openNote: (id: string) => void;
   closeNote: () => void;
@@ -35,6 +37,8 @@ interface GameState {
 }
 
 let effectTimeoutId: number | null = null;
+let ghostEncounteredFlag = false;
+let minDurationPassed = false;
 
 export const useGameStore = create<GameState>((set, get) => ({
   chapter: 'START',
@@ -87,7 +91,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     // STEP 4: 약 버리기 시도 → 다른 약으로 교체 (약은 줄지 않음)
     const { cartItems } = get();
     const removed = cartItems[index];
-    const ALL_MEDS = ['기분안정제', '항정신병약', '수면제', '항불안제', '다 먹음'];
+    const ALL_MEDS = ['Lithium Carbonate', 'Aripiprazole', 'Quetiapine Fumarate', 'Alprazolam', 'munch munch'];
     const others = ALL_MEDS.filter((m) => m !== removed);
     const replacement = others[Math.floor(Math.random() * others.length)];
     const newItems = [...cartItems];
@@ -98,11 +102,32 @@ export const useGameStore = create<GameState>((set, get) => ({
   setActiveEffect: (effect, duration) => {
     if (effectTimeoutId) clearTimeout(effectTimeoutId);
     set({ activeEffect: effect });
+    ghostEncounteredFlag = false;
+    minDurationPassed = false;
     if (effect && duration) {
+      // duration = minimum 보장. duration 후 ghostEncountered 체크, true면 종료, false면 polling
+      const tryEnd = () => {
+        if (ghostEncounteredFlag) {
+          set({ activeEffect: null });
+          effectTimeoutId = null;
+        } else {
+          effectTimeoutId = window.setTimeout(tryEnd, 200);
+        }
+      };
       effectTimeoutId = window.setTimeout(() => {
-        set({ activeEffect: null });
-        effectTimeoutId = null;
+        minDurationPassed = true;
+        tryEnd();
       }, duration);
+    }
+  },
+
+  markGhostEncounter: () => {
+    ghostEncounteredFlag = true;
+    // minimum 이미 지났으면 즉시 종료
+    if (minDurationPassed) {
+      if (effectTimeoutId) clearTimeout(effectTimeoutId);
+      effectTimeoutId = null;
+      set({ activeEffect: null });
     }
   },
 

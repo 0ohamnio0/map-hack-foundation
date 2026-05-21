@@ -34,6 +34,36 @@ function makeSnapMaterial(color: string): THREE.MeshStandardMaterial {
   return mat;
 }
 
+const TEX_BASE = `${import.meta.env.BASE_URL ?? '/'}assets/tex/ch3/`;
+const _texLoader = new THREE.TextureLoader();
+
+function makeSnapMaterialWithTexture(
+  texFile: string,
+  opts?: { repeat?: number; grayscale?: boolean }
+): THREE.MeshStandardMaterial {
+  const tex = _texLoader.load(`${TEX_BASE}${texFile}`);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  const r = opts?.repeat ?? 1;
+  tex.repeat.set(r, r);
+  const mat = new THREE.MeshStandardMaterial({ color: '#fff', map: tex });
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <project_vertex>',
+      `#include <project_vertex>
+      gl_Position.xyz = floor(gl_Position.xyz / gl_Position.w * ${SNAP_FACTOR}.0 + 0.5) / ${SNAP_FACTOR}.0 * gl_Position.w;`,
+    );
+    if (opts?.grayscale) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        float __gray = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+        diffuseColor.rgb = vec3(__gray);`,
+      );
+    }
+  };
+  return mat;
+}
+
 /** InstancedMesh walls for performance.
  *  args[2] is the GL buffer maxCount — fixed at MAX so the InstancedMesh
  *  isn't recreated on maze regen. Per-frame `count` is set in useEffect
@@ -42,7 +72,7 @@ const MAX_WALLS = 512;
 
 const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const material = useMemo(() => makeSnapMaterial('#555'), []);
+  const material = useMemo(() => makeSnapMaterialWithTexture('qai50015.jpg', { repeat: 1 }), []);
 
   useEffect(() => {
     if (!meshRef.current) return;
@@ -66,7 +96,7 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
 
 const MazeFloor: React.FC = () => {
   const size = MAZE_SIZE * CELL_SIZE;
-  const material = useMemo(() => makeSnapMaterial('#aaa'), []);
+  const material = useMemo(() => makeSnapMaterialWithTexture('SAND3.JPG', { repeat: 10 }), []);
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[size / 2, 0, size / 2]} material={material}>
       <planeGeometry args={[size, size, MAZE_SIZE, MAZE_SIZE]} />
@@ -78,19 +108,111 @@ const FlickerLight: React.FC = () => {
   const lightRef = useRef<THREE.AmbientLight>(null);
   useFrame(({ clock }) => {
     if (lightRef.current) {
-      lightRef.current.intensity = 0.3 + Math.sin(clock.elapsedTime * 8) * 0.08 + Math.sin(clock.elapsedTime * 13) * 0.04;
+      lightRef.current.intensity = 0.6 + Math.sin(clock.elapsedTime * 8) * 0.08 + Math.sin(clock.elapsedTime * 13) * 0.04;
     }
   });
-  return <ambientLight ref={lightRef} intensity={0.3} color="#f0f0e8" />;
+  return <ambientLight ref={lightRef} intensity={0.6} color="#f0f0e8" />;
 };
 
 const MEDICINES = [
-  { name: '기분안정제', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 }, mazeProfile: { removalRatio: 0.1 } },
-  { name: '항정신병약', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 }, mazeProfile: { removalRatio: 0 } },
-  { name: '수면제', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 }, mazeProfile: { removalRatio: 0.05 } },
-  { name: '항불안제', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 }, mazeProfile: { removalRatio: 0.3 } },
-  { name: '다 먹음', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 }, mazeProfile: { removalRatio: 0.6 } },
+  // duration = 효과 minimum 지속 시간 (ms). 그 후 자동 종료. encounter는 ghost cycle 트리거 (효과 종료와 별개)
+  { name: 'Lithium Carbonate', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 }, mazeProfile: { removalRatio: 0.1 } },
+  { name: 'Aripiprazole', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 }, mazeProfile: { removalRatio: 0 } },
+  { name: 'Quetiapine Fumarate', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 }, mazeProfile: { removalRatio: 0.05 } },
+  { name: 'Alprazolam', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 }, mazeProfile: { removalRatio: 0.3 } },
+  { name: 'munch munch', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 }, mazeProfile: { removalRatio: 0.6 } },
 ];
+
+// 약 이름 영문 → 한글 매핑 (cart 클릭 시 글리치 표기)
+const MED_KOREAN: Record<string, string> = {
+  'Lithium Carbonate': '기분안정제',
+  'Aripiprazole': '항정신병약',
+  'Quetiapine Fumarate': '수면제',
+  'Alprazolam': '항불안제',
+  'munch munch': '다 먹음',
+};
+
+const GLITCH_CHARS = '!@#$%^&*+=[]{}|<>?/~가나다라마바사아자차카타파하ㅁㄴㅇㄹㅎㅋㅌㅊㅍ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+function glitchText(src: string, target: string, progress: number): string {
+  const len = Math.max(src.length, target.length);
+  let out = '';
+  for (let i = 0; i < len; i++) {
+    const charProgress = progress * 1.5 - (i / len) * 0.3;
+    if (charProgress < 0.2) {
+      out += src[i] ?? ' ';
+    } else if (charProgress > 0.8) {
+      out += target[i] ?? ' ';
+    } else {
+      out += GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+    }
+  }
+  return out;
+}
+
+const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
+  const [clicked, setClicked] = useState(false);
+  const [display, setDisplay] = useState(item);
+
+  useEffect(() => {
+    setDisplay(item);
+    setClicked(false);
+  }, [item]);
+
+  useEffect(() => {
+    if (!clicked) return;
+    const A = item;
+    const B = MED_KOREAN[item] ?? item;
+    const GLITCH_FRAMES = 40; // ~1s @ 25ms tick
+    const HOLD_FRAMES = 40;   // ~1s static between glitches
+    let direction: 'AB' | 'BA' = 'AB';
+    let mode: 'glitch' | 'hold' = 'glitch';
+    let frame = 0;
+    const interval = setInterval(() => {
+      if (mode === 'glitch') {
+        frame++;
+        if (frame > GLITCH_FRAMES) {
+          setDisplay(direction === 'AB' ? B : A);
+          mode = 'hold';
+          frame = 0;
+          return;
+        }
+        const progress = frame / GLITCH_FRAMES;
+        const src = direction === 'AB' ? A : B;
+        const dst = direction === 'AB' ? B : A;
+        setDisplay(glitchText(src, dst, progress));
+      } else {
+        frame++;
+        if (frame > HOLD_FRAMES) {
+          direction = direction === 'AB' ? 'BA' : 'AB';
+          mode = 'glitch';
+          frame = 0;
+        }
+      }
+    }, 25);
+    return () => clearInterval(interval);
+  }, [clicked, item]);
+
+  return (
+    <button
+      onClick={() => { if (!clicked) setClicked(true); }}
+      style={{
+        padding: '4px 10px',
+        fontFamily: '"Unifont", monospace',
+        fontSize: 11,
+        color: '#fff',
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        cursor: 'pointer',
+        transition: 'transform 0.15s, opacity 0.15s',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.6'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+    >
+      {display}
+    </button>
+  );
+};
 
 // --- Fitting room (= space elevator portal) at center ---
 const FITTING_ROOM_CELL = { gx: Math.floor(MAZE_SIZE / 2), gy: Math.floor(MAZE_SIZE / 2) }; // (5, 5)
@@ -334,10 +456,12 @@ const ElevatorCutscene: React.FC<{
           transition: 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         }}>
 
-        {/* Back wall bg — fills entire view */}
+        {/* Back wall bg — fills entire view, GALVPLAT 텍스처 + dark overlay */}
         <div style={{
           position: 'absolute', left: 0, right: 0, top: '16%', bottom: 0,
-          background: 'linear-gradient(180deg, #08080a 0%, #111114 30%, #161619 60%, #111114 100%)',
+          backgroundImage: `url('${import.meta.env.BASE_URL}assets/tex/ch3/GALVPLAT.JPG'), linear-gradient(180deg, #08080a 0%, #111114 30%, #161619 60%, #111114 100%)`,
+          backgroundSize: 'cover, cover',
+          backgroundBlendMode: 'multiply',
         }} />
 
         {/* Ceiling — thin strip */}
@@ -357,7 +481,9 @@ const ElevatorCutscene: React.FC<{
         {/* Left wall */}
         <div style={{
           position: 'absolute', left: 0, top: '22%', bottom: 0, width: '15%',
-          background: 'linear-gradient(90deg, #0c0c0f 0%, #141417 100%)',
+          backgroundImage: `url('${import.meta.env.BASE_URL}assets/tex/ch3/GALVPLAT.JPG'), linear-gradient(90deg, #0c0c0f 0%, #141417 100%)`,
+          backgroundSize: 'cover, cover',
+          backgroundBlendMode: 'multiply',
           borderRight: '1px solid rgba(255,255,255,0.03)',
         }}>
           <div style={{
@@ -403,7 +529,9 @@ const ElevatorCutscene: React.FC<{
         {/* Right wall */}
         <div style={{
           position: 'absolute', right: 0, top: '22%', bottom: 0, width: '15%',
-          background: 'linear-gradient(-90deg, #0c0c0f 0%, #141417 100%)',
+          backgroundImage: `url('${import.meta.env.BASE_URL}assets/tex/ch3/GALVPLAT.JPG'), linear-gradient(-90deg, #0c0c0f 0%, #141417 100%)`,
+          backgroundSize: 'cover, cover',
+          backgroundBlendMode: 'multiply',
           borderLeft: '1px solid rgba(255,255,255,0.03)',
         }}>
           <div style={{
@@ -565,6 +693,20 @@ const ElevatorCutscene: React.FC<{
         }}>
           ▲
         </div>
+
+        {/* Floor — grate 텍스처 + perspective tilt */}
+        <div style={{
+          position: 'absolute',
+          left: 0, right: 0, bottom: 0,
+          height: '32%',
+          backgroundImage: `url('${import.meta.env.BASE_URL}assets/tex/ch3/grate.jpg')`,
+          backgroundRepeat: 'repeat',
+          backgroundSize: '160px 160px',
+          transform: 'perspective(280px) rotateX(58deg)',
+          transformOrigin: 'center bottom',
+          filter: 'brightness(0.55)',
+          pointerEvents: 'none',
+        }} />
 
         {/* Vibration / shake overlay */}
         <div style={{
@@ -759,8 +901,12 @@ const Ch3Inner: React.FC<{
   }, [maze]);
 
   const medPositions = useMemo(() =>
-    MEDICINES.map(m => cellToWorld(m.cell.gx, m.cell.gy, CELL_SIZE)),
-  []);
+    MEDICINES.map((m, i) => {
+      // i=0 (빨간약) — player start 인접 셀에 강제 배치 (player가 가장 먼저 만나는 약)
+      if (i === 0) return cellToWorld(maze.start.x + 1, maze.start.y, CELL_SIZE);
+      return cellToWorld(m.cell.gx, m.cell.gy, CELL_SIZE);
+    }),
+  [maze]);
 
   const fittingRoomWorld = useMemo(() =>
     cellToWorld(FITTING_ROOM_CELL.gx, FITTING_ROOM_CELL.gy, CELL_SIZE),
@@ -826,7 +972,7 @@ const Ch3Inner: React.FC<{
   return (
     <>
       <FlickerLight />
-      <directionalLight position={[mazeWorldSize / 2, 20, mazeWorldSize / 2]} intensity={0.3} />
+      <directionalLight position={[mazeWorldSize / 2, 20, mazeWorldSize / 2]} intensity={0.7} />
       {/* STEP 8: Post-processing — Vignette + Noise */}
       <Ch3Effects />
 
@@ -854,7 +1000,9 @@ const Ch3Inner: React.FC<{
       <ItaewonLayer
         cellWorldPos={itaewonCellWorld}
         cellSize={CELL_SIZE}
+        mazeSize={MAZE_SIZE}
         playerPos={posState}
+        wallAABBs={wallAABBs}
       />
 
       {/* Exit marker — hidden until all 5 medicines collected, then 1s fade-in */}
@@ -926,7 +1074,10 @@ export const Ch3Scene: React.FC = () => {
       if (collectedSet.has(i)) return;
       const isLast = i === MEDICINES.length - 1;
       if (isLast && collectedSet.size < MEDICINES.length - 1) return;
-      const wp = cellToWorld(med.cell.gx, med.cell.gy, CELL_SIZE);
+      // medPositions와 동일 logic — i=0 (빨간약)은 player start 인접 셀
+      const wp = (i === 0)
+        ? cellToWorld(maze.start.x + 1, maze.start.y, CELL_SIZE)
+        : cellToWorld(med.cell.gx, med.cell.gy, CELL_SIZE);
       markers.push({ x: wp.x, z: wp.z, color: med.color, radius: 2 });
     });
     if (collectedSet.size === MEDICINES.length) {
@@ -934,7 +1085,7 @@ export const Ch3Scene: React.FC = () => {
       markers.push({ x: ex.x, z: ex.z, color: '#0f0', radius: 3, glow: true });
     }
     return markers;
-  }, [collectedSet]);
+  }, [collectedSet, maze]);
 
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
@@ -1060,28 +1211,7 @@ export const Ch3Scene: React.FC = () => {
           maxWidth: '90vw',
         }}>
           {cartItems.map((item, i) => (
-            <button
-              key={`${i}-${item}`}
-              onClick={() => {
-                removeFromCart(i);
-                setNotification('버려도 또 담겨 있다');
-                setTimeout(() => setNotification(null), 2000);
-              }}
-              style={{
-                padding: '4px 10px',
-                fontFamily: '"Unifont", monospace',
-                fontSize: 11,
-                color: '#fff',
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                cursor: 'pointer',
-                transition: 'transform 0.15s, opacity 0.15s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.6'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-            >
-              {item}
-            </button>
+            <GlitchCartButton key={`${i}-${item}`} item={item} />
           ))}
         </div>
       )}

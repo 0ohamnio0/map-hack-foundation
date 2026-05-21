@@ -5,11 +5,11 @@
 새 세션을 시작하는 에이전트는 아래 순서를 따를 것:
 
 1. `git log --oneline -30` — 최근 커밋 이력 확인
-2. 작업지시서 2개 읽기:
+2. 작업지시서 읽기:
    - **작업지시서 (구현)**: `41.10.07` — 구현 체크리스트 + 적용 순서 요약 + STEP별 프롬프트 + REF 코드
-     `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/41.10.07. 에이전트 작업지시서.md`
-   - **작업지시서 (SPEC)**: `41.10.08` — 기술 스펙, 설계 제약, 상세 요구사항
-     `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/41.10.08. 에이전트 작업지시서 (SPEC).md`
+     `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/📂 41.10. Map Hack/41.10.07. 에이전트 작업지시서.md`
+   - **CH.4 데모 노트**: `41.10.08` — Pretext Demo 작업 로그 (CH.4 작업 시에만 참고)
+     `/Users/songhaemin/Library/Mobile Documents/iCloud~md~obsidian/Documents/Hamvault/📂 40. Personal Projects/📂 41. Creative Works/📂 41.10. Map Hack/41.10.08. Pretext Demo 진행 노트.md`
 3. git log 커밋 메시지 vs 체크리스트를 대조 → 완료/미완료 판별
 4. 미완료 항목 중 **적용 순서 요약 테이블 기준** 다음 STEP부터 이어서 진행
 5. STEP 완료 시마다 해당 **Acceptance Criteria** 전부 통과 확인 + `npm run build` 성공 확인
