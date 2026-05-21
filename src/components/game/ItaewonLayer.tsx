@@ -4,19 +4,86 @@
  * - 3 ghost employees: semi-transparent, slow patrol loop
  * - "take it all you want" text overlay on entering cell (3,3), one-time
  */
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Text } from '@react-three/drei'
+import { Text, useGLTF, useAnimations } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
 
 const UNIFONT_URL = `${import.meta.env.BASE_URL}assets/fonts/unifont-16.0.02.otf`
+
+const GHOST_IDLE_URL = `${import.meta.env.BASE_URL}assets/characters_biped/Whispering_Tide_biped/Meshy_AI_Whispering_Tide_biped_Animation_Idle_4_withSkin.glb`
+const GHOST_MIRROR_URL = `${import.meta.env.BASE_URL}assets/characters_biped/Whispering_Tide_biped/Meshy_AI_Whispering_Tide_biped_Animation_Mirror_Viewing_withSkin.glb`
+useGLTF.preload(GHOST_IDLE_URL)
+useGLTF.preload(GHOST_MIRROR_URL)
 
 interface ItaewonLayerProps {
   /** Cell (3,3) world position */
   cellWorldPos: { x: number; z: number }
   cellSize: number
   playerPos: { x: number; z: number }
+}
+
+/** Special ghost — Whispering Tide GLB, Idle ↔ Mirror_Viewing on showText */
+function SpecialGhostEmployee({
+  position,
+  showText,
+}: {
+  position: [number, number, number]
+  showText: boolean
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const idleGltf = useGLTF(GHOST_IDLE_URL)
+  const mirrorGltf = useGLTF(GHOST_MIRROR_URL)
+
+  const animations = useMemo(() => {
+    const idleClips = idleGltf.animations.map((c) => {
+      const clone = c.clone()
+      clone.name = 'idle'
+      return clone
+    })
+    const mirrorClips = mirrorGltf.animations.map((c) => {
+      const clone = c.clone()
+      clone.name = 'mirror'
+      return clone
+    })
+    return [...idleClips, ...mirrorClips]
+  }, [idleGltf.animations, mirrorGltf.animations])
+
+  const { actions } = useAnimations(animations, groupRef)
+
+  // Apply semi-transparent to all meshes
+  useEffect(() => {
+    idleGltf.scene.traverse((child) => {
+      const mesh = child as THREE.Mesh
+      if (mesh.isMesh && mesh.material) {
+        const m = mesh.material as THREE.MeshStandardMaterial
+        m.transparent = true
+        m.opacity = 0.3
+      }
+    })
+  }, [idleGltf.scene])
+
+  // Crossfade between idle and mirror
+  useEffect(() => {
+    const idle = actions['idle']
+    const mirror = actions['mirror']
+    if (!idle || !mirror) return
+
+    if (showText) {
+      idle.fadeOut(0.5)
+      mirror.reset().fadeIn(0.5).play()
+    } else {
+      mirror.fadeOut(0.5)
+      idle.reset().fadeIn(0.5).play()
+    }
+  }, [showText, actions])
+
+  return (
+    <group ref={groupRef} position={position}>
+      <primitive object={idleGltf.scene} />
+    </group>
+  )
 }
 
 /** Ghost employee — semi-transparent, slow patrol loop */
@@ -120,9 +187,9 @@ export function ItaewonLayer({ cellWorldPos, cellSize, playerPos }: ItaewonLayer
         startPos={[cellWorldPos.x - 1.5, 0, cellWorldPos.z - 2]}
         phaseOffset={0}
       />
-      <GhostEmployee
-        startPos={[cellWorldPos.x + 1, 0, cellWorldPos.z + 1]}
-        phaseOffset={1.7}
+      <SpecialGhostEmployee
+        position={[cellWorldPos.x + 1, 0, cellWorldPos.z + 1]}
+        showText={showText}
       />
       <GhostEmployee
         startPos={[cellWorldPos.x, 0, cellWorldPos.z + 3]}
