@@ -15,6 +15,9 @@ const CHAPTER_BGM: Partial<Record<Chapter, string>> = {
   END: `${BASE}ending.mp3`,
 };
 
+// INTRO + CH.1 음악은 한 번만 재생하고 끝 (영상 길이에 맞춰 들어가는 트랙)
+const NO_LOOP_TRACKS = new Set<string>([`${BASE}ch1.mp3`]);
+
 const ELEVATOR_SRC = `${BASE}ch3-elevator.mp3`;
 
 const FADE_MS = 1500;
@@ -31,7 +34,7 @@ function getOrCreate(src: string): Howl {
   if (!cache[src]) {
     cache[src] = new Howl({
       src: [src],
-      loop: true,
+      loop: !NO_LOOP_TRACKS.has(src),
       volume: 0,
       html5: true,
       preload: true,
