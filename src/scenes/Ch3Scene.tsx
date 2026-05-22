@@ -950,7 +950,7 @@ const Ch3Inner: React.FC<{
       // Exit zone — gated until all 5 medicines collected, E-confirm in Ch3Scene
       if (collected.size === MEDICINES.length) {
         const exitDist = Math.sqrt((px - exitWorld.x) ** 2 + (pz - exitWorld.z) ** 2);
-        onExitZoneChange?.(exitDist < 2);
+        onExitZoneChange?.(exitDist < CELL_SIZE * 0.6);
       } else {
         onExitZoneChange?.(false);
       }
@@ -1064,6 +1064,17 @@ export const Ch3Scene: React.FC = () => {
   const devMode = useDevMode();
   const [muted, toggleMute] = useMute();
 
+  // 약 5개 전부 수집 → 출구 안내 (마지막 약 알림 직후 표시)
+  const allCollectedNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (collectedSet.size === MEDICINES.length && !allCollectedNotifiedRef.current) {
+      allCollectedNotifiedRef.current = true;
+      const t1 = setTimeout(() => setNotification('전부 복용했다 — 초록 출구로'), 2200);
+      const t2 = setTimeout(() => setNotification(null), 5200);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [collectedSet, setNotification]);
+
   // Minimap markers: 시착실(=엘리베이터) magenta + 약 위치 (수집 전) + 출구(전부 모은 후).
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
     const fr = cellToWorld(FITTING_ROOM_CELL.gx, FITTING_ROOM_CELL.gy, CELL_SIZE);
@@ -1082,7 +1093,7 @@ export const Ch3Scene: React.FC = () => {
     });
     if (collectedSet.size === MEDICINES.length) {
       const ex = cellToWorld(MAZE_SIZE - 1, MAZE_SIZE - 1, CELL_SIZE);
-      markers.push({ x: ex.x, z: ex.z, color: '#0f0', radius: 3, glow: true });
+      markers.push({ x: ex.x, z: ex.z, color: '#0f0', radius: 4.5, glow: true });
     }
     return markers;
   }, [collectedSet, maze]);

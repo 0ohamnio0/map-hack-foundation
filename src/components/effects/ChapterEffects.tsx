@@ -136,6 +136,9 @@ export function Ch2Effects() {
   )
 }
 
+// 약 효과 중 ghost 만날 때까지 hold하는 타입 (whiteflash는 순간 플래시라 제외)
+const HOLD_EFFECTS = ['desaturate', 'blur', 'darken', 'anxiolytic']
+
 /**
  * CH.3 Effects — 마트 형광등 불안정 + 약 복용 GLSL 이펙트
  * Vignette + Noise + MedicationEffect + OverdoseEffect
@@ -148,6 +151,9 @@ export function Ch3Effects() {
 
   const medElapsed = useRef(0)
   const medActive = useRef(false)
+  const medReleasing = useRef(false)
+  const medReleaseElapsed = useRef(0)
+  const medEffectName = useRef<string | null>(null)
   const overdoseElapsed = useRef(0)
   const overdoseActive = useRef(false)
 
@@ -176,14 +182,19 @@ export function Ch3Effects() {
     if (activeEffect && drugEffects.includes(activeEffect)) {
       medElapsed.current = 0
       medActive.current = true
+      medReleasing.current = false
+      medReleaseElapsed.current = 0
+      medEffectName.current = activeEffect
       medDuration.current = effectDuration[activeEffect] ?? 6.5
       if (medRef.current) {
         medRef.current.setEffectType(effectTypeMap[activeEffect] ?? 0)
       }
     } else if (!activeEffect) {
-      // activeEffect=null (NPC encounter로 종료) → 효과 즉시 reset
-      medActive.current = false
-      if (medRef.current) medRef.current.reset()
+      // activeEffect=null (NPC encounter로 종료) → hold 효과는 1.5s fade out 시작
+      if (medActive.current && !medReleasing.current) {
+        medReleasing.current = true
+        medReleaseElapsed.current = 0
+      }
     }
   }, [activeEffect])
 
@@ -205,10 +216,28 @@ export function Ch3Effects() {
     // Drive MedicationEffect (skip if overdose is done — all shaders off)
     if (medRef.current && medActive.current && !overdoseDone.current) {
       medElapsed.current += delta
-      medRef.current.setPhase(medElapsed.current, medDuration.current)
-      if (medElapsed.current > medDuration.current) {
-        medActive.current = false
-        medRef.current.reset()
+      const isHold = !!medEffectName.current && HOLD_EFFECTS.includes(medEffectName.current)
+      if (isHold) {
+        // ghost 만날 때까지 full hold → 만나면(medReleasing) 1.5s fade out
+        medRef.current.setHoldPhase(medElapsed.current, medReleasing.current, medReleaseElapsed.current)
+        if (medReleasing.current) {
+          medReleaseElapsed.current += delta
+          if (medReleaseElapsed.current > 1.5) {
+            medActive.current = false
+            medRef.current.reset()
+          }
+        } else if (medElapsed.current > medDuration.current + 20) {
+          // 안전장치: ghost spawn 실패 등으로 영영 안 끝나는 것 방지
+          medReleasing.current = true
+          medReleaseElapsed.current = 0
+        }
+      } else {
+        // whiteflash 등 — 기존 고정 엔벨로프(in→hold→out)
+        medRef.current.setPhase(medElapsed.current, medDuration.current)
+        if (medElapsed.current > medDuration.current) {
+          medActive.current = false
+          medRef.current.reset()
+        }
       }
     }
     // Drive OverdoseEffect — show for OVERDOSE_DISPLAY seconds then kill all

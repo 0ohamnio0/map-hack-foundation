@@ -225,7 +225,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     playerPosRef.current = _playerPos
   })
 
-  // Spawn ghost when a drug effect starts — 0~1셀 random offset (in-bounds), reset edge detection
+  // Spawn ghost when a drug effect starts — 시야 270도 안 + 벽에 안 가려진(clear LOS) cell만, reset edge detection
   useEffect(() => {
     if (!activeEffect || !DRUG_EFFECTS.has(activeEffect)) return
 
@@ -233,55 +233,73 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     const pCellX = Math.round(pp.x / cellSize)
     const pCellY = Math.round(pp.z / cellSize)
 
-    let target: { gx: number; gy: number } | null = null
     const prev = prevGhostCellRef.current
     const isFirst = isFirstSpawnRef.current
     const camFwd = new THREE.Vector3()
     camera.getWorldDirection(camFwd)
+    const camLen = Math.hypot(camFwd.x, camFwd.z) || 1
+    const fwdX = camFwd.x / camLen
+    const fwdZ = camFwd.z / camLen
     const camX = camera.position.x
     const camZ = camera.position.z
-    const WALL_PAD = 0.3 // wall AABB inset — corner edge 살짝 통과 허용
 
-    // Strict only — 시야 270도 + wall 안 가려짐 둘 다 통과만
-    for (let attempt = 0; attempt < 200; attempt++) {
-      const angle = Math.random() * Math.PI * 2
-      const dist = isFirst ? 3 : Math.random()
-      const offX = Math.round(Math.cos(angle) * dist)
-      const offY = Math.round(Math.sin(angle) * dist)
-      if (offX === 0 && offY === 0) continue
-      const cx = pCellX + offX
-      const cy = pCellY + offY
-      if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
-      if (prev && prev.gx === cx && prev.gy === cy) continue
-      const targetWorld = cellToWorld(cx, cy, cellSize)
-      const dxg = targetWorld.x - camX
-      const dzg = targetWorld.z - camZ
-      const len = Math.sqrt(dxg * dxg + dzg * dzg)
-      if (len < 0.001) continue
-      const dot = (camFwd.x * dxg + camFwd.z * dzg) / len
-      if (dot < -0.707) continue // 시야 270도 밖
-      if (wallAABBs && wallAABBs.length > 0) {
-        const occluded = wallAABBs.some((w) =>
-          lineIntersectsAABB(
-            camX, camZ, targetWorld.x, targetWorld.z,
-            w.minX + WALL_PAD, w.maxX - WALL_PAD,
-            w.minZ + WALL_PAD, w.maxZ - WALL_PAD,
-          ),
+    // camera→target 사이 벽 차단 검사. ghost 폭(±GHOST_HALF) 양 끝까지 3광선 전부 통과해야 clear.
+    // 풀 wall bounds 사용(inset 없음) — 모서리 스쳐 지나가는 false-clear 방지.
+    const hasClearLOS = (tx: number, tz: number): boolean => {
+      if (!wallAABBs || wallAABBs.length === 0) return true
+      const dx = tx - camX
+      const dz = tz - camZ
+      const len = Math.hypot(dx, dz) || 1
+      const ox = (-dz / len) * GHOST_HALF_WIDTH // sightline 수직 offset (몸통 폭)
+      const oz = (dx / len) * GHOST_HALF_WIDTH
+      const rays: [number, number][] = [[tx, tz], [tx + ox, tz + oz], [tx - ox, tz - oz]]
+      for (const [rx, rz] of rays) {
+        const blocked = wallAABBs.some((w) =>
+          lineIntersectsAABB(camX, camZ, rx, rz, w.minX, w.maxX, w.minZ, w.maxZ),
         )
-        if (occluded) continue
+        if (blocked) return false
       }
-      target = { gx: cx, gy: cy }
-      break
+      return true
     }
-    if (!target) {
-      console.warn('[ItaewonLayer] spawn failed — strict 200 attempts', { activeEffect, isFirst, pCellX, pCellY })
+
+    // 반경 1~MAX 결정적 스캔 — 270도 안 + clear LOS 통과한 cell 전부 수집
+    const MAX_R = 3
+    const candidates: { gx: number; gy: number; dist: number }[] = []
+    for (let oy = -MAX_R; oy <= MAX_R; oy++) {
+      for (let ox = -MAX_R; ox <= MAX_R; ox++) {
+        if (ox === 0 && oy === 0) continue
+        const cx = pCellX + ox
+        const cy = pCellY + oy
+        if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
+        if (prev && prev.gx === cx && prev.gy === cy) continue
+        const tw = cellToWorld(cx, cy, cellSize)
+        const dxg = tw.x - camX
+        const dzg = tw.z - camZ
+        const len = Math.hypot(dxg, dzg)
+        if (len < 0.001) continue
+        const dot = (fwdX * dxg + fwdZ * dzg) / len
+        if (dot < -0.707) continue // 시야 270도 밖
+        if (!hasClearLOS(tw.x, tw.z)) continue // 벽에 가려짐
+        candidates.push({ gx: cx, gy: cy, dist: Math.hypot(ox, oy) })
+      }
+    }
+
+    if (candidates.length === 0) {
+      console.warn('[ItaewonLayer] spawn failed — no clear-LOS cell in 270° FOV', { activeEffect, isFirst, pCellX, pCellY })
       return
     }
 
+    // 거리 정렬 후 — 첫 스폰은 먼 절반(드라마틱), 이후는 가까운 절반에서 random
+    candidates.sort((a, b) => a.dist - b.dist)
+    const pool = isFirst
+      ? candidates.slice(Math.floor(candidates.length / 2))
+      : candidates.slice(0, Math.max(1, Math.ceil(candidates.length / 2)))
+    const target = pool[Math.floor(Math.random() * pool.length)]
+
     const world = cellToWorld(target.gx, target.gy, cellSize)
-    console.log('[ItaewonLayer] ghost spawn', { gx: target.gx, gy: target.gy, world, pCellX, pCellY, isFirst })
+    console.log('[ItaewonLayer] ghost spawn', { gx: target.gx, gy: target.gy, world, pCellX, pCellY, isFirst, candidates: candidates.length })
     setGhostPos([world.x, 0, world.z])
-    prevGhostCellRef.current = target
+    prevGhostCellRef.current = { gx: target.gx, gy: target.gy }
     isFirstSpawnRef.current = false
     wasInViewRef.current = false
   }, [activeEffect, cellSize, mazeSize, wallAABBs, camera])

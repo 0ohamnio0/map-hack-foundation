@@ -284,6 +284,20 @@ export class MedicationEffectImpl extends Effect {
     }
   }
 
+  /** Hold envelope — fade in(1.5s) → ghost 만날 때까지 full hold → 만나면 fade out(1.5s).
+   *  releasing = encounter 발생, releaseElapsed = encounter 후 경과 초 */
+  setHoldPhase(elapsed: number, releasing: boolean, releaseElapsed: number) {
+    const fadeIn = 1.5
+    const fadeOut = 1.5
+    const u = this.uniforms
+    u.get('time')!.value = elapsed
+    if (releasing) {
+      u.get('intensity')!.value = Math.max(1 - releaseElapsed / fadeOut, 0)
+    } else {
+      u.get('intensity')!.value = Math.min(elapsed / fadeIn, 1)
+    }
+  }
+
   reset() {
     this.uniforms.get('intensity')!.value = 0
   }
