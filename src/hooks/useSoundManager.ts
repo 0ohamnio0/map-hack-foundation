@@ -9,6 +9,7 @@ const SOUND_MAP: Record<string, string | null> = {
   dog_bark: 'ch1/dog_bark.mp3',
   tape_rewind: 'ch1/tape_rewind.mp3',
   paper_flip: 'ch2/paper_flip.mp3',
+  npc_special: 'ch2/npc_special.mp3',
   gulp_red: 'ch3/gulp_red.mp3',
   gulp_blue: 'ch3/gulp_blue.mp3',
   gulp_yellow: 'ch3/gulp_yellow.mp3',

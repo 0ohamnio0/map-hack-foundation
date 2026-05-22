@@ -7,10 +7,17 @@ import { useRef, useState, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Html, useGLTF, useAnimations } from '@react-three/drei'
 import * as THREE from 'three'
-import { SCALE_X, SCALE_Z } from '@/scenes/ch2Layout'
+import { useSoundManager } from '@/hooks/useSoundManager'
 
 const SPECIAL_NPC_URL = `${import.meta.env.BASE_URL}assets/characters_biped/special_npc_walking/walking.glb`
 useGLTF.preload(SPECIAL_NPC_URL)
+
+// 살아있는 척 — 근처에 있는 동안 반복 사이클: 인 → 유지 → 아웃 → 쿨다운
+const TALK_FADE_IN = 1.0
+const TALK_HOLD = 3.0
+const TALK_FADE_OUT = 1.0
+const TALK_COOLDOWN = 7.0 // + 0~3s 지터
+const TALK_RANGE = 4
 
 interface NPCProps {
   position: [number, number, number]
@@ -71,10 +78,12 @@ function SpecialNPC({ position }: NPCProps) {
   const gazeTimer = useRef(0)
   const materialsRef = useRef<THREE.MeshStandardMaterial[]>([])
   const { camera } = useThree()
+  const { play } = useSoundManager()
   const [textOpacity, setTextOpacity] = useState(0)
   const textOpacityRef = useRef(0)
-  const textTimer = useRef(0)
-  const textShown = useRef(false)
+  const talkPhase = useRef<'idle' | 'in' | 'hold' | 'out' | 'cooldown'>('idle')
+  const talkTimer = useRef(0)
+  const cooldownDur = useRef(0)
 
   const gltf = useGLTF(SPECIAL_NPC_URL)
   const { actions } = useAnimations(gltf.animations, groupRef)
@@ -146,8 +155,6 @@ function SpecialNPC({ position }: NPCProps) {
     _target.set(camera.position.x, 0, camera.position.z)
     gp.lerp(_target, 0.015 * (delta / 0.016))
     gp.y = 0
-    gp.x = Math.max(-7 * SCALE_X, Math.min(7 * SCALE_X, gp.x))
-    gp.z = Math.max(-40 * SCALE_Z, Math.min(3 * SCALE_Z, gp.z))
 
     // Face player (yaw only)
     _playerXZ.set(camera.position.x, 0, camera.position.z)
@@ -162,32 +169,48 @@ function SpecialNPC({ position }: NPCProps) {
       )
     }
 
-    // Distance check for text
+    // 살아있는 척 — 근처에 있는 동안 텍스트+음성 주기적 반복
     const dist = gp.distanceTo(_playerXZ)
-    const shouldShow = dist < 4
-
-    if (shouldShow && !textShown.current) {
-      textTimer.current += delta
-      const newOpacity = Math.min(textTimer.current / 1.0, 1)
-      textOpacityRef.current = newOpacity
-      setTextOpacity(newOpacity)
-
-      if (newOpacity >= 1) {
-        textShown.current = true
-        setTimeout(() => {
-          const fadeOut = () => {
-            textOpacityRef.current -= 0.02
-            if (textOpacityRef.current <= 0) {
-              textOpacityRef.current = 0
-              setTextOpacity(0)
-              return
-            }
-            setTextOpacity(textOpacityRef.current)
-            requestAnimationFrame(fadeOut)
-          }
-          fadeOut()
-        }, 3000)
-      }
+    const inRange = dist < TALK_RANGE
+    let op = textOpacityRef.current
+    switch (talkPhase.current) {
+      case 'idle':
+        op = 0
+        if (inRange) { talkPhase.current = 'in'; talkTimer.current = 0; play('npc_special') }
+        break
+      case 'in':
+        talkTimer.current += delta
+        op = Math.min(talkTimer.current / TALK_FADE_IN, 1)
+        if (talkTimer.current >= TALK_FADE_IN) { talkPhase.current = 'hold'; talkTimer.current = 0; op = 1 }
+        break
+      case 'hold':
+        talkTimer.current += delta
+        op = 1
+        if (talkTimer.current >= TALK_HOLD) { talkPhase.current = 'out'; talkTimer.current = 0 }
+        break
+      case 'out':
+        talkTimer.current += delta
+        op = Math.max(1 - talkTimer.current / TALK_FADE_OUT, 0)
+        if (talkTimer.current >= TALK_FADE_OUT) {
+          op = 0
+          talkPhase.current = 'cooldown'
+          talkTimer.current = 0
+          cooldownDur.current = TALK_COOLDOWN + Math.random() * 3
+        }
+        break
+      case 'cooldown':
+        op = 0
+        talkTimer.current += delta
+        if (talkTimer.current >= cooldownDur.current) {
+          talkTimer.current = 0
+          if (inRange) { talkPhase.current = 'in'; play('npc_special') }
+          else talkPhase.current = 'idle'
+        }
+        break
+    }
+    if (op !== textOpacityRef.current) {
+      textOpacityRef.current = op
+      setTextOpacity(op)
     }
   })
 
