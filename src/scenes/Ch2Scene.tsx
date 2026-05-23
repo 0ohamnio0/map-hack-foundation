@@ -1709,7 +1709,8 @@ export const Ch2Scene: React.FC = () => {
           position: 'fixed',
           left: 24,
           bottom: 24,
-          zIndex: 1500,
+          // 시 모달 열린 동안엔 모달(zIndex 2000) 위로 올려 다른 시 조각 클릭→전환 가능하게
+          zIndex: activeNoteId !== null ? 2100 : 1500,
           display: 'flex',
           alignItems: 'center',
           gap: 10,
@@ -1721,6 +1722,7 @@ export const Ch2Scene: React.FC = () => {
             // 편지 발송 후엔 손에서 소멸 — 빈 슬롯으로 표시(맵 재생성과 무관, note_*는 보존됨)
             const collected = !letterSent && visitedEvents.has(`note_${n.id}`);
             const noteColor = SPARKLE_COLOR[n.id] ?? DEFAULT_SPARKLE;
+            const isActive = collected && n.id === activeNoteId;
             return (
               <svg
                 key={n.id}
@@ -1732,6 +1734,7 @@ export const Ch2Scene: React.FC = () => {
                   cursor: collected ? 'pointer' : 'default',
                   pointerEvents: collected ? 'auto' : 'none',
                   transition: 'transform 0.15s ease',
+                  filter: isActive ? 'drop-shadow(0 0 2px rgba(255,255,255,0.95))' : undefined,
                 }}
                 onClick={collected ? () => openNote(n.id) : undefined}
                 onMouseEnter={collected ? (e) => { e.currentTarget.style.transform = 'scale(1.18)'; } : undefined}
@@ -1740,8 +1743,8 @@ export const Ch2Scene: React.FC = () => {
                 <path
                   d="M3 2 L17 2 L21 6 L21 30 L3 30 Z"
                   fill={collected ? noteColor : 'transparent'}
-                  stroke={collected ? noteColor : '#a0a0a0'}
-                  strokeWidth="1.5"
+                  stroke={isActive ? '#ffffff' : (collected ? noteColor : '#a0a0a0')}
+                  strokeWidth={isActive ? 1.6 : 1.5}
                   strokeLinejoin="round"
                 />
                 <path

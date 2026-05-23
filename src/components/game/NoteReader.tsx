@@ -27,22 +27,38 @@ const NOTE_PAPER: Record<string, string> = {
 
 function NoteText({ ko, en }: { ko: string; en?: string }) {
   const lang = useGameStore(s => s.noteLanguage)
-  const text = lang === 'en' && en ? en : ko
-  return <>{useScrambleTransition(text)}</>
+  const raw = lang === 'en' && en ? en : ko
+  // 줄 단위 이탤릭: *...* 로 감싼 줄만 이탤릭 (마커는 스크램블 전 제거)
+  const lines = raw.split('\n')
+  const italic = lines.map(l => l.length >= 2 && /^\*[\s\S]*\*$/.test(l))
+  const clean = lines.map((l, i) => (italic[i] ? l.slice(1, -1) : l)).join('\n')
+  const display = useScrambleTransition(clean)
+  if (!italic.some(Boolean)) return <>{display}</>
+  const dlines = display.split('\n')
+  return (
+    <>
+      {dlines.map((l, i) => (
+        <span key={i} style={italic[i] ? { fontStyle: 'italic' } : undefined}>
+          {l}{i < dlines.length - 1 ? '\n' : ''}
+        </span>
+      ))}
+    </>
+  )
 }
 
-function TextSegment({ ko, en, preserveSpacing, size, align }: {
+function TextSegment({ ko, en, preserveSpacing, size, align, tight }: {
   ko: string
   en?: string
   preserveSpacing?: boolean
   size?: 'normal' | 'small'
   align?: 'left' | 'center'
+  tight?: boolean
 }) {
   return (
     <div style={{
       fontFamily: '"Unifont", monospace',
-      fontSize: size === 'small' ? 11 : 15,
-      lineHeight: size === 'small' ? 1.5 : 1.7,
+      fontSize: size === 'small' ? 10 : 14,
+      lineHeight: tight ? 1.2 : (size === 'small' ? 1.5 : 1.7),
       letterSpacing: 0.5,
       whiteSpace: preserveSpacing ? 'pre' : 'pre-wrap',
       wordBreak: 'keep-all',
@@ -66,6 +82,7 @@ function SegmentRenderer({ segment }: { segment: PageSegment }) {
         preserveSpacing={segment.preserveSpacing}
         size={segment.size}
         align={segment.align}
+        tight={segment.tight}
       />
     )
   }
@@ -197,7 +214,6 @@ export function NoteReader() {
 
   return (
     <div
-      onClick={closeNote}
       style={{
         position: 'fixed',
         inset: 0,
@@ -208,7 +224,7 @@ export function NoteReader() {
         alignItems: 'center',
         justifyContent: 'safe center',
         padding: '4vh 4vw',
-        cursor: 'pointer',
+        cursor: 'default',
         animation: 'noteReaderFadeIn 0.5s ease-out',
         gap: 16,
       }}
@@ -300,11 +316,11 @@ export function NoteReader() {
           isolation: 'isolate',
         }}
       >
-        {/* 스크롤 영역 — 텍스처는 이 div 밖(종이 박스 고정 필름)이라 스크롤돼도 전 구간에 적용됨 */}
+        {/* 콘텐츠 영역 — 글리치(스크램블) 중 일시적 오버플로로 스크롤이 뜨지 않도록 hidden 고정 */}
         <div style={{
           position: 'absolute',
           inset: 0,
-          overflowY: 'auto',
+          overflowY: 'hidden',
           overflowX: 'hidden',
         }}>
         {/* 888 디자인 페이지 — 고정폭 레이아웃 + 종이폭/888 균일 zoom (리플로우/잘림 없음) */}
