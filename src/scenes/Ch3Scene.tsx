@@ -1106,6 +1106,7 @@ export const Ch3Scene: React.FC = () => {
     // Phase 1 → Phase 2
     setTimeout(() => {
       setCutscenePhase('space');
+      play('space');
     }, ELEVATOR_DURATION);
 
     // Phase 2 → returning (fade out)

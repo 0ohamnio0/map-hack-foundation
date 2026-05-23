@@ -602,6 +602,8 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       e.stopPropagation()
       if (ending) return
       setCount((prev) => {
+        const sfxIndex = Math.floor(Math.random() * 5)
+        play(`ding_${sfxIndex}`)
         const newCount = prev + 1
         const id = nextId.current++
         const frag = makeFragment(id, newCount)
