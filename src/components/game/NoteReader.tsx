@@ -129,6 +129,8 @@ export function NoteReader() {
     if (activeNoteId !== null) {
       setNoteLanguage('ko')
       play('paper_flip')
+      play(`vowels_${activeNoteId}`)
+      console.log(activeNoteId);
     }
   }, [activeNoteId, play, setNoteLanguage])
 
