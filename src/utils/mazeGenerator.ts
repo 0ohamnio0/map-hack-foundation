@@ -31,6 +31,8 @@ export interface MazeOptions {
    * making the layout more open / arena-like.
    */
   removalRatio?: number;
+  /** 중앙 셀에 ㄱ자 코너(북+서 벽) 강제 — 시착실 고정용. 끊긴 영역은 자동 재연결. */
+  forceCenterCorner?: boolean;
 }
 
 type Dir = 'north' | 'south' | 'east' | 'west';
@@ -60,6 +62,59 @@ function shuffle<T>(arr: T[], rng: () => number = Math.random): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+/** (0,0)에서 통로로 도달 가능한 셀 집합 */
+function bfsReachable(cells: MazeCell[][], w: number, h: number): Set<string> {
+  const reach = new Set<string>(['0,0']);
+  const stack: [number, number][] = [[0, 0]];
+  while (stack.length) {
+    const [x, y] = stack.pop()!;
+    const c = cells[y][x].walls;
+    const step = (nx: number, ny: number, open: boolean) => {
+      if (open && nx >= 0 && nx < w && ny >= 0 && ny < h) {
+        const k = `${nx},${ny}`;
+        if (!reach.has(k)) { reach.add(k); stack.push([nx, ny]); }
+      }
+    };
+    step(x, y - 1, !c.north);
+    step(x, y + 1, !c.south);
+    step(x - 1, y, !c.west);
+    step(x + 1, y, !c.east);
+  }
+  return reach;
+}
+
+/** 끊긴 영역을 인접 도달셀과 통로로 이어 전체 연결 복구. protect로 특정 벽(강제 코너)은 안 엶. */
+function ensureConnected(
+  cells: MazeCell[][], w: number, h: number,
+  protect: (x: number, y: number, dir: Dir) => boolean,
+): void {
+  const opp: Record<Dir, Dir> = { north: 'south', south: 'north', east: 'west', west: 'east' };
+  for (let pass = 0; pass < w * h; pass++) {
+    const reach = bfsReachable(cells, w, h);
+    if (reach.size === w * h) return;
+    let opened = false;
+    for (let y = 0; y < h && !opened; y++) {
+      for (let x = 0; x < w && !opened; x++) {
+        if (reach.has(`${x},${y}`)) continue;
+        const tries: { dir: Dir; nx: number; ny: number }[] = [
+          { dir: 'north', nx: x, ny: y - 1 }, { dir: 'south', nx: x, ny: y + 1 },
+          { dir: 'west', nx: x - 1, ny: y }, { dir: 'east', nx: x + 1, ny: y },
+        ];
+        for (const { dir, nx, ny } of tries) {
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+          if (!reach.has(`${nx},${ny}`)) continue;
+          if (protect(x, y, dir)) continue;
+          cells[y][x].walls[dir] = false;
+          cells[ny][nx].walls[opp[dir]] = false;
+          opened = true;
+          break;
+        }
+      }
+    }
+    if (!opened) return;
+  }
 }
 
 export function generateMaze(
@@ -136,6 +191,23 @@ export function generateMaze(
         cells[cell.y][cell.x + 1].walls.west = false;
       }
     }
+  }
+
+  // 시착실 고정 — 중앙 셀에 ㄱ자 코너(북+서 벽) 강제. 끊긴 영역은 강제 코너 보호하며 재연결.
+  if (options.forceCenterCorner) {
+    const ccx = Math.floor(width / 2);
+    const ccy = Math.floor(height / 2);
+    cells[ccy][ccx].walls.north = true;
+    cells[ccy][ccx].walls.west = true;
+    if (ccy > 0) cells[ccy - 1][ccx].walls.south = true;
+    if (ccx > 0) cells[ccy][ccx - 1].walls.east = true;
+    // 진입 통로 — 남쪽 개방 (부스는 코너 반대쪽 SE로 열림)
+    if (ccy < height - 1) { cells[ccy][ccx].walls.south = false; cells[ccy + 1][ccx].walls.north = false; }
+    const protect = (x: number, y: number, dir: Dir): boolean =>
+      (x === ccx && y === ccy && (dir === 'north' || dir === 'west')) ||
+      (x === ccx && y === ccy - 1 && dir === 'south') ||
+      (x === ccx - 1 && y === ccy && dir === 'east');
+    ensureConnected(cells, width, height, protect);
   }
 
   // Convert to wall positions for 3D rendering

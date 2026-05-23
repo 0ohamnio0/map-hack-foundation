@@ -1,6 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Howl } from 'howler';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import { useFixedFramerate } from '@/hooks/useFixedFramerate';
 import { useGameStore } from '@/store/useGameStore';
@@ -12,8 +13,11 @@ const SNAP_UNIT = 0.05;
 
 const GRID_POS_LERP = 3.5; // CH.3 — 느린 전진 (원래 10)
 const GRID_STEP = 1.75; // CH.3 — 카메라 위치를 이 격자에 양자화 → 미끄러지지 않고 칸칸이 끊어 전진(뻑뻑). 3.5의 약수라 cell 중앙 정확
+const FACING_STEP = Math.PI / 12; // CH.3 — 회전 각도 양자화(15°) → 회전도 프레임 뺀 듯 끊기게 (전진 끊김과 톤 맞춤)
 const GRID_FACING_LERP = 12;
 const GRID_INPUT_COOLDOWN = 0.22; // seconds between inputs
+const CART_VOL = 0.5;   // CH.3 롤링 카트 사운드 볼륨
+const CART_FADE = 6;    // 이동 시작/정지 시 볼륨 페이드 속도(자연스러운 멈춤)
 
 function snap(v: number, unit: number) {
   return Math.round(v / unit) * unit;
@@ -92,6 +96,16 @@ export const PlayerController: React.FC<Props> = ({
   const gridTargetFacing = useRef(initYaw);
   const gridCooldown = useRef(0);
   const prevKeys = useRef<Set<string>>(new Set());
+
+  // CH.3 롤링 카트 — 이동(위치 변화) 중 루프, 멈추면 볼륨 페이드아웃. 전역 Howler.mute 자동 적용
+  const cartHowl = useMemo(() => new Howl({
+    src: [`${import.meta.env.BASE_URL ?? '/'}assets/audio/ch3/rolling_cart.mp3`],
+    loop: true, volume: 0, preload: false,
+  }), []);
+  useEffect(() => {
+    if (chapter === 'CH3') cartHowl.load();        // CH.3에서만 미리 로드 (CH.2 등엔 안 깔림)
+    return () => { cartHowl.stop(); };
+  }, [chapter, cartHowl]);
 
   useFrame((_, delta) => {
     if (!shouldUpdate(delta)) return;
@@ -172,17 +186,31 @@ export const PlayerController: React.FC<Props> = ({
         gridCurrentPos.current.z = Math.max(bounds.minZ, Math.min(bounds.maxZ, gridCurrentPos.current.z));
       }
 
-      // 뻑뻑한 전진 — 카메라 위치를 GRID_STEP 격자에 양자화 → 미끄러지지 않고 칸칸이 끊어 나아감.
-      // 회전은 부드럽게 둠(비격자 시야각이 벽 위 검은 하늘을 드러내 '검은 띠' 생기던 것 방지)
+      // 뻑뻑한 전진+회전 — 위치는 GRID_STEP, 각도는 FACING_STEP 격자에 양자화 → 칸칸·각각 끊어 움직임(프레임 뺀 느낌)
+      //   (천장 추가로 '벽 위 검은 하늘' 노출이 없어져 회전 양자화 안전)
       const qx = Math.round(gridCurrentPos.current.x / GRID_STEP) * GRID_STEP;
       const qz = Math.round(gridCurrentPos.current.z / GRID_STEP) * GRID_STEP;
+      const qFacing = Math.round(gridCurrentFacing.current / FACING_STEP) * FACING_STEP;
       camera.position.set(qx, 1.8, qz);
       camera.lookAt(
-        qx + Math.sin(gridCurrentFacing.current) * 10,
+        qx + Math.sin(qFacing) * 10,
         1.8,
-        qz + Math.cos(gridCurrentFacing.current) * 10,
+        qz + Math.cos(qFacing) * 10,
       );
       onPosition?.(gridCurrentPos.current.x, gridCurrentPos.current.z);
+
+      // 롤링 카트 사운드 (CH.3) — 위치 lerp 진행 중이면 이동 = 재생, 멈추면 자연 페이드아웃
+      if (chapter === 'CH3') {
+        const moving =
+          Math.abs(gridTargetPos.current.x - gridCurrentPos.current.x) +
+          Math.abs(gridTargetPos.current.z - gridCurrentPos.current.z) > 0.03;
+        const targetVol = moving ? CART_VOL : 0;
+        const cur = cartHowl.volume() as number;
+        const nv = cur + (targetVol - cur) * (1 - Math.exp(-CART_FADE * dt));
+        cartHowl.volume(nv);
+        if (targetVol > 0 && !cartHowl.playing()) cartHowl.play();
+        else if (targetVol === 0 && nv < 0.01 && cartHowl.playing()) cartHowl.pause();
+      }
       return;
     }
 

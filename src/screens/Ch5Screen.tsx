@@ -47,7 +47,7 @@ function makeFragment(id: number, count: number): TextFragment {
     return {
       id, text: TARGET,
       x: Math.random() * 80 + 2,
-      y: Math.random() * 80 + 2,
+      y: Math.random() * 94 + 2,
       fontSize: 12 + Math.random() * 8,
       rotate: (Math.random() - 0.5) * 15,
       opacity: 0.6 + Math.random() * 0.4,
@@ -73,7 +73,7 @@ function makeFragment(id: number, count: number): TextFragment {
   return {
     id, text,
     x: Math.random() * 85 + 2,
-    y: Math.random() * 85 + 2,
+    y: Math.random() * 94 + 2,
     fontSize: 9 + Math.random() * 18,
     rotate: (Math.random() - 0.5) * 40,
     opacity: 0.3 + Math.random() * 0.7,
@@ -89,7 +89,7 @@ function makeNoiseBlock(id: number): TextFragment {
     id,
     text: '█'.repeat(2 + Math.floor(Math.random() * 8)),
     x: Math.random() * 90,
-    y: Math.random() * 90,
+    y: Math.random() * 96,
     fontSize: 8 + Math.random() * 14,
     rotate: (Math.random() - 0.5) * 10,
     opacity: 0.15 + Math.random() * 0.4,
@@ -589,12 +589,13 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
 
   useEffect(() => {
     if (count >= 30 && !showMessage) {
-      setShowMessage(true)
-      setTimeout(() => setShowBlog1(true), 2000)
-      setTimeout(() => setShowBlog2(true), 3000)
-      setTimeout(() => setShowLink(true), 4000)
+      // 팝업 등장 순서대로 효과음 (cough1 → cough7 → spit) — 시간차 두고 등장
+      setShowMessage(true); play('popup_1')
+      setTimeout(() => { setShowBlog1(true); play('popup_2') }, 2800)
+      setTimeout(() => { setShowBlog2(true); play('popup_3') }, 5600)
+      setTimeout(() => setShowLink(true), 8000)
     }
-  }, [count, showMessage])
+  }, [count, showMessage, play])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

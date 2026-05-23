@@ -1,9 +1,10 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { Minimap, type MinimapMarker } from '@/components/game/Minimap';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { MeshReflectorMaterial, useFBX } from '@react-three/drei';
+import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { useGLTF, useAnimations } from '@react-three/drei';
 import { Suspense } from 'react';
 import { PlayerController, type WallAABB } from '@/components/game/PlayerController';
 import { SceneExporter } from '@/components/dev/SceneExporter';
@@ -14,18 +15,20 @@ import { useDevMode } from '@/hooks/useDevMode';
 import { useMute } from '@/hooks/useMute';
 import { Ch3Effects } from '@/components/effects/ChapterEffects';
 import { StarNestOverlay } from '@/components/effects/StarNestOverlay';
+import { PixelateEffect, type PixelateEffectImpl } from '@/components/effects/PixelateEffect';
 import { ItaewonLayer } from '@/components/game/ItaewonLayer';
-import { startElevatorMusic, endElevatorMusic } from '@/lib/chapterMusic';
+import { suspendChapterMusic, startElevatorMusic, endElevatorMusic } from '@/lib/chapterMusic';
 
 const MAZE_SIZE = 10;
 const CELL_SIZE = 7;
 const WALL_HEIGHT = 4;
 const SNAP_FACTOR = 64;
+const PS1_SNAP = false;   // ⚠️ 임시 off — 바닥 정점 워프가 멀리서 NPC 발 가리는지 확인용. 복구 시 true
 
 function makeSnapMaterial(color: string): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ color });
   mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace(
+    if (PS1_SNAP) shader.vertexShader = shader.vertexShader.replace(
       '#include <project_vertex>',
       `#include <project_vertex>
       gl_Position.xyz = floor(gl_Position.xyz / gl_Position.w * ${SNAP_FACTOR}.0 + 0.5) / ${SNAP_FACTOR}.0 * gl_Position.w;`,
@@ -35,19 +38,49 @@ function makeSnapMaterial(color: string): THREE.MeshStandardMaterial {
 }
 
 const TEX_BASE = `${import.meta.env.BASE_URL ?? '/'}assets/tex/ch3/`;
+const ELEV = `${TEX_BASE}elevator/`;
 const _texLoader = new THREE.TextureLoader();
+// 같은 파일은 한 번만 로드 → clone으로 공유 (GPU 업로드는 source 공유, repeat/offset만 독립). mart_atlas 3중 로드 방지
+const _texBase = new Map<string, THREE.Texture>();
+const _texClones = new Map<string, THREE.Texture[]>();
 
 function makeSnapMaterialWithTexture(
   texFile: string,
-  opts?: { repeat?: number; grayscale?: boolean }
+  opts?: { repeat?: number; repeatX?: number; repeatY?: number; offsetX?: number; grayscale?: boolean; emissive?: number; rotateDeg?: number; pixelize?: number; pixelAspect?: number }
 ): THREE.MeshStandardMaterial {
-  const tex = _texLoader.load(`${TEX_BASE}${texFile}`);
+  let base = _texBase.get(texFile);
+  if (!base) {
+    base = _texLoader.load(`${TEX_BASE}${texFile}`, () => {
+      // 로드 완료 시 모든 clone 재업로드(공유 source에 데이터 반영)
+      (_texClones.get(texFile) ?? []).forEach((c) => { c.needsUpdate = true; });
+    });
+    _texBase.set(texFile, base);
+    _texClones.set(texFile, []);
+  }
+  // 픽셀라이즈 시 밉맵 off — 양자화된 UV가 블록 경계서 급변→밉맵 LOD 튐→경계 어두운 선(테두리) 생기던 것 방지. (메모리도 절감)
+  if (opts?.pixelize) {
+    base.minFilter = THREE.LinearFilter;
+    base.generateMipmaps = false;
+    base.needsUpdate = true;
+  }
+  const tex = base.clone();
+  tex.needsUpdate = true;
+  tex.colorSpace = THREE.SRGBColorSpace;  // sRGB 이미지 — 미설정 시 linear 오인 → 저대비·뿌옇·회색빛
+  if (opts?.pixelize) { tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false; }
+  _texClones.get(texFile)!.push(tex);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  const r = opts?.repeat ?? 1;
-  tex.repeat.set(r, r);
+  tex.repeat.set(opts?.repeatX ?? opts?.repeat ?? 1, opts?.repeatY ?? opts?.repeat ?? 1);
+  if (opts?.offsetX) tex.offset.x = opts.offsetX;
+  if (opts?.rotateDeg) { tex.center.set(0.5, 0.5); tex.rotation = (opts.rotateDeg * Math.PI) / 180; }
   const mat = new THREE.MeshStandardMaterial({ color: '#fff', map: tex });
+  // 벽 = 빛나는 사이니지: 텍스처를 emissive로 자체발광 (피광이라 세로 벽이 어둡던 문제 해소, 카트/고스트 밝기와 맞춤)
+  if (opts?.emissive) {
+    mat.emissive = new THREE.Color('#ffffff');
+    mat.emissiveMap = tex;
+    mat.emissiveIntensity = opts.emissive;
+  }
   mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace(
+    if (PS1_SNAP) shader.vertexShader = shader.vertexShader.replace(
       '#include <project_vertex>',
       `#include <project_vertex>
       gl_Position.xyz = floor(gl_Position.xyz / gl_Position.w * ${SNAP_FACTOR}.0 + 0.5) / ${SNAP_FACTOR}.0 * gl_Position.w;`,
@@ -60,6 +93,27 @@ function makeSnapMaterialWithTexture(
         diffuseColor.rgb = vec3(__gray);`,
       );
     }
+    // 픽셀라이즈 — map/emissive UV를 격자에 양자화(텍스처 저해상 블록). 환경 머티리얼에만 → npc/cart 자동 제외.
+    //   #include 지시문 자체를 양자화 버전으로 교체 (onBeforeCompile 시점엔 chunk가 아직 미확장이라 내부 texture2D는 못 잡음)
+    if (opts?.pixelize && opts.pixelize > 0) {
+      const PIX = Math.max(6, Math.min(4000, 29 / opts.pixelize));  // 역수형: 작을수록 미세
+      // U는 텍스처 가로, V는 세로에 매핑되는데 월드 비율이 달라 정사각 블록이 되려면 pixV = PIX/aspect (aspect=가로/세로 월드비)
+      const aspect = opts.pixelAspect ?? 1;
+      const pu = PIX.toFixed(2);
+      const pv = (PIX / aspect).toFixed(2);
+      // 블록 중심(+0.5)을 샘플 → 블록당 단색. 밉맵 off라 테두리선 없음.
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <map_fragment>', `
+        #ifdef USE_MAP
+          vec2 _pm = vec2(${pu}, ${pv});
+          diffuseColor *= texture2D( map, (floor(vMapUv * _pm) + 0.5) / _pm );
+        #endif`)
+        .replace('#include <emissivemap_fragment>', `
+        #ifdef USE_EMISSIVEMAP
+          vec2 _pe = vec2(${pu}, ${pv});
+          totalEmissiveRadiance *= texture2D( emissiveMap, (floor(vEmissiveMapUv * _pe) + 0.5) / _pe ).rgb;
+        #endif`);
+    }
   };
   return mat;
 }
@@ -70,36 +124,73 @@ function makeSnapMaterialWithTexture(
  *  to the actual wall count so we render exactly the new layout. */
 const MAX_WALLS = 512;
 
+// 벽 텍스처 — mart_walls/wall_1~4 (각 3168×1344, 2.357:1). 높이고정·폭 늘림없이(repeatX=길이/텍폭).
+// 인접 벽끼리 다른 이미지가 오도록 위치 기반 인덱스로 4장 분산.
+const WALL_TEX_FILES = ['mart_walls/wall_1.webp', 'mart_walls/wall_2.webp', 'mart_walls/wall_3.webp', 'mart_walls/wall_4.webp'];
+const WALL_TEX_W = (3168 / 1344) * WALL_HEIGHT;  // 텍스처 1장이 벽높이(4)에서 차지하는 가로 월드폭 ≈ 9.43
+const WALL_PIXELIZE = 0.2;                        // 환경 픽셀라이즈 강도 (클수록 거침). npc/cart는 미적용
+
 const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const material = useMemo(() => makeSnapMaterialWithTexture('qai50015.jpg', { repeat: 1 }), []);
+  // 좁은 벽(길이 CELL_SIZE) 4장 + 긴 경계벽(길이 MAZE×CELL) 4장 — 길이별 repeatX가 달라 분리
+  const narrowRefs = useMemo(() => Array.from({ length: 4 }, () => React.createRef<THREE.InstancedMesh>()), []);
+  const boundRefs = useMemo(() => Array.from({ length: 4 }, () => React.createRef<THREE.InstancedMesh>()), []);
+  const narrowMats = useMemo(() => WALL_TEX_FILES.map((f) =>
+    makeSnapMaterialWithTexture(f, { repeatX: CELL_SIZE / WALL_TEX_W, repeatY: 1, emissive: 0.6, pixelize: WALL_PIXELIZE, pixelAspect: WALL_TEX_W / WALL_HEIGHT })), []);
+  const boundMats = useMemo(() => WALL_TEX_FILES.map((f) =>
+    makeSnapMaterialWithTexture(f, { repeatX: (MAZE_SIZE * CELL_SIZE) / WALL_TEX_W, repeatY: 1, emissive: 0.6, pixelize: WALL_PIXELIZE, pixelAspect: WALL_TEX_W / WALL_HEIGHT })), []);
 
   useEffect(() => {
-    if (!meshRef.current) return;
     const dummy = new THREE.Object3D();
-    maze.wallPositions.forEach((w, i) => {
+    const nc = [0, 0, 0, 0], bc = [0, 0, 0, 0];
+    maze.wallPositions.forEach((w) => {
       dummy.position.set(w.x, WALL_HEIGHT / 2, w.z);
       dummy.scale.set(w.scaleX, WALL_HEIGHT, w.scaleZ);
       dummy.updateMatrix();
-      meshRef.current!.setMatrixAt(i, dummy.matrix);
+      // 인접 벽(같은 run에서 x 또는 z가 CELL씩 변화)끼리 인덱스가 달라짐 → 같은 이미지 옆에 안 옴
+      const idx = (((Math.round(w.x / CELL_SIZE) + Math.round(w.z / CELL_SIZE)) % 4) + 4) % 4;
+      if (Math.max(w.scaleX, w.scaleZ) > 20) {
+        const m = boundRefs[idx].current; if (m) m.setMatrixAt(bc[idx]++, dummy.matrix);
+      } else {
+        const m = narrowRefs[idx].current; if (m) m.setMatrixAt(nc[idx]++, dummy.matrix);
+      }
     });
-    meshRef.current.count = maze.wallPositions.length;
-    meshRef.current.instanceMatrix.needsUpdate = true;
-  }, [maze]);
+    narrowRefs.forEach((r, i) => { if (r.current) { r.current.count = nc[i]; r.current.instanceMatrix.needsUpdate = true; } });
+    boundRefs.forEach((r, i) => { if (r.current) { r.current.count = bc[i]; r.current.instanceMatrix.needsUpdate = true; } });
+  }, [maze, narrowRefs, boundRefs]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_WALLS]} material={material} frustumCulled={false}>
-      <boxGeometry args={[1, 1, 1]} />
-    </instancedMesh>
+    <>
+      {narrowMats.map((m, i) => (
+        <instancedMesh key={`n${i}`} ref={narrowRefs[i]} args={[undefined, undefined, MAX_WALLS]} material={m} frustumCulled={false}>
+          <boxGeometry args={[1, 1, 1]} />
+        </instancedMesh>
+      ))}
+      {boundMats.map((m, i) => (
+        <instancedMesh key={`b${i}`} ref={boundRefs[i]} args={[undefined, undefined, MAX_WALLS]} material={m} frustumCulled={false}>
+          <boxGeometry args={[1, 1, 1]} />
+        </instancedMesh>
+      ))}
+    </>
   );
 };
 
 const MazeFloor: React.FC = () => {
   const size = MAZE_SIZE * CELL_SIZE;
-  const material = useMemo(() => makeSnapMaterialWithTexture('SAND3.JPG', { repeat: 10 }), []);
+  const material = useMemo(() => makeSnapMaterialWithTexture('floor_tile.webp', { repeat: 16, emissive: 0.6, pixelize: WALL_PIXELIZE }), []);
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[size / 2, 0, size / 2]} material={material}>
       <planeGeometry args={[size, size, MAZE_SIZE, MAZE_SIZE]} />
+    </mesh>
+  );
+};
+
+// 천장 — 벽(높이 4) 위로 노출되던 검은 배경을 덮어 "검은 띠"(이동 시 벽 윗단 위 void) 제거
+const MazeCeiling: React.FC = () => {
+  const size = MAZE_SIZE * CELL_SIZE;
+  const material = useMemo(() => makeSnapMaterialWithTexture('ceiling_hvac.webp', { repeatX: 16.67, repeatY: 11.17, emissive: 0.5, rotateDeg: 90, pixelize: WALL_PIXELIZE, pixelAspect: 11.17 / 16.67 }), []);
+  return (
+    <mesh rotation={[Math.PI / 2, 0, 0]} position={[size / 2, WALL_HEIGHT, size / 2]} material={material}>
+      <planeGeometry args={[size, size]} />
     </mesh>
   );
 };
@@ -214,189 +305,209 @@ const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
   );
 };
 
-// --- Fitting room (= space elevator portal) — 중앙 근처, 실제 벽 코너에 두 면 붙임 ---
-// 미로가 매번 랜덤이라 중앙 주변에서 인접 두 벽(코너)이 있는 셀을 찾아 부스를 flush 배치.
-// 반환: pos = 부스 중심 world, (nx,nz) = 코너가 향하는 셀 모서리 방향(±1). 결정적이라 Ch3Inner·Ch3Scene 동일 결과.
+// 시착실 부스 치수 — 좁고 길쭉. 천장(y=4) 아래로 H≤3.9. (flush 배치가 반폭에 의존하므로 상수 공유)
+const FITTING_W = 1.5;
+const FITTING_D = 1.5;
+const FITTING_H = 3.8;
+
+// --- Fitting room (= space elevator portal) — 중앙 셀의 ㄱ자 코너에 고정 ---
+// 미로 생성 시 forceCenterCorner로 중앙 셀에 북+서 벽을 강제(nx=-1,nz=-1) → 부스가 항상 같은 자리.
+// 그래야 그 코너 벽에 옷 텍스처를 입힐 수 있음. 반환은 결정적(Ch3Inner·Ch3Scene 동일).
 type FittingPlacement = { pos: { x: number; z: number }; nx: number; nz: number };
 function findFittingCorner(maze: MazeData, cellSize: number): FittingPlacement {
   const cx0 = Math.floor(maze.width / 2);
   const cy0 = Math.floor(maze.height / 2);
-  const offset = cellSize / 2 - 1.2; // 부스 반폭 1.2 → 코너 모서리에 flush
-  const cands: { x: number; y: number; nx: number; nz: number; dist: number }[] = [];
-  for (let y = 0; y < maze.height; y++) {
-    for (let x = 0; x < maze.width; x++) {
-      const w = maze.cells[y][x].walls;
-      const corners: { nx: number; nz: number }[] = [];
-      if (w.north && w.west) corners.push({ nx: -1, nz: -1 });
-      if (w.north && w.east) corners.push({ nx: 1, nz: -1 });
-      if (w.south && w.west) corners.push({ nx: -1, nz: 1 });
-      if (w.south && w.east) corners.push({ nx: 1, nz: 1 });
-      for (const c of corners) {
-        // 부스는 (-nx,-nz) 안쪽으로 열림 — 진입하려면 그쪽 중 하나는 통로여야 함
-        const openX = c.nx < 0 ? !w.east : !w.west;
-        const openZ = c.nz < 0 ? !w.south : !w.north;
-        if (!openX && !openZ) continue;
-        cands.push({ x, y, nx: c.nx, nz: c.nz, dist: Math.hypot(x - cx0, y - cy0) });
-      }
-    }
-  }
-  cands.sort((a, b) => a.dist - b.dist);
-  const best = cands[0];
-  if (!best) {
-    const w = cellToWorld(cx0, cy0, cellSize);
-    return { pos: w, nx: -1, nz: -1 };
-  }
-  const cw = cellToWorld(best.x, best.y, cellSize);
-  return { pos: { x: cw.x + best.nx * offset, z: cw.z + best.nz * offset }, nx: best.nx, nz: best.nz };
+  const offset = cellSize / 2 - FITTING_W / 2 - 0.4; // 부스 반폭 + 코너에서 0.4 빼냄(벽에 박히던 것 완화)
+  const nx = -1, nz = -1; // 중앙 셀 북서(ㄱ) 코너 — forceCenterCorner와 일치
+  const cw = cellToWorld(cx0, cy0, cellSize);
+  return { pos: { x: cw.x + nx * offset, z: cw.z + nz * offset }, nx, nz };
 }
 
 /** Fitting room booth — 두 벽(side+back)을 미로 코너에 붙이고 안쪽으로 개방, 거울은 back에 */
 const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz: number }> = ({ worldPos, nx, nz }) => {
-  const W = 2.4, D = 2.4, T = 0.15, H = 3, Hh = 1.5;
+  const W = FITTING_W, D = FITTING_D, T = 0.15, H = FITTING_H, Hh = H / 2;
   const Wh = W / 2, Dh = D / 2;
+  const FITTING_Y = -0.5; // 부스 전체 Y 하강 (바닥 아래는 가려짐)
+  const MIRROR_RAISE = 0.5; // 거울(프레임+그린면)만 다시 올림
+  const FRAME_W = 1.3, FRAME_H = FRAME_W * (3915 / 1934); // 틀 비율(세로 김)
+  const OPEN_W = FRAME_W * 0.72, OPEN_H = FRAME_H * 0.88; // 개구부(64/82)보다 살짝 크게 → 가장자리가 틀 테두리 뒤로 들어감(틈 없이)
+  const mirrorY = Hh + MIRROR_RAISE;
+  // 픽셀라이즈를 바닥과 같은 블록 크기로 — 면마다 월드폭이 달라 pixelize 값을 환산
+  const FLOOR_BLOCK = ((MAZE_SIZE * CELL_SIZE) / 16) * WALL_PIXELIZE / 29;
+  const blkPix = (w: number) => (29 * FLOOR_BLOCK) / w;
+  // 빨강 벨벳 커튼 — 4벽. emissive + 바닥 블록 크기 픽셀라이즈(세로 폴드 유지)
+  const curtainMat = useMemo(() => makeSnapMaterialWithTexture('curtain.webp',
+    { emissive: 0.4, pixelize: blkPix(FITTING_W), pixelAspect: FITTING_W / FITTING_H }), []);
+  // 거울 틀 — 알파(중앙 개구부 투명, 뒤로 그린/영상 비침) + emissive + 바닥 블록 픽셀라이즈
+  const frameMat = useMemo(() => {
+    const m = makeSnapMaterialWithTexture('mirror_frame.webp',
+      { emissive: 0.9, pixelize: blkPix(FRAME_W), pixelAspect: FRAME_W / FRAME_H });
+    m.transparent = true;
+    m.side = THREE.DoubleSide;
+    return m;
+  }, []);
   return (
-    <group position={[worldPos.x, 0, worldPos.z]}>
-      {/* 4면 닫힌 박스 — flush 2면(코너 벽에 붙음) + outer 2면 + 천장 */}
+    <group position={[worldPos.x, FITTING_Y, worldPos.z]}>
+      {/* 4면 닫힌 박스 — flush 2면(코너 벽에 붙음) + outer 2면 + 천장. 벽=커튼 텍스처 */}
       {/* Flush side wall — x 모서리(nx) */}
-      <mesh position={[nx * Wh, Hh, 0]}>
+      <mesh position={[nx * Wh, Hh, 0]} material={curtainMat}>
         <boxGeometry args={[T, H, D]} />
-        <meshStandardMaterial color="#665544" />
       </mesh>
       {/* Flush back wall — z 모서리(nz) */}
-      <mesh position={[0, Hh, nz * Dh]}>
+      <mesh position={[0, Hh, nz * Dh]} material={curtainMat}>
         <boxGeometry args={[W, H, T]} />
-        <meshStandardMaterial color="#665544" />
       </mesh>
       {/* Outer side wall — 안쪽 x면 */}
-      <mesh position={[-nx * Wh, Hh, 0]}>
+      <mesh position={[-nx * Wh, Hh, 0]} material={curtainMat}>
         <boxGeometry args={[T, H, D]} />
-        <meshStandardMaterial color="#665544" />
       </mesh>
       {/* Outer front wall — 안쪽 z면 (거울 부착 면) */}
-      <mesh position={[0, Hh, -nz * Dh]}>
+      <mesh position={[0, Hh, -nz * Dh]} material={curtainMat}>
         <boxGeometry args={[W, H, T]} />
-        <meshStandardMaterial color="#665544" />
       </mesh>
       {/* Ceiling lid */}
       <mesh position={[0, H, 0]}>
         <boxGeometry args={[W, T, D]} />
         <meshStandardMaterial color="#554433" />
       </mesh>
-      {/* Mirror frame on outer z face */}
-      <mesh position={[0, Hh, -nz * (Dh + 0.04)]}>
-        <boxGeometry args={[W * 0.85, H * 0.92, 0.04]} />
-        <meshStandardMaterial color="#1a1a1a" metalness={0.4} roughness={0.6} />
+      {/* 그린 플레이스홀더 (영상 교체 예정) — 틀 개구부 크기, 틀 뒤에 둠 */}
+      <mesh position={[0, mirrorY, -nz * (Dh + 0.08)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]}>
+        <planeGeometry args={[OPEN_W, OPEN_H]} />
+        <meshBasicMaterial color="#22ff66" toneMapped={false} side={THREE.DoubleSide} />
       </mesh>
-      {/* Mirror — 박스 바깥(-nz)을 향함 */}
-      <mesh position={[0, Hh, -nz * (Dh + 0.06)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]}>
-        <planeGeometry args={[W * 0.8, H * 0.88]} />
-        <MeshReflectorMaterial
-          mirror={1}
-          resolution={1024}
-          mixBlur={0.05}
-          mixStrength={1.2}
-          blur={[60, 30]}
-          color="#dde6ee"
-          metalness={1}
-          roughness={0.02}
-          depthScale={0.4}
-          minDepthThreshold={0.3}
-          maxDepthThreshold={1}
-        />
+      {/* 거울 틀 이미지 (알파 — 중앙 개구부로 그린/영상 비침) — 그린 앞에 겹침 */}
+      <mesh position={[0, mirrorY, -nz * (Dh + 0.12)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]} material={frameMat}>
+        <planeGeometry args={[FRAME_W, FRAME_H]} />
       </mesh>
     </group>
   );
 };
 
 // --- Space character (FBX with PBR, R3F overlay) ---
-const ASSETS_BASE = `${import.meta.env.BASE_URL}assets/characters_biped/Meshy_AI_biped/`;
-const SPACE_FBX_URL = `${ASSETS_BASE}Meshy_AI_Animation_Long_Breathe_and_Look_Around_frame_rate_24.fbx`;
-const SPACE_DIFFUSE_URL   = `${ASSETS_BASE}Meshy_AI_texture_0.png`;
-const SPACE_METALLIC_URL  = `${ASSETS_BASE}Meshy_AI_texture_0_metallic.png`;
-const SPACE_NORMAL_URL    = `${ASSETS_BASE}Meshy_AI_texture_0_normal.png`;
-const SPACE_ROUGHNESS_URL = `${ASSETS_BASE}Meshy_AI_texture_0_roughness.png`;
+// 우주씬 메인 캐릭터 — mx.pott (Meshy GLB, withSkin + idle 애니메이션)
+const SPACE_GLB_URL = `${import.meta.env.BASE_URL}assets/characters_biped/mx_pott/mxpott_idle.glb`;
 
 const SpaceCharacterMesh: React.FC = () => {
-  const fbx = useFBX(SPACE_FBX_URL);
-  const diffuse   = useLoader(THREE.TextureLoader, SPACE_DIFFUSE_URL);
-  const metallic  = useLoader(THREE.TextureLoader, SPACE_METALLIC_URL);
-  const normalMap = useLoader(THREE.TextureLoader, SPACE_NORMAL_URL);
-  const roughness = useLoader(THREE.TextureLoader, SPACE_ROUGHNESS_URL);
   const ref = useRef<THREE.Group>(null);
-  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const { scene, animations } = useGLTF(SPACE_GLB_URL);
 
+  // per-instance 클론(스켈레톤 포함) + 정규화 — 렌더 중(useMemo)에 적용.
+  //  · 클론: useGLTF 공유 캐시 scene을 직접 변형하면 재생(재마운트) 시 중복 스케일됨 → 클론으로 격리
+  //  · useMemo(렌더 중): useEffect면 첫 페인트 후 적용돼 GLB 로드 시 잠깐 거대하게 떴음
+  const model = useMemo(() => {
+    const c = skeletonClone(scene);
+    c.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(c);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const s = 0.513 / maxDim;  // ~1/3 × 0.9
+    c.scale.setScalar(s);
+    c.position.set(-center.x * s, -center.y * s, -center.z * s);
+    return c;
+  }, [scene]);
+
+  const { actions, names } = useAnimations(animations, ref);
+
+  // idle 애니메이션 재생
   useEffect(() => {
-    if (!fbx) return;
-    if (fbx.animations.length > 0) {
-      const mixer = new THREE.AnimationMixer(fbx);
-      const action = mixer.clipAction(fbx.animations[0]);
-      action.play();
-      mixerRef.current = mixer;
+    const name = names[0];
+    if (name && actions[name]) {
+      actions[name].reset().fadeIn(0.3).play();
+      return () => { actions[name]?.fadeOut(0.3); };
     }
-    fbx.traverse(child => {
-      if (child instanceof THREE.Mesh) {
-        child.material = new THREE.MeshStandardMaterial({
-          map: diffuse,
-          metalnessMap: metallic,
-          normalMap: normalMap,
-          roughnessMap: roughness,
-          metalness: 0.25,
-          roughness: 0.72,
-        });
-      }
-    });
-  }, [fbx, diffuse, metallic, normalMap, roughness]);
+    return undefined;
+  }, [actions, names]);
 
+  // 천천히 회전 + 부유
   useFrame((_, delta) => {
-    mixerRef.current?.update(delta);
     if (ref.current) {
       ref.current.rotation.y += delta * 0.18;
-      ref.current.position.y = -0.75 + Math.sin(performance.now() * 0.001) * 0.03;
+      ref.current.position.y = -0.85 + Math.sin(performance.now() * 0.001) * 0.03;  // 화면 하단 부유
     }
   });
 
   return (
     <group ref={ref}>
-      <primitive object={fbx} scale={0.0022} />
+      <primitive object={model} />
     </group>
   );
 };
+// (mx.pott 15MB는 eager preload 안 함 — 우주씬 진입 시 로드. CH.3 미로 동안 GPU 메모리 절약 → 고스트 로드 여유)
 
-const SpaceCharacterCanvas: React.FC = () => (
-  <Canvas
-    style={{ position: 'fixed', inset: 0, zIndex: 1002, pointerEvents: 'none' }}
-    camera={{ fov: 35, position: [0, 0.4, 3.2] }}
-    gl={{ alpha: true }}
-  >
-    <ambientLight intensity={0.45} color="#dde8ff" />
-    <directionalLight position={[2, 4, 3]} intensity={1.2} color="#ffffff" />
-    <directionalLight position={[-2, 1, -1]} intensity={0.4} color="#88aaff" />
-    <Suspense fallback={null}>
-      <SpaceCharacterMesh />
-    </Suspense>
-    <EffectComposer>
-      <Bloom
-        intensity={0.9}
-        luminanceThreshold={0.35}
-        luminanceSmoothing={0.4}
-        mipmapBlur
-      />
-    </EffectComposer>
-  </Canvas>
-);
+// PixelateEffect는 prop 비반응 → ref+useFrame으로 구동 (CH.2와 동일 패턴).
+// 우주씬 끝 PIX_RAMP_MS 동안(캐릭터 풀 opacity 중에) 0→1 픽셀 붕괴 → returning 동안 1 유지하며 페이드.
+//   (returning에만 램프하면 동시 fadeout에 가려 안 보임)
+const PIX_RAMP_MS = 8000;          // 우주씬 끝 8초 동안 픽셀 붕괴
+const SPACE_PIX_MAX_PX = 40;       // 우주 캐릭터 전용 최대 블록(px) — CH.2(14)보다 강함
+const SPACE_PIX_MIN_LEVELS = 3;    // 우주 캐릭터 전용 최소 색계조 — CH.2(5)보다 강함
+const PixelProgress: React.FC<{ pixRef: React.RefObject<PixelateEffectImpl | null>; phase: CutscenePhase }> = ({ pixRef, phase }) => {
+  const startRef = useRef<number | null>(null);
+  useFrame(() => {
+    if (phase === 'space') {
+      if (startRef.current === null) startRef.current = performance.now();
+      const elapsed = performance.now() - startRef.current;
+      const t = Math.min(Math.max((elapsed - (SPACE_DURATION - PIX_RAMP_MS)) / PIX_RAMP_MS, 0), 1);
+      pixRef.current?.setProgressTo(t, SPACE_PIX_MAX_PX, SPACE_PIX_MIN_LEVELS);
+    } else if (phase === 'returning') {
+      pixRef.current?.setProgressTo(1, SPACE_PIX_MAX_PX, SPACE_PIX_MIN_LEVELS);  // 최대 유지
+    } else {
+      startRef.current = null;
+      pixRef.current?.setProgressTo(0, SPACE_PIX_MAX_PX, SPACE_PIX_MIN_LEVELS);
+    }
+  });
+  return null;
+};
+
+const SpaceCharacterCanvas: React.FC<{ phase: CutscenePhase }> = ({ phase }) => {
+  const pixRef = useRef<PixelateEffectImpl>(null);
+  return (
+    <Canvas
+      style={{ position: 'fixed', inset: 0, zIndex: 1002, pointerEvents: 'none' }}
+      camera={{ fov: 35, position: [0, 0.4, 3.2] }}
+      gl={{ alpha: true }}
+    >
+      <ambientLight intensity={0.45} color="#dde8ff" />
+      <directionalLight position={[2, 4, 3]} intensity={1.2} color="#ffffff" />
+      <directionalLight position={[-2, 1, -1]} intensity={0.4} color="#88aaff" />
+      <Suspense fallback={null}>
+        <SpaceCharacterMesh />
+      </Suspense>
+      <PixelProgress pixRef={pixRef} phase={phase} />
+      <EffectComposer>
+        <Bloom
+          intensity={0.9}
+          luminanceThreshold={0.35}
+          luminanceSmoothing={0.4}
+          mipmapBlur
+        />
+        <PixelateEffect ref={pixRef} />
+      </EffectComposer>
+    </Canvas>
+  );
+};
 
 // --- Elevator Cutscene ---
 type CutscenePhase = 'elevator' | 'space' | 'returning' | null;
 
-const ELEVATOR_DURATION = 18000; // 18s elevator interior — 명상적 호흡 확보
+const ELEVATOR_DURATION = 21000; // 21s elevator interior — 명상적 호흡 확보 (+3s)
 const SPACE_DURATION = 42500;    // 42.5s space scene (-2.5s polish)
 const RETURN_FADE = 1500;       // 화이트아웃 → 맵 복귀 fade
+
+// 버튼 패널 핫스팟 — baked 패널 bbox 내 로컬 좌표(%). 버튼 n → elevator_btn_(n-1)
+const ELEV_BUTTONS: { label: string; x: number; y: number; sound: number }[] = [
+  { label: '9', x: 29, y: 22, sound: 8 }, { label: '10', x: 72, y: 22, sound: 9 },
+  { label: '7', x: 29, y: 35, sound: 6 }, { label: '8', x: 72, y: 35, sound: 7 },
+  { label: '5', x: 29, y: 48, sound: 4 }, { label: '6', x: 72, y: 48, sound: 5 },
+  { label: '3', x: 29, y: 62, sound: 2 }, { label: '4', x: 72, y: 62, sound: 3 },
+  { label: '1', x: 29, y: 75, sound: 0 }, { label: '2', x: 72, y: 75, sound: 1 },
+];
 
 const ElevatorCutscene: React.FC<{
   phase: CutscenePhase;
 }> = ({ phase }) => {
   const [floor, setFloor] = useState<string>('01');
-  const [lookUp, setLookUp] = useState(false);
+  const [lookDir, setLookDir] = useState<'up' | 'down' | null>(null);
   const [stars, setStars] = useState<{ x: number; y: number; size: number; opacity: number; speed: number }[]>([]);
   const [earthY, setEarthY] = useState(80);
   const animRef = useRef<number>(0);
@@ -411,21 +522,27 @@ const ElevatorCutscene: React.FC<{
     return undefined;
   }, [phase, loop]);
 
-  // 도착 ding → 700ms 후 문 열림. space 전환 2초 전에 시작 (사운드가 시각 변화에 약간 선행)
+  // 도착 ding — space 전환 2초 전 (문 열림 사운드는 우주씬 진입 시 = 실제 문 열리는 순간)
   useEffect(() => {
     if (phase === 'elevator') {
       const dingTimer = setTimeout(() => {
         play('elevator_ding');
-        setTimeout(() => play('elevator_door'), 700);
       }, ELEVATOR_DURATION - 2000);
       return () => clearTimeout(dingTimer);
     }
     return undefined;
   }, [phase, play]);
 
+  // 우주씬: 진입 시 문 열림 사운드 (실제 문 슬라이드와 동기)
+  useEffect(() => {
+    if (phase !== 'space') return;
+    play('elevator_door');
+    return undefined;
+  }, [phase, play]);
+
   // Auto floor counter — 1 → 99 → ★
   useEffect(() => {
-    if (phase !== 'elevator') { setFloor('01'); setLookUp(false); return; }
+    if (phase !== 'elevator') { setFloor('01'); setLookDir(null); return; }
     let count = 1;
     setFloor('01');
     const interval = setInterval(() => {
@@ -440,12 +557,13 @@ const ElevatorCutscene: React.FC<{
     return () => clearInterval(interval);
   }, [phase]);
 
-  // Up arrow / W = look up (hold)
+  // 위/아래 키(hold) = 세로 패닝: W/↑ → 천장(up), S/↓ → 바닥(down), 떼면 정면(default)
   useEffect(() => {
     if (phase !== 'elevator') return;
-    const isLookKey = (e: KeyboardEvent) => e.code === 'ArrowUp' || e.code === 'KeyW';
-    const down = (e: KeyboardEvent) => { if (isLookKey(e)) setLookUp(true); };
-    const up = (e: KeyboardEvent) => { if (isLookKey(e)) setLookUp(false); };
+    const UP = (e: KeyboardEvent) => e.code === 'ArrowUp' || e.code === 'KeyW';
+    const DOWN = (e: KeyboardEvent) => e.code === 'ArrowDown' || e.code === 'KeyS';
+    const down = (e: KeyboardEvent) => { if (UP(e)) setLookDir('up'); else if (DOWN(e)) setLookDir('down'); };
+    const up = (e: KeyboardEvent) => { if (UP(e) || DOWN(e)) setLookDir(null); };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
@@ -488,290 +606,103 @@ const ElevatorCutscene: React.FC<{
   };
 
   // --- Elevator interior ---
-  // lookUp: positive translateY pushes content DOWN → camera looks UP
-  const viewY = lookUp ? 15 : 0;
-
   if (phase === 'elevator') {
+    // 세로 패닝: full.webp(3:2)을 height 200vh로 깔고(빨강밴드 ≈ 1뷰포트) translateY로 위/아래
+    //  up = 0vh(천장), default = -62vh(문·버튼=빨강밴드 31~81%), down = -100vh(바닥)
+    const panY = lookDir === 'up' ? '0vh' : lookDir === 'down' ? '-100vh' : '-62vh';
     return (
       <div style={fadeStyle}>
-        {/* Viewport container — shifts down on look-up (= camera tilts up) */}
-        <div style={{
-          position: 'absolute',
-          left: 0, right: 0,
-          top: '-20%',   /* extra room above for floor indicator */
-          bottom: '-5%',
-          transform: `translateY(${viewY}%)`,
-          transition: 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-        }}>
-
-        {/* Back wall bg — fills entire view, GALVPLAT 텍스처 + dark overlay */}
-        <div style={{
-          position: 'absolute', left: 0, right: 0, top: '16%', bottom: 0,
-          backgroundImage: `url('${import.meta.env.BASE_URL}assets/tex/ch3/GALVPLAT.JPG'), linear-gradient(180deg, #08080a 0%, #111114 30%, #161619 60%, #111114 100%)`,
-          backgroundSize: 'cover, cover',
-          backgroundBlendMode: 'multiply',
-        }} />
-
-        {/* Ceiling — thin strip */}
-        <div style={{
-          position: 'absolute', top: '16%', left: 0, right: 0, height: '6%',
-          background: 'linear-gradient(0deg, #18181c 0%, #0c0c0e 100%)',
-          borderBottom: '1px solid rgba(255,255,255,0.03)',
-        }}>
-          <div style={{
-            position: 'absolute', bottom: 0, left: '35%', right: '35%', height: 3,
-            background: '#bbcc88',
-            boxShadow: '0 4px 50px 15px rgba(180,200,120,0.1)',
-            animation: 'elevatorFlicker 0.15s infinite alternate',
-          }} />
-        </div>
-
-        {/* Left wall */}
-        <div style={{
-          position: 'absolute', left: 0, top: '22%', bottom: 0, width: '15%',
-          backgroundImage: `url('${import.meta.env.BASE_URL}assets/tex/ch3/GALVPLAT.JPG'), linear-gradient(90deg, #0c0c0f 0%, #141417 100%)`,
-          backgroundSize: 'cover, cover',
-          backgroundBlendMode: 'multiply',
-          borderRight: '1px solid rgba(255,255,255,0.03)',
-        }}>
-          <div style={{
-            position: 'absolute', right: '35%', top: 0, bottom: 0,
-            width: 1, background: 'rgba(255,255,255,0.03)',
-          }} />
-        </div>
-
-        {/* Graffiti City + Digital-7 폰트 (public/fonts) */}
         <style>{`
-          @font-face {
-            font-family: 'Graffiti City';
-            src: url('${import.meta.env.BASE_URL}fonts/GraffitiCity.otf') format('opentype');
-            font-display: swap;
-          }
           @font-face {
             font-family: 'Digital-7';
             src: url('${import.meta.env.BASE_URL}fonts/digital-7.ttf') format('truetype');
             font-display: swap;
           }
+          .elev-hotspot {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 38%; height: 11%;
+            border-radius: 50%;
+            cursor: pointer;
+            background: transparent;
+          }
         `}</style>
-        {/* 'look up kid...' graffiti — 좌측 중하단 (Up/W 인터랙션 안내) */}
-        <div style={{
-          position: 'absolute',
-          left: '3%',
-          top: '85%',
-          zIndex: 10,
-          transform: 'rotate(-6deg)',
-          fontFamily: '"Graffiti City", "Hammer Keys", monospace',
-          // 엘베 벽이 viewport 비례(%)로 sizing되니 글자도 vmin으로 같이 비례
-          // MacBook 16" (1728×1117 / 1512×982) 기준 56px ≈ 5vmin
-          fontSize: '2.1vmin',
-          letterSpacing: '0.075vmin',
-          color: 'rgba(235, 80, 70, 0.9)',
-          textShadow: '0 0 12px rgba(220, 40, 30, 0.6), 2px 3px 0 rgba(0,0,0,0.75)',
-          pointerEvents: 'none',
-          userSelect: 'none',
-          whiteSpace: 'nowrap',
-        }}>
-          ↑ look up kid...
-        </div>
 
-        {/* Right wall */}
+        {/* Viewport — overflow hidden + 진동 shake (내부 전체가 흔들림) */}
         <div style={{
-          position: 'absolute', right: 0, top: '22%', bottom: 0, width: '15%',
-          backgroundImage: `url('${import.meta.env.BASE_URL}assets/tex/ch3/GALVPLAT.JPG'), linear-gradient(-90deg, #0c0c0f 0%, #141417 100%)`,
-          backgroundSize: 'cover, cover',
-          backgroundBlendMode: 'multiply',
-          borderLeft: '1px solid rgba(255,255,255,0.03)',
+          position: 'absolute', inset: 0, overflow: 'hidden', background: '#000',
+          animation: 'elevatorShake 0.1s infinite',
         }}>
+          {/* 패닝 컨테이너 = full.webp 이미지 박스(높이 200vh, 3:2). translateY로 상/중/하 */}
           <div style={{
-            position: 'absolute', left: '35%', top: 0, bottom: 0,
-            width: 1, background: 'rgba(255,255,255,0.03)',
-          }} />
-        </div>
-
-        {/* Back wall — door area, fills view edge to edge vertically */}
-        <div style={{
-          position: 'absolute',
-          left: '15%', right: '15%', top: '22%', bottom: 0,
-          background: 'linear-gradient(180deg, #111114 0%, #151518 50%, #111114 100%)',
-        }}>
-          {/* Door frame — tall, bottom-less, nearly full width */}
-          <div style={{
-            position: 'absolute',
-            left: '8%', right: '8%', top: '3%', bottom: '0%',
-            border: '2px solid rgba(255,255,255,0.06)',
-            borderBottom: 'none',
-            background: 'rgba(0,0,0,0.3)',
+            position: 'absolute', top: 0, left: '50%',
+            height: '200vh', aspectRatio: '3 / 2',
+            transform: `translateX(-50%) translateY(${panY})`,
+            transition: 'transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1)',
           }}>
+            <img src={`${ELEV}full.webp`} alt="" style={{ display: 'block', width: '100%', height: '100%' }} />
+
+            {/* 층 표시기 — baked 디스플레이 스크린(문 위, 중심 49%/23.6%, 6%×3.6%) 안에 그린 카운터 */}
             <div style={{
-              position: 'absolute', left: '50%', top: 0, bottom: 0,
-              width: 1, background: 'rgba(255,255,255,0.08)',
-            }} />
-          </div>
+              position: 'absolute', left: '49%', top: '23.6%', transform: 'translate(-50%, -50%)',
+              width: '6%', height: '3.6%', containerType: 'size',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: '"Digital-7", "Unifont", monospace',
+              color: '#39ff5a', textShadow: '0 0 0.6vh rgba(57,255,90,0.75)',
+              whiteSpace: 'nowrap', overflow: 'hidden',
+            }}>
+              <span style={{ fontSize: '80cqh', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '0.05em' }}>
+                {floor === '★' ? '★' : <>{floor}<span style={{ fontSize: '0.7em' }}>↑</span></>}
+              </span>
+            </div>
 
-          {/* ▲ direction arrow */}
-          <div style={{
-            position: 'absolute', top: '-4%', left: '50%', transform: 'translateX(-50%)',
-            fontFamily: '"Unifont", monospace', fontSize: 12, color: '#ff3300',
-            animation: 'arrowPulse 0.8s ease-in-out infinite',
-          }}>
-            ▲
-          </div>
-        </div>
-
-        {/* Floor indicator — above back wall, revealed on look-up */}
-        <div style={{
-          position: 'absolute',
-          top: '10%', left: '50%', transform: 'translateX(-50%)',
-          textAlign: 'center',
-        }}>
-          <div style={{
-            fontFamily: '"Digital-7", "Unifont", monospace',
-            fontSize: 44,
-            color: '#ff3300',
-            textShadow: '0 0 15px rgba(255,50,0,0.5)',
-            letterSpacing: 6,
-          }}>
-            {floor}
-          </div>
-          <div style={{
-            fontFamily: '"Unifont", monospace', fontSize: 8, color: 'rgba(255,255,255,0.2)',
-            letterSpacing: 3, marginTop: 2,
-          }}>
-            FLOOR
-          </div>
-        </div>
-
-        {/* Button panel (right wall, near camera) */}
-        <div style={{
-          position: 'absolute',
-          right: '5%', top: '42%',
-          width: 120, height: 400,
-          background: 'linear-gradient(180deg, #1c1c20, #18181c)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: 5,
-          padding: '14px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 8,
-          transform: 'scale(1.3)',
-          transformOrigin: 'top right',
-        }}>
-          {['★', '99', '80', '60', '40', '20', '10', '5', '1', 'B1'].map((label, i) => {
-            const baseBg = i === 0 ? 'rgba(255,200,0,0.25)' : 'rgba(255,255,255,0.06)';
-            const hoverBg = i === 0 ? 'rgba(255,200,0,0.45)' : 'rgba(255,255,255,0.18)';
-            return (
-              <div
-                key={i}
-                onClick={(e) => { e.stopPropagation(); play(`elevator_btn_${i}`); }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = hoverBg; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = baseBg; }}
-                style={{
-                  width: 80, height: 28,
-                  borderRadius: 4,
-                  background: baseBg,
-                  border: `1px solid ${i === 0 ? 'rgba(255,200,0,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: '"Unifont", monospace', fontSize: 14,
-                  color: i === 0 ? '#ffcc00' : 'rgba(255,255,255,0.3)',
-                  letterSpacing: 1,
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  transition: 'background 0.1s ease',
-                }}
-              >
-                {label}
+            {/* 버튼 패널 — baked 패널 bbox(x66.8~72.6% / y42.6~67.6%) 위 투명 클릭 핫스팟. 버튼은 baked 그대로 */}
+            <div style={{ position: 'absolute', left: '66.8%', top: '42.6%', width: '5.8%', height: '25%' }}>
+              {/* 미니 스크린 — 현재 층 (중심 로컬 50%/8%) */}
+              <div style={{
+                position: 'absolute', left: '50%', top: '8%', transform: 'translate(-50%, -50%)',
+                width: '60%', height: '8%', containerType: 'size',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: '"Digital-7", monospace', color: '#39ff5a',
+                textShadow: '0 0 0.4vh rgba(57,255,90,0.6)', pointerEvents: 'none',
+                whiteSpace: 'nowrap', overflow: 'hidden',
+              }}>
+                <span style={{ fontSize: '78cqh', lineHeight: 1, display: 'inline-block', transform: floor === '★' ? 'translateX(-0.08em)' : undefined }}>{floor === '★' ? '★' : floor}</span>
               </div>
-            );
-          })}
-          <div style={{ marginTop: 8, display: 'flex', gap: 10 }}>
-            <div
-              onClick={(e) => { e.stopPropagation(); play('elevator_btn_close'); }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,50,0,0.35)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,50,0,0.15)'; }}
-              style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: 'rgba(255,50,0,0.15)',
-                border: '1px solid rgba(255,50,0,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: '"Unifont", monospace',
-                fontSize: 13,
-                color: 'rgba(255,180,160,0.85)',
-                letterSpacing: -1,
-                cursor: 'pointer',
-                userSelect: 'none',
-                transition: 'background 0.1s ease',
-              }}
-            >
-              {'>|<'}
-            </div>
-            <div
-              onClick={(e) => { e.stopPropagation(); play('elevator_btn_open'); }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,200,0,0.32)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,200,0,0.12)'; }}
-              style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: 'rgba(255,200,0,0.12)',
-                border: '1px solid rgba(255,200,0,0.25)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: '"Unifont", monospace',
-                fontSize: 13,
-                color: 'rgba(255,225,160,0.85)',
-                letterSpacing: -1,
-                cursor: 'pointer',
-                userSelect: 'none',
-                transition: 'background 0.1s ease',
-              }}
-            >
-              {'<|>'}
+              {/* 버튼 그리드 — 전반적으로 0.95배(그리드 중심으로 수축). 미니스크린은 영향 없음 */}
+              <div style={{ position: 'absolute', inset: 0, transform: 'scale(0.9)', transformOrigin: '50% 55%' }}>
+                {ELEV_BUTTONS.map((b) => (
+                  <div
+                    key={b.label}
+                    className="elev-hotspot"
+                    style={{ left: `${b.x}%`, top: `${b.y}%` }}
+                    onClick={(e) => { e.stopPropagation(); play(`elevator_btn_${b.sound}`); }}
+                  />
+                ))}
+                {/* door close / open */}
+                <div className="elev-hotspot" style={{ left: '29%', top: '88%' }}
+                  onClick={(e) => { e.stopPropagation(); play('elevator_btn_close'); }} />
+                <div className="elev-hotspot" style={{ left: '72%', top: '88%' }}
+                  onClick={(e) => { e.stopPropagation(); play('elevator_btn_open'); }} />
+              </div>
             </div>
           </div>
-        </div>
+        </div>{/* end viewport */}
 
-        </div>{/* end viewport container */}
-
-        {/* ▲ key hint — fixed, outside viewport shift */}
+        {/* 키 힌트 — 패닝 안 할 때만 */}
         <div style={{
           position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)',
-          fontFamily: '"Unifont", monospace', fontSize: 10, color: 'rgba(255,255,255,0.12)',
+          fontFamily: '"Unifont", monospace', fontSize: 11, color: 'rgba(255,255,255,0.18)',
           letterSpacing: 3,
-          opacity: lookUp ? 0 : 1,
+          opacity: lookDir ? 0 : 1,
           transition: 'opacity 0.3s ease',
           animation: 'fadeInSlow 3s ease-in forwards',
+          pointerEvents: 'none',
         }}>
-          ▲
+          ▲ W / ↑ &nbsp;&nbsp; ▼ S / ↓
         </div>
 
-        {/* Floor — grate 텍스처 + perspective tilt */}
-        <div style={{
-          position: 'absolute',
-          left: 0, right: 0, bottom: 0,
-          height: '32%',
-          backgroundImage: `url('${import.meta.env.BASE_URL}assets/tex/ch3/grate.jpg')`,
-          backgroundRepeat: 'repeat',
-          backgroundSize: '160px 160px',
-          transform: 'perspective(280px) rotateX(58deg)',
-          transformOrigin: 'center bottom',
-          filter: 'brightness(0.55)',
-          pointerEvents: 'none',
-        }} />
-
-        {/* Vibration / shake overlay */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          animation: 'elevatorShake 0.1s infinite',
-          pointerEvents: 'none',
-        }} />
-
         <style>{`
-          @keyframes elevatorFlicker {
-            0% { opacity: 0.6; }
-            100% { opacity: 1; }
-          }
-          @keyframes arrowPulse {
-            0%, 100% { opacity: 0.3; transform: translateX(-50%) translateY(0); }
-            50% { opacity: 1; transform: translateX(-50%) translateY(-3px); }
-          }
           @keyframes elevatorShake {
             0% { transform: translate(0, 0); }
             25% { transform: translate(0.4px, 0.6px); }
@@ -791,52 +722,41 @@ const ElevatorCutscene: React.FC<{
   // --- Space scene (STEP 9: StarNest shader background) ---
   if (phase === 'space' || phase === 'returning') {
     return (
-      <div style={fadeStyle}>
+      <div style={{ ...fadeStyle, background: '#000' }}>
         {/* STEP 9: Star Nest shader background (REF-7) */}
         <StarNestOverlay duration={SPACE_DURATION / 1000} />
 
-        {/* Main character — Meshy FBX, floating + slow rotation */}
-        <SpaceCharacterCanvas />
+        {/* Main character — mx.pott GLB, floating + slow rotation */}
+        <SpaceCharacterCanvas phase={phase} />
 
-        {/* 화이트아웃 — phase returning 시 흰 overlay가 캐릭터·별 같이 덮으며 fade out */}
-        {phase === 'returning' && (
-          <>
-            <style>{`
-              @keyframes whiteoutFade {
-                0% { opacity: 1; }
-                100% { opacity: 0; }
-              }
-            `}</style>
+        {/* returning: 화이트아웃 제거 — 캐릭터 픽셀 붕괴(0→1) + 씬 fadeout으로 맵 복귀가 보이게 */}
+
+        {/* 문 열림 — 우주씬 위 엘베 인테리어(개구부 투명) + 좌우 도어 슬라이드, 열린 뒤 인테리어 페이드아웃 */}
+        <div style={{
+          position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 1005, pointerEvents: 'none',
+          animation: 'elevDoorsFade 2.6s ease-in forwards',
+        }}>
+          <div style={{
+            position: 'absolute', top: 0, left: '50%',
+            height: '200vh', aspectRatio: '3 / 2',
+            transform: 'translateX(-50%) translateY(-62vh)',
+          }}>
+            <img src={`${ELEV}full_nodoor.webp`} alt="" style={{ display: 'block', width: '100%', height: '100%' }} />
+            {/* 도어 개구부 클립 — leaf가 좌우로 슬라이드하며 문틀로 사라짐, 사이로 우주씬 노출 */}
             <div style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 1100,
-              background: '#ffffff',
-              pointerEvents: 'none',
-              animation: `whiteoutFade ${RETURN_FADE}ms ease-out forwards`,
-            }} />
-          </>
-        )}
-
-        {/* Elevator window frame */}
-        <div style={{
-          position: 'fixed', inset: 0,
-          border: '60px solid #0e0e12',
-          borderRadius: 8,
-          boxShadow: 'inset 0 0 80px 30px rgba(0,0,0,0.6)',
-          pointerEvents: 'none',
-          zIndex: 1003,
-        }} />
-
-        {/* Thin window bezel */}
-        <div style={{
-          position: 'fixed',
-          inset: 56,
-          border: '2px solid rgba(255,255,255,0.08)',
-          borderRadius: 4,
-          pointerEvents: 'none',
-          zIndex: 1003,
-        }} />
+              position: 'absolute', left: '35.4%', top: '29.25%', width: '26.4%', height: '63.75%', overflow: 'hidden',
+            }}>
+              <img src={`${ELEV}door_left.webp`} alt="" style={{
+                position: 'absolute', left: 0, top: 0, width: '50%', height: '100%',
+                animation: 'elevDoorL 1.7s cubic-bezier(0.45, 0, 0.2, 1) forwards',
+              }} />
+              <img src={`${ELEV}door_right.webp`} alt="" style={{
+                position: 'absolute', right: 0, top: 0, width: '50%', height: '100%',
+                animation: 'elevDoorR 1.7s cubic-bezier(0.45, 0, 0.2, 1) forwards',
+              }} />
+            </div>
+          </div>
+        </div>
 
         {/* Text */}
         <div style={{
@@ -857,6 +777,9 @@ const ElevatorCutscene: React.FC<{
             0% { opacity: 0; }
             100% { opacity: 1; }
           }
+          @keyframes elevDoorL { from { transform: translateX(0); } to { transform: translateX(-102%); } }
+          @keyframes elevDoorR { from { transform: translateX(0); } to { transform: translateX(102%); } }
+          @keyframes elevDoorsFade { 0%, 58% { opacity: 1; } 100% { opacity: 0; } }
         `}</style>
       </div>
     );
@@ -915,6 +838,34 @@ const ExitMarker: React.FC<{ worldPos: { x: number; z: number }; visible: boolea
         transparent
         opacity={0}
       />
+    </mesh>
+  );
+};
+
+// cart — Canvas 안 카메라 고정 HUD 평면. 메인 씬에 있어 약 효과(EffectComposer)를 동일하게 받음
+const CART_ASPECT = 1536 / 1030;
+const CartHud: React.FC = () => {
+  const { camera } = useThree();
+  const tex = useLoader(THREE.TextureLoader, `${import.meta.env.BASE_URL}assets/ui/cart.webp`);
+  const ref = useRef<THREE.Mesh>(null);
+  const DEPTH = 1;
+  const fovRad = THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov || 75);
+  const visH = 2 * DEPTH * Math.tan(fovRad / 2); // DEPTH 거리에서 보이는 세로 높이
+  const planeH = visH * 0.45;                     // 화면 세로의 45%
+  const planeW = planeH * CART_ASPECT;
+  const yOff = -(visH - planeH) / 2;              // 하단 정렬
+  useFrame(() => {
+    const m = ref.current;
+    if (!m) return;
+    m.position.copy(camera.position);
+    m.quaternion.copy(camera.quaternion);
+    m.translateZ(-DEPTH); // 카메라 정면
+    m.translateY(yOff);   // 하단으로
+  });
+  return (
+    <mesh ref={ref} renderOrder={999} frustumCulled={false}>
+      <planeGeometry args={[planeW, planeH]} />
+      <meshBasicMaterial map={tex} transparent depthTest={false} depthWrite={false} toneMapped={false} />
     </mesh>
   );
 };
@@ -1024,7 +975,11 @@ const Ch3Inner: React.FC<{
       <Ch3Effects />
 
       <MazeFloor />
+      <MazeCeiling />
       <MazeWalls maze={maze} />
+
+      {/* 카트 HUD — 카메라 고정, 메인 씬이라 약 후처리 동일 적용 */}
+      <Suspense fallback={null}><CartHud /></Suspense>
 
       {/* Medicine pickups in maze cells — last ("다 먹음") hidden until first 4 collected */}
       {MEDICINES.map((med, i) => {
@@ -1072,12 +1027,12 @@ const Ch3Inner: React.FC<{
 
 export const Ch3Scene: React.FC = () => {
   const [maze, setMaze] = useState<MazeData>(() =>
-    generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: Math.floor(Math.random() * 0xFFFFFFFF) }, CELL_SIZE),
+    generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: Math.floor(Math.random() * 0xFFFFFFFF), forceCenterCorner: true }, CELL_SIZE),
   );
   const handleDrugPickup = useCallback((drugIndex: number) => {
     const profile = MEDICINES[drugIndex].mazeProfile;
     const newSeed = Math.floor(Math.random() * 0xFFFFFFFF);
-    setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, ...profile }, CELL_SIZE));
+    setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, forceCenterCorner: true, ...profile }, CELL_SIZE));
   }, []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
@@ -1148,12 +1103,12 @@ export const Ch3Scene: React.FC = () => {
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
     setCutscenePhase('elevator');
-    startElevatorMusic();
+    suspendChapterMusic();  // 마트 BGM만 정지 — 엘베 안에선 엘베 SFX만 (우주 BGM은 아직 X)
 
-    // Phase 1 → Phase 2
+    // Phase 1 → Phase 2 — 우주씬 진입 시 코스믹 BGM 시작 (space SFX 루프는 ElevatorCutscene가 담당)
     setTimeout(() => {
       setCutscenePhase('space');
-      play('space');
+      startElevatorMusic();
     }, ELEVATOR_DURATION);
 
     // Phase 2 → returning (fade out)

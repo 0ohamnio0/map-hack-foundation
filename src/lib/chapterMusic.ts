@@ -72,10 +72,17 @@ export function playChapterMusic(chapter: Chapter) {
   }
 }
 
-export function startElevatorMusic() {
+// 엘베 진입 시: 챕터 BGM 페이드아웃 + 저장만 (음악은 시작 안 함 — 엘베 안에선 엘베 SFX만)
+export function suspendChapterMusic() {
   chapterTrackBeforeElevator = currentTrack;
   chapterSrcBeforeElevator = currentSrc;
   if (currentTrack) fadeOutAndStop(currentTrack, ELEVATOR_FADE_MS);
+  currentTrack = null;
+  currentSrc = null;
+}
+
+// 우주씬 진입 시 호출 — 코스믹 BGM 시작 (챕터 저장은 suspendChapterMusic이 이미 함)
+export function startElevatorMusic() {
   const elevator = getOrCreate(ELEVATOR_SRC);
   fadeIn(elevator, ELEVATOR_FADE_MS);
   currentTrack = elevator;

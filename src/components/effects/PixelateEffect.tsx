@@ -37,13 +37,18 @@ export class PixelateEffectImpl extends Effect {
     })
   }
 
-  /** progress 0..1 — 0:원본, 1:최대 픽셀화 */
+  /** progress 0..1 — 0:원본, 1:최대 픽셀화 (CH.2 기본 MAX_PX/MIN_LEVELS) */
   setProgress(p: number) {
+    this.setProgressTo(p, MAX_PX, MIN_LEVELS)
+  }
+
+  /** progress + 커스텀 최대값 — CH.3 우주 캐릭터처럼 더 강한 붕괴가 필요할 때 */
+  setProgressTo(p: number, maxPx: number, minLevels: number) {
     const t = Math.min(Math.max(p, 0), 1)
     // 부드러운 가속(초반 천천히, 후반 급격)
     const e = t * t * (3 - 2 * t)
-    ;(this.uniforms.get('pixelSize') as Uniform).value = 1 + (MAX_PX - 1) * e
-    ;(this.uniforms.get('levels') as Uniform).value = 256 + (MIN_LEVELS - 256) * e
+    ;(this.uniforms.get('pixelSize') as Uniform).value = 1 + (maxPx - 1) * e
+    ;(this.uniforms.get('levels') as Uniform).value = 256 + (minLevels - 256) * e
   }
 }
 

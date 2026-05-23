@@ -11,6 +11,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Text, useGLTF, useAnimations } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
+import { useSoundManager } from '@/hooks/useSoundManager'
 import { cellToWorld } from '@/utils/mazeGenerator'
 import type { WallAABB } from '@/components/game/PlayerController'
 
@@ -96,6 +97,7 @@ function SpecialGhostEmployee({
   const groupRef = useRef<THREE.Group>(null)
   const materialsRef = useRef<THREE.MeshStandardMaterial[]>([])
   const currentOpacityRef = useRef(0.7)
+  const fadeOutRef = useRef(false)  // 대사 모션 2회 끝나면 true → 투명해짐
   const { camera } = useThree()
   const idleGltf = useGLTF(GHOST_IDLE_URL)
   const mirrorGltf = useGLTF(GHOST_MIRROR_URL)
@@ -115,6 +117,8 @@ function SpecialGhostEmployee({
   }, [idleGltf.animations, mirrorGltf.animations])
 
   const { actions } = useAnimations(animations, groupRef)
+
+  // (발 잘림은 PS1 snap이 원인 → off로 해결. modelY 오프셋은 불필요해 제거)
 
   // ch.2 스타일 — alpha/transmission 강제 reset, useFrame이 transparent 토글
   useEffect(() => {
@@ -142,17 +146,27 @@ function SpecialGhostEmployee({
     materialsRef.current = mats
   }, [idleGltf.scene])
 
+  // 평상시 idle
   useEffect(() => {
+    const idle = actions['idle']
+    if (idle && !idle.isRunning()) idle.reset().fadeIn(0.3).play()
+  }, [actions])
+
+  // 대사 시 mirror 모션 1회(80% 속도, 느리게) → 모션 끝나면 투명 페이드아웃
+  useEffect(() => {
+    if (!showText) return
     const idle = actions['idle']
     const mirror = actions['mirror']
     if (!idle || !mirror) return
-    if (showText) {
-      idle.fadeOut(0.5)
-      mirror.reset().fadeIn(0.5).play()
-    } else {
-      mirror.fadeOut(0.5)
-      idle.reset().fadeIn(0.5).play()
-    }
+    idle.fadeOut(0.3)
+    mirror.reset()
+    mirror.setEffectiveTimeScale(0.8)   // 80% 속도
+    mirror.setLoop(THREE.LoopOnce, 1)
+    mirror.clampWhenFinished = true
+    mirror.fadeIn(0.3).play()
+    // 모션 끝나면(클립 길이 / 0.8 + 여유) 투명 페이드아웃 — 타이머가 mixer 'finished'보다 확실
+    const dur = mirror.getClip().duration || 3 // 클립 길이 비정상 시 3s 기본 (즉시 페이드 방지)
+    setTimeout(() => { fadeOutRef.current = true }, (dur / 0.8) * 1000 + 300)
   }, [showText, actions])
 
   useFrame((_, delta) => {
@@ -166,24 +180,14 @@ function SpecialGhostEmployee({
       groupRef.current.rotation.y = Math.atan2(dx, dz)
     }
 
-    const dist = Math.sqrt(distSq)
-    const NEAR = cellSize
-    const FAR = cellSize * 2
-    const OVERLAP = 1.0  // 거리 < 1m → opacity 0 (player와 같은 위치 겹침)
-    let target: number
-    if (dist < OVERLAP) {
-      target = 0
-    } else if (dist <= NEAR) {
-      // OVERLAP ~ NEAR: 0 → 0.9 fade in
-      target = 0.9 * (dist - OVERLAP) / (NEAR - OVERLAP)
-    } else if (dist <= FAR) {
-      const t = (dist - NEAR) / (FAR - NEAR)
-      target = 0.9 - 0.2 * t
-    } else {
-      target = 0.7
+    const target = fadeOutRef.current ? 0 : 1  // 평소 불투명, 모션 2회 끝나면 투명
+    currentOpacityRef.current = THREE.MathUtils.lerp(currentOpacityRef.current, target, delta * 8)
+    let opacity = currentOpacityRef.current
+    // 점근만 하고 안 사라지던 문제 → 충분히 낮아지면 완전히 0으로 + 그룹 숨김(깔끔히 사라짐)
+    if (fadeOutRef.current && opacity < 0.04) {
+      opacity = 0
+      groupRef.current.visible = false
     }
-    currentOpacityRef.current = THREE.MathUtils.lerp(currentOpacityRef.current, target, delta * 6)
-    const opacity = currentOpacityRef.current
     const needTransparent = opacity < 0.99
     for (const m of materialsRef.current) {
       m.opacity = opacity
@@ -199,7 +203,7 @@ function SpecialGhostEmployee({
       <primitive object={idleGltf.scene} scale={2} />
       {showText && (
         <Text
-          position={[0, 1.5, 0]}
+          position={[0, 3.6, 0]}
           fontSize={0.18}
           color="#fff"
           font={UNIFONT_URL}
@@ -221,6 +225,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   const { camera } = useThree()
   const activeEffect = useGameStore((s) => s.activeEffect)
   const markGhostEncounter = useGameStore((s) => s.markGhostEncounter)
+  const { play } = useSoundManager()
   const [showText, setShowText] = useState(false)
   const [textOpacity, setTextOpacity] = useState(0)
   const [ghostPos, setGhostPos] = useState<[number, number, number] | null>(null)
@@ -359,6 +364,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     wasInViewRef.current = true
     markGhostEncounter() // 약 효과 종료 신호 (minimum duration 후 cleanup)
     setShowText(true)
+    play('space') // NPC 발견 순간 space SFX
     let opacity = 0
     const fadeIn = setInterval(() => {
       opacity += 0.02
@@ -375,7 +381,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
             }
             setTextOpacity(opacity)
           }, 20)
-        }, 3000)
+        }, 6000)  // 대사 유지시간 2배 (기존 3000)
       }
       setTextOpacity(opacity)
     }, 20)

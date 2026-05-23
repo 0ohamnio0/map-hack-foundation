@@ -49,6 +49,9 @@ const SOUND_MAP: Record<string, string | null> = {
   boot_sound: 'ch5/boot_sound.mp3',
   screen_off: 'ch5/screen_off.mp3',
   pc_fan: 'ch5/pc_fan.mp3',
+  popup_1: 'ch5/cough_1.mp3',
+  popup_2: 'ch5/cough_7.mp3',
+  popup_3: 'ch5/spit.wav',
   transition: 'transition.mp3',
 };
 
