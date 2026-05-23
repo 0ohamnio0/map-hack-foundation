@@ -10,7 +10,8 @@ const FRICTION = 6;
 const MAX_SPEED = 4;
 const SNAP_UNIT = 0.05;
 
-const GRID_POS_LERP = 10;
+const GRID_POS_LERP = 3.5; // CH.3 — 느린 전진 (원래 10)
+const GRID_STEP = 1.75; // CH.3 — 카메라 위치를 이 격자에 양자화 → 미끄러지지 않고 칸칸이 끊어 전진(뻑뻑). 3.5의 약수라 cell 중앙 정확
 const GRID_FACING_LERP = 12;
 const GRID_INPUT_COOLDOWN = 0.22; // seconds between inputs
 
@@ -171,11 +172,15 @@ export const PlayerController: React.FC<Props> = ({
         gridCurrentPos.current.z = Math.max(bounds.minZ, Math.min(bounds.maxZ, gridCurrentPos.current.z));
       }
 
-      camera.position.set(gridCurrentPos.current.x, 1.8, gridCurrentPos.current.z);
+      // 뻑뻑한 전진 — 카메라 위치를 GRID_STEP 격자에 양자화 → 미끄러지지 않고 칸칸이 끊어 나아감.
+      // 회전은 부드럽게 둠(비격자 시야각이 벽 위 검은 하늘을 드러내 '검은 띠' 생기던 것 방지)
+      const qx = Math.round(gridCurrentPos.current.x / GRID_STEP) * GRID_STEP;
+      const qz = Math.round(gridCurrentPos.current.z / GRID_STEP) * GRID_STEP;
+      camera.position.set(qx, 1.8, qz);
       camera.lookAt(
-        gridCurrentPos.current.x + Math.sin(gridCurrentFacing.current) * 10,
+        qx + Math.sin(gridCurrentFacing.current) * 10,
         1.8,
-        gridCurrentPos.current.z + Math.cos(gridCurrentFacing.current) * 10,
+        qz + Math.cos(gridCurrentFacing.current) * 10,
       );
       onPosition?.(gridCurrentPos.current.x, gridCurrentPos.current.z);
       return;
@@ -262,10 +267,6 @@ export const PlayerController: React.FC<Props> = ({
     onPosition?.(pos.current.x, pos.current.z);
   });
 
-  return (
-    <mesh ref={meshRef} position={startPosition || [0, 0.5, 0]}>
-      <boxGeometry args={[0.6, 1, 0.6]} />
-      <meshStandardMaterial color="#888" />
-    </mesh>
-  );
+  // 1인칭 — 더미 캐릭터 박스 제거. 카메라/이동/충돌은 pos.current 기반이라 시각 mesh 불필요.
+  return null;
 };

@@ -91,7 +91,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     // STEP 4: 약 버리기 시도 → 다른 약으로 교체 (약은 줄지 않음)
     const { cartItems } = get();
     const removed = cartItems[index];
-    const ALL_MEDS = ['Lithium Carbonate', 'Aripiprazole', 'Quetiapine Fumarate', 'Alprazolam', 'munch munch'];
+    const ALL_MEDS = ['Lithium Carbonate', 'Aripiprazole', 'Quetiapine Fumarate', 'Alprazolam', 'Fluoxetine'];
     const others = ALL_MEDS.filter((m) => m !== removed);
     const replacement = others[Math.floor(Math.random() * others.length)];
     const newItems = [...cartItems];

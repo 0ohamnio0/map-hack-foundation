@@ -140,7 +140,7 @@ export function generateMaze(
 
   // Convert to wall positions for 3D rendering
   const CELL = cellSize;
-  const WALL_THICKNESS = 0.15;
+  const WALL_THICKNESS = 0.4;
   const wallPositions: MazeData['wallPositions'] = [];
 
   // Outer boundary walls

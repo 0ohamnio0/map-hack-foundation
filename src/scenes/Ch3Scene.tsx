@@ -120,7 +120,7 @@ const MEDICINES = [
   { name: 'Aripiprazole', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 }, mazeProfile: { removalRatio: 0 } },
   { name: 'Quetiapine Fumarate', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 }, mazeProfile: { removalRatio: 0.05 } },
   { name: 'Alprazolam', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 }, mazeProfile: { removalRatio: 0.3 } },
-  { name: 'munch munch', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 }, mazeProfile: { removalRatio: 0.6 } },
+  { name: 'Fluoxetine', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 }, mazeProfile: { removalRatio: 0.6 } },
 ];
 
 // 약 이름 영문 → 한글 매핑 (cart 클릭 시 글리치 표기)
@@ -129,7 +129,7 @@ const MED_KOREAN: Record<string, string> = {
   'Aripiprazole': '항정신병약',
   'Quetiapine Fumarate': '수면제',
   'Alprazolam': '항불안제',
-  'munch munch': '다 먹음',
+  'Fluoxetine': '항우울제',
 };
 
 const GLITCH_CHARS = '!@#$%^&*+=[]{}|<>?/~가나다라마바사아자차카타파하ㅁㄴㅇㄹㅎㅋㅌㅊㅍ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -214,34 +214,82 @@ const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
   );
 };
 
-// --- Fitting room (= space elevator portal) at center ---
-const FITTING_ROOM_CELL = { gx: Math.floor(MAZE_SIZE / 2), gy: Math.floor(MAZE_SIZE / 2) }; // (5, 5)
+// --- Fitting room (= space elevator portal) — 중앙 근처, 실제 벽 코너에 두 면 붙임 ---
+// 미로가 매번 랜덤이라 중앙 주변에서 인접 두 벽(코너)이 있는 셀을 찾아 부스를 flush 배치.
+// 반환: pos = 부스 중심 world, (nx,nz) = 코너가 향하는 셀 모서리 방향(±1). 결정적이라 Ch3Inner·Ch3Scene 동일 결과.
+type FittingPlacement = { pos: { x: number; z: number }; nx: number; nz: number };
+function findFittingCorner(maze: MazeData, cellSize: number): FittingPlacement {
+  const cx0 = Math.floor(maze.width / 2);
+  const cy0 = Math.floor(maze.height / 2);
+  const offset = cellSize / 2 - 1.2; // 부스 반폭 1.2 → 코너 모서리에 flush
+  const cands: { x: number; y: number; nx: number; nz: number; dist: number }[] = [];
+  for (let y = 0; y < maze.height; y++) {
+    for (let x = 0; x < maze.width; x++) {
+      const w = maze.cells[y][x].walls;
+      const corners: { nx: number; nz: number }[] = [];
+      if (w.north && w.west) corners.push({ nx: -1, nz: -1 });
+      if (w.north && w.east) corners.push({ nx: 1, nz: -1 });
+      if (w.south && w.west) corners.push({ nx: -1, nz: 1 });
+      if (w.south && w.east) corners.push({ nx: 1, nz: 1 });
+      for (const c of corners) {
+        // 부스는 (-nx,-nz) 안쪽으로 열림 — 진입하려면 그쪽 중 하나는 통로여야 함
+        const openX = c.nx < 0 ? !w.east : !w.west;
+        const openZ = c.nz < 0 ? !w.south : !w.north;
+        if (!openX && !openZ) continue;
+        cands.push({ x, y, nx: c.nx, nz: c.nz, dist: Math.hypot(x - cx0, y - cy0) });
+      }
+    }
+  }
+  cands.sort((a, b) => a.dist - b.dist);
+  const best = cands[0];
+  if (!best) {
+    const w = cellToWorld(cx0, cy0, cellSize);
+    return { pos: w, nx: -1, nz: -1 };
+  }
+  const cw = cellToWorld(best.x, best.y, cellSize);
+  return { pos: { x: cw.x + best.nx * offset, z: cw.z + best.nz * offset }, nx: best.nx, nz: best.nz };
+}
 
-/** Fitting room booth + reflective mirror */
-const FittingRoom: React.FC<{ worldPos: { x: number; z: number } }> = ({ worldPos }) => {
+/** Fitting room booth — 두 벽(side+back)을 미로 코너에 붙이고 안쪽으로 개방, 거울은 back에 */
+const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz: number }> = ({ worldPos, nx, nz }) => {
+  const W = 2.4, D = 2.4, T = 0.15, H = 3, Hh = 1.5;
+  const Wh = W / 2, Dh = D / 2;
   return (
     <group position={[worldPos.x, 0, worldPos.z]}>
-      {/* Booth walls */}
-      <mesh position={[0, 1.5, -1.2]}>
-        <boxGeometry args={[2.4, 3, 0.15]} />
+      {/* 4면 닫힌 박스 — flush 2면(코너 벽에 붙음) + outer 2면 + 천장 */}
+      {/* Flush side wall — x 모서리(nx) */}
+      <mesh position={[nx * Wh, Hh, 0]}>
+        <boxGeometry args={[T, H, D]} />
         <meshStandardMaterial color="#665544" />
       </mesh>
-      <mesh position={[-1.1, 1.5, -0.3]}>
-        <boxGeometry args={[0.15, 3, 1.8]} />
+      {/* Flush back wall — z 모서리(nz) */}
+      <mesh position={[0, Hh, nz * Dh]}>
+        <boxGeometry args={[W, H, T]} />
         <meshStandardMaterial color="#665544" />
       </mesh>
-      <mesh position={[1.1, 1.5, -0.3]}>
-        <boxGeometry args={[0.15, 3, 1.8]} />
+      {/* Outer side wall — 안쪽 x면 */}
+      <mesh position={[-nx * Wh, Hh, 0]}>
+        <boxGeometry args={[T, H, D]} />
         <meshStandardMaterial color="#665544" />
       </mesh>
-      {/* Mirror frame — full-wall, dark satin */}
-      <mesh position={[0, 1.5, 1.48]}>
-        <boxGeometry args={[2.1, 2.85, 0.04]} />
+      {/* Outer front wall — 안쪽 z면 (거울 부착 면) */}
+      <mesh position={[0, Hh, -nz * Dh]}>
+        <boxGeometry args={[W, H, T]} />
+        <meshStandardMaterial color="#665544" />
+      </mesh>
+      {/* Ceiling lid */}
+      <mesh position={[0, H, 0]}>
+        <boxGeometry args={[W, T, D]} />
+        <meshStandardMaterial color="#554433" />
+      </mesh>
+      {/* Mirror frame on outer z face */}
+      <mesh position={[0, Hh, -nz * (Dh + 0.04)]}>
+        <boxGeometry args={[W * 0.85, H * 0.92, 0.04]} />
         <meshStandardMaterial color="#1a1a1a" metalness={0.4} roughness={0.6} />
       </mesh>
-      {/* Mirror — full reflection, sharper resolution, near-perfect mirror */}
-      <mesh position={[0, 1.5, 1.5]} rotation={[0, Math.PI, 0]}>
-        <planeGeometry args={[1.95, 2.7]} />
+      {/* Mirror — 박스 바깥(-nz)을 향함 */}
+      <mesh position={[0, Hh, -nz * (Dh + 0.06)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]}>
+        <planeGeometry args={[W * 0.8, H * 0.88]} />
         <MeshReflectorMaterial
           mirror={1}
           resolution={1024}
@@ -908,9 +956,8 @@ const Ch3Inner: React.FC<{
     }),
   [maze]);
 
-  const fittingRoomWorld = useMemo(() =>
-    cellToWorld(FITTING_ROOM_CELL.gx, FITTING_ROOM_CELL.gy, CELL_SIZE),
-  []);
+  const fitting = useMemo(() => findFittingCorner(maze, CELL_SIZE), [maze]);
+  const fittingRoomWorld = fitting.pos;
 
   const itaewonCellWorld = useMemo(() => cellToWorld(3, 3, CELL_SIZE), []);
 
@@ -994,7 +1041,7 @@ const Ch3Inner: React.FC<{
       })}
 
       {/* 시착실 = 엘리베이터 portal at center */}
-      <FittingRoom worldPos={fittingRoomWorld} />
+      <FittingRoom worldPos={fittingRoomWorld} nx={fitting.nx} nz={fitting.nz} />
 
       {/* STEP 5: Itaewon memorial layer at cell (3,3) */}
       <ItaewonLayer
@@ -1077,7 +1124,7 @@ export const Ch3Scene: React.FC = () => {
 
   // Minimap markers: 시착실(=엘리베이터) magenta + 약 위치 (수집 전) + 출구(전부 모은 후).
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
-    const fr = cellToWorld(FITTING_ROOM_CELL.gx, FITTING_ROOM_CELL.gy, CELL_SIZE);
+    const fr = findFittingCorner(maze, CELL_SIZE).pos;
     const markers: MinimapMarker[] = [
       { x: fr.x, z: fr.z, color: '#c040ff', radius: 3.5, glow: true },
     ];

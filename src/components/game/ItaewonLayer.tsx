@@ -6,13 +6,21 @@
  *   ch.2 스타일 머티리얼, 평상시 opacity 0.7, 한 발자국 안 0.9
  *   ghost bbox의 50%+가 카메라 frustum 안에 들어오는 순간 → Mirror_Viewing + 대사 (1회, ghost re-spawn 시 reset)
  */
-import { useRef, useState, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect, useMemo, Component, Suspense, type ReactNode } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Text, useGLTF, useAnimations } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
 import { cellToWorld } from '@/utils/mazeGenerator'
 import type { WallAABB } from '@/components/game/PlayerController'
+
+// 고스트 GLB 로드가 실패해도 Canvas 전체가 죽지(블랙) 않게 — 실패 시 고스트만 생략
+class GhostBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(err: unknown) { console.warn('[ItaewonLayer] ghost load failed — skipping (no crash)', err) }
+  render() { return this.state.failed ? null : this.props.children }
+}
 
 // 2D line vs AABB (XZ plane) — camera → ghost 사이 벽 occlusion 체크용
 function lineIntersectsAABB(
@@ -262,12 +270,19 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
       return true
     }
 
-    // 반경 1~MAX 결정적 스캔 — 270도 안 + clear LOS 통과한 cell 전부 수집
-    const MAX_R = 3
-    const candidates: { gx: number; gy: number; dist: number }[] = []
+    // 실제 카메라 가로 시야(FOV) cos 임계 — 이 cone 안이면 화면에 보임. 가장자리 클리핑 방지로 약간 안쪽(*0.8)
+    const cam = camera as THREE.PerspectiveCamera
+    const halfV = THREE.MathUtils.degToRad(cam.fov || 75) / 2
+    const halfH = Math.atan(Math.tan(halfV) * (cam.aspect || 1.6))
+    const inViewCos = Math.cos(halfH * 0.8)
+
+    // 결정적 스캔 — 후방 제외 + clear LOS + 최소거리(MIN_CHEB) 하드 제약(가깝게/겹치게 안 뜸). inView = 실제 화면 안
+    const MIN_CHEB = 2 // 최소 스폰 거리(셀). 너무 가까우면 ↑(3), 가까워도 되면 ↓
+    const MAX_R = 4
+    const candidates: { gx: number; gy: number; dist: number; inView: boolean }[] = []
     for (let oy = -MAX_R; oy <= MAX_R; oy++) {
       for (let ox = -MAX_R; ox <= MAX_R; ox++) {
-        if (ox === 0 && oy === 0) continue
+        if (Math.max(Math.abs(ox), Math.abs(oy)) < MIN_CHEB) continue // 본인 셀 + 너무 가까운 셀 제외
         const cx = pCellX + ox
         const cy = pCellY + oy
         if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
@@ -278,22 +293,26 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
         const len = Math.hypot(dxg, dzg)
         if (len < 0.001) continue
         const dot = (fwdX * dxg + fwdZ * dzg) / len
-        if (dot < -0.707) continue // 시야 270도 밖
+        if (dot < -0.707) continue // 완전 후방 제외(폴백 후보로만)
         if (!hasClearLOS(tw.x, tw.z)) continue // 벽에 가려짐
-        candidates.push({ gx: cx, gy: cy, dist: Math.hypot(ox, oy) })
+        candidates.push({ gx: cx, gy: cy, dist: Math.hypot(ox, oy), inView: dot >= inViewCos })
       }
     }
 
     if (candidates.length === 0) {
-      console.warn('[ItaewonLayer] spawn failed — no clear-LOS cell in 270° FOV', { activeEffect, isFirst, pCellX, pCellY })
+      console.warn('[ItaewonLayer] spawn failed — no clear-LOS cell at min distance', { activeEffect, isFirst, pCellX, pCellY })
       return
     }
 
+    // 모두 MIN_CHEB 이상이라 가깝게 안 뜸. 화면 안 우선, 없으면 (먼) 나머지
+    const inView = candidates.filter((c) => c.inView)
+    const usable = inView.length ? inView : candidates
+
     // 거리 정렬 후 — 첫 스폰은 먼 절반(드라마틱), 이후는 가까운 절반에서 random
-    candidates.sort((a, b) => a.dist - b.dist)
+    usable.sort((a, b) => a.dist - b.dist)
     const pool = isFirst
-      ? candidates.slice(Math.floor(candidates.length / 2))
-      : candidates.slice(0, Math.max(1, Math.ceil(candidates.length / 2)))
+      ? usable.slice(Math.floor(usable.length / 2))
+      : usable.slice(0, Math.max(1, Math.ceil(usable.length / 2)))
     const target = pool[Math.floor(Math.random() * pool.length)]
 
     const world = cellToWorld(target.gx, target.gy, cellSize)
@@ -365,12 +384,17 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   return (
     <>
       {ghostPos && (
-        <SpecialGhostEmployee
-          position={ghostPos}
-          showText={showText}
-          textOpacity={textOpacity}
-          cellSize={cellSize}
-        />
+        // key=스폰 위치 → 스폰마다 boundary/Suspense 리셋(이전 로드 실패 시 재시도). Suspense로 로딩 중엔 graceful
+        <GhostBoundary key={ghostPos.join(',')}>
+          <Suspense fallback={null}>
+            <SpecialGhostEmployee
+              position={ghostPos}
+              showText={showText}
+              textOpacity={textOpacity}
+              cellSize={cellSize}
+            />
+          </Suspense>
+        </GhostBoundary>
       )}
     </>
   )
