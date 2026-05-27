@@ -5,13 +5,33 @@
  * blog 탭: mahn_mal 타이핑 → 메시지 → 블로그 포스트 링크 2개 → 엔딩 크레딧
  * guest 탭: 방명록 — 게임 완료 유저가 고유 해시 닉네임으로 글 남김
  */
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useSoundManager } from '@/hooks/useSoundManager'
 import { useGameStore } from '@/store/useGameStore'
 import { getVisitorNickname } from '@/utils/fingerprint'
 import { RetroPCScene } from '@/components/ch5/RetroPCScene'
 
 const TARGET = 'mahn_mal'
+
+/* ─── Unicode style mix: bold script / fraktur / double-struck / small caps ─── */
+const SMALL_CAPS_MAP: Record<string, string> = {
+  a:'ᴀ', b:'ʙ', c:'ᴄ', d:'ᴅ', e:'ᴇ', f:'ꜰ', g:'ɢ', h:'ʜ', i:'ɪ',
+  j:'ᴊ', k:'ᴋ', l:'ʟ', m:'ᴍ', n:'ɴ', o:'ᴏ', p:'ᴘ', q:'ǫ', r:'ʀ',
+  s:'s', t:'ᴛ', u:'ᴜ', v:'ᴠ', w:'ᴡ', x:'x', y:'ʏ', z:'ᴢ',
+}
+const STYLE_FNS: Array<(s: string) => string> = [
+  // Bold Script — a→𝓪 (U+1D4EA)
+  (s) => s.replace(/[a-z]/g, (c) => String.fromCodePoint(0x1D4EA + c.charCodeAt(0) - 97)),
+  // Fraktur — a→𝔞 (U+1D51E)
+  (s) => s.replace(/[a-z]/g, (c) => String.fromCodePoint(0x1D51E + c.charCodeAt(0) - 97)),
+  // Double-struck — a→𝕒 (U+1D552)
+  (s) => s.replace(/[a-z]/g, (c) => String.fromCodePoint(0x1D552 + c.charCodeAt(0) - 97)),
+  // Small Caps
+  (s) => s.replace(/[a-z]/g, (c) => SMALL_CAPS_MAP[c] ?? c),
+]
+function stylize(s: string): string {
+  return STYLE_FNS[Math.floor(Math.random() * STYLE_FNS.length)](s)
+}
 
 /* ─── Chaos text fragment system ─── */
 interface TextFragment {
@@ -45,7 +65,7 @@ function makeFragment(id: number, count: number): TextFragment {
   // Stage 1: readable but scattered
   if (stage === 1) {
     return {
-      id, text: TARGET,
+      id, text: stylize(TARGET),
       x: Math.random() * 80 + 2,
       y: Math.random() * 94 + 2,
       fontSize: 12 + Math.random() * 8,
@@ -69,6 +89,7 @@ function makeFragment(id: number, count: number): TextFragment {
     }
     text = chars.join('')
   }
+  text = stylize(text)
 
   return {
     id, text,
@@ -105,9 +126,25 @@ const TUNNEL_LAYERS = 8
 const TUNNEL_RATIO = 0.6
 const KEYS_PER_RING = 3
 
-const BLOG_POSTS = [
+const BLOG_POSTS: Array<{
+  title: string
+  titleImages?: string[]
+  date: string
+  href: string
+  preview: string
+  category: string
+}> = [
   {
     title: 'But Why?',
+    titleImages: [
+      'https://text.glitter-graphics.net/smiley/b.gif',
+      'https://text.glitter-graphics.net/smiley/u.gif',
+      'https://text.glitter-graphics.net/smiley/t.gif',
+      'https://dl3.glitter-graphics.net/empty.gif',
+      'https://text.glitter-graphics.net/smiley/w.gif',
+      'https://text.glitter-graphics.net/smiley/h.gif',
+      'https://text.glitter-graphics.net/smiley/y.gif',
+    ],
     date: '2023. 7. 12. 10:42',
     href: 'https://blog.naver.com/0ohihano0/223157858485',
     preview: '왜 이런 글을 쓰게 되었는가에 대한 이야기.',
@@ -115,6 +152,19 @@ const BLOG_POSTS = [
   },
   {
     title: '무서운 이야기',
+    titleImages: [
+      'https://text.glitter-graphics.net/heart2/s.gif',
+      'https://text.glitter-graphics.net/heart2/c.gif',
+      'https://text.glitter-graphics.net/heart2/a.gif',
+      'https://text.glitter-graphics.net/heart2/r.gif',
+      'https://text.glitter-graphics.net/heart2/y.gif',
+      'https://dl3.glitter-graphics.net/empty.gif',
+      'https://text.glitter-graphics.net/heart2/s.gif',
+      'https://text.glitter-graphics.net/heart2/t.gif',
+      'https://text.glitter-graphics.net/heart2/o.gif',
+      'https://text.glitter-graphics.net/heart2/r.gif',
+      'https://text.glitter-graphics.net/heart2/y.gif',
+    ],
     date: '2023. 7. 15. 23:18',
     href: 'https://blog.naver.com/0ohihano0/223160793479',
     preview: '내가 경험한 것들에 대해서.',
@@ -367,7 +417,7 @@ const BrowserPopup: React.FC<{
       position: 'fixed',
       left: pos.x, top: pos.y,
       zIndex,
-      width: '100%', maxWidth: 420,
+      width: 'fit-content', maxWidth: 420,
       borderRadius: 8, overflow: 'hidden',
       boxShadow: '0 16px 48px rgba(0,0,0,0.45)',
       background: '#fff',
@@ -400,16 +450,40 @@ const BrowserPopup: React.FC<{
       </div>
       {/* Content */}
       <a href={post.href} target="_blank" rel="noopener"
-        style={{ display: 'block', padding: '20px 24px', textDecoration: 'none', background: '#fff' }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#000', marginBottom: 6, fontFamily: "'Nanum Myeongjo', serif" }}>
-          {post.title}
-        </div>
-        <div style={{ fontSize: 11, color: '#bbb', marginBottom: 10 }}>
-          {post.date} · {post.category}
-        </div>
-        <div style={{ fontSize: 13, color: '#555', lineHeight: 1.9, fontFamily: "'Nanum Myeongjo', serif" }}>
-          {post.preview}
-        </div>
+        style={{ display: 'block', padding: '14px 16px', textDecoration: 'none', background: '#fff' }}>
+        {post.titleImages ? (() => {
+          const letterCount = post.titleImages.filter((s) => !s.includes('empty.gif')).length
+          const letterH = letterCount <= 7 ? 64 : 40
+          return (
+            <div style={{
+              lineHeight: 0,
+              whiteSpace: 'nowrap', overflow: 'hidden',
+            }}>
+              {post.titleImages.map((src, i) => {
+                const isSpacer = src.includes('empty.gif')
+                return (
+                  <img
+                    key={i}
+                    src={src}
+                    alt=""
+                    width={isSpacer ? 20 : undefined}
+                    style={{
+                      display: 'inline-block',
+                      verticalAlign: 'middle',
+                      border: 0,
+                      height: isSpacer ? 1 : letterH,
+                      width: isSpacer ? 20 : 'auto',
+                    }}
+                  />
+                )
+              })}
+            </div>
+          )
+        })() : (
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#000', marginBottom: 6, fontFamily: "'Nanum Myeongjo', serif" }}>
+            {post.title}
+          </div>
+        )}
       </a>
     </div>
   )
@@ -417,7 +491,7 @@ const BrowserPopup: React.FC<{
 
 /* ─── Draggable message popup ─── */
 const MessagePopup: React.FC<{
-  message: string
+  message: React.ReactNode
   initialX: number
   initialY: number
   zIndex: number
@@ -452,11 +526,15 @@ const MessagePopup: React.FC<{
       left: pos.x, top: pos.y,
       zIndex,
       width: '100%', maxWidth: 420,
-      borderRadius: 8, overflow: 'hidden',
-      boxShadow: '0 16px 48px rgba(0,0,0,0.45)',
-      background: '#fff',
-      animation: 'popIn 0.3s ease-out',
+      transform: 'scale(1.3)',
+      transformOrigin: 'center center',
     }}>
+      <div style={{
+        borderRadius: 8, overflow: 'hidden',
+        boxShadow: '0 16px 48px rgba(0,0,0,0.45)',
+        background: '#fff',
+        animation: 'popIn 0.3s ease-out',
+      }}>
       <div
         onMouseDown={handleMouseDown}
         style={{
@@ -473,13 +551,14 @@ const MessagePopup: React.FC<{
         <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840' }} />
       </div>
       <div style={{
-        padding: '40px 32px',
+        padding: '16px 20px',
         fontFamily: "'Nanum Myeongjo', serif",
         fontSize: 17, color: '#333', fontStyle: 'italic',
         lineHeight: 1.9, textAlign: 'center',
         background: '#fff',
       }}>
         {message}
+      </div>
       </div>
     </div>
   )
@@ -493,7 +572,10 @@ const TunnelRing: React.FC<{
   const insetPct = 50 * (1 - Math.pow(TUNNEL_RATIO, ringIndex))
   const fontSize = Math.max(14 * Math.pow(0.85, ringIndex), 5)
   const opacity = Math.min(0.35 + ringIndex * 0.11, 1)
-  const repeated = `${TUNNEL_TEXT} `.repeat(60)
+  const repeated = useMemo(
+    () => Array.from({ length: 60 }, () => stylize(TUNNEL_TEXT)).join(' ') + ' ',
+    [],
+  )
   const color = overlayMode ? '#fff' : '#000'
 
   const offset = fontSize * 0.55
@@ -515,6 +597,7 @@ const TunnelRing: React.FC<{
     userSelect: 'none',
     lineHeight: 1,
     animation: 'popIn 0.35s ease-out',
+    filter: 'url(#roughInk)',
   }
 
   return (
@@ -524,6 +607,72 @@ const TunnelRing: React.FC<{
       <div style={{ ...baseStyle, bottom: offsetCalc, left: insetExpr, right: insetExpr }}>{repeated}</div>
       <div style={{ ...baseStyle, top: insetExpr, bottom: insetExpr, left: offsetCalc, writingMode: 'vertical-rl' }}>{repeated}</div>
     </>
+  )
+}
+
+/* ─── Sidebar calendar — today's month, Sun-first, today outlined ─── */
+const SidebarCalendar: React.FC<{ t: Theme }> = ({ t }) => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const today = now.getDate()
+  const monthName = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long' })
+  const firstDow = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const totalCells = Math.ceil((firstDow + daysInMonth) / 7) * 7
+  const lastRow = totalCells / 7 - 1
+
+  const cells = Array.from({ length: totalCells }, (_, i) => {
+    const d = i - firstDow + 1
+    return d >= 1 && d <= daysInMonth ? d : null
+  })
+
+  const fillLen = Math.max(0, 12 - monthName.length)
+
+  return (
+    <div style={{
+      marginTop: 24, padding: '0 16px',
+      fontFamily: "'Courier New', monospace",
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', gap: 6,
+        fontSize: 10, color: t.fg, letterSpacing: 1,
+        marginBottom: 6, whiteSpace: 'nowrap',
+      }}>
+        <span>{monthName}</span>
+        <span style={{ flex: 1, color: t.muted, textAlign: 'center', overflow: 'hidden' }}>
+          {'░'.repeat(fillLen)}
+        </span>
+        <span>{year}</span>
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+        border: `1px solid ${t.borderSub}`,
+      }}>
+        {cells.map((d, i) => {
+          const isToday = d === today
+          const col = i % 7
+          const row = Math.floor(i / 7)
+          return (
+            <div key={i} style={{
+              aspectRatio: '1 / 1',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 9, lineHeight: 1,
+              color: d === null ? t.muted : t.fg,
+              fontWeight: isToday ? 700 : 400,
+              borderRight: col < 6 ? `1px solid ${t.borderFaint}` : 'none',
+              borderBottom: row < lastRow ? `1px solid ${t.borderFaint}` : 'none',
+              outline: isToday ? `1px solid ${t.mutedDark}` : 'none',
+              outlineOffset: -1,
+              position: 'relative',
+              zIndex: isToday ? 1 : 0,
+            }}>
+              {d === null ? '░░' : String(d).padStart(2, '0')}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -589,10 +738,14 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
 
   useEffect(() => {
     if (count >= 30 && !showMessage) {
-      // 팝업 등장 순서대로 효과음 (cough1 → cough7 → spit) — 시간차 두고 등장
-      setShowMessage(true); play('popup_1')
-      setTimeout(() => { setShowBlog1(true); play('popup_2') }, 2800)
-      setTimeout(() => { setShowBlog2(true); play('popup_3') }, 5600)
+      // 팝업 등장 직전에 효과음 시작 (cough1 → cough7 → spit) — 사운드가 팝업보다 ~350ms 선행
+      const LEAD = 350
+      play('popup_1')
+      setTimeout(() => setShowMessage(true), LEAD)
+      setTimeout(() => play('popup_2'), 2800)
+      setTimeout(() => setShowBlog1(true), 2800 + LEAD)
+      setTimeout(() => play('popup_3'), 5600)
+      setTimeout(() => setShowBlog2(true), 5600 + LEAD)
       setTimeout(() => setShowLink(true), 8000)
     }
   }, [count, showMessage, play])
@@ -791,6 +944,20 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
         }
       `}</style>
 
+      {/* Rough-ink SVG filter — applied to fragment/tunnel text for distressed edges */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
+        <defs>
+          <filter id="roughInk" x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.4" />
+          </filter>
+          <filter id="roughInkHeavy" x="-15%" y="-15%" width="130%" height="130%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" seed="11" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.4" />
+          </filter>
+        </defs>
+      </svg>
+
       {/* === Main content wrapper with 5px border === */}
       <div ref={blogWrapRef} style={{
         width: '100%', maxWidth: 960,
@@ -892,6 +1059,8 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
               <div>희한</div>
               <div style={{ fontSize: 10 }}>0ohihano0</div>
             </div>
+
+            <SidebarCalendar t={t} />
           </div>
 
           {/* Main content area — switches by tab */}
@@ -1015,6 +1184,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
                       userSelect: 'none',
                       lineHeight: 1,
                       zIndex: 1,
+                      filter: f.fontSize > 20 ? 'url(#roughInkHeavy)' : 'url(#roughInk)',
                     }}
                   >
                     {f.text}
@@ -1080,7 +1250,13 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       {/* Browser window popups — draggable, staggered positions */}
       {showMessage && !messagePopupClosed && (
         <MessagePopup
-          message="I still have ten thousand words left to say..."
+          message={
+            <img
+              src={`${import.meta.env.BASE_URL}assets/ch5/words.gif`}
+              alt="I still have ten thousand words to say..."
+              style={{ display: 'block', width: '100%', height: 'auto' }}
+            />
+          }
           initialX={Math.round(window.innerWidth / 2 - 210)}
           initialY={Math.round(window.innerHeight * 0.38)}
           zIndex={153}
