@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { EffectComposer, Noise } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
+import { LightShadowRainbow } from '@/components/effects/LightShadowRainbow'
 import { useGameStore } from '@/store/useGameStore'
 import { useDevMode } from '@/hooks/useDevMode'
 
@@ -19,6 +20,10 @@ type LightingTuning = {
   shadowBias: number
   fogNear: number
   fogFar: number
+  /** Scene-wide adjustments applied on top of the cover-fit stage scale. */
+  sceneOffsetX: number
+  sceneOffsetY: number
+  sceneScale: number
 }
 
 const DEFAULT_LIGHTING: LightingTuning = {
@@ -28,18 +33,16 @@ const DEFAULT_LIGHTING: LightingTuning = {
   targetX: -5.3,
   targetY: 5.6,
   targetZ: -4.6,
-  ambient: 0.18,
+  ambient: 0,
   intensityMult: 8.0,
   shadowSize: 12,
   shadowBias: -0.0005,
   fogNear: 4,
   fogFar: 16,
+  sceneOffsetX: 0,
+  sceneOffsetY: 0,
+  sceneScale: 1.0,
 }
-
-// Reference viewport — lighting was tuned against this aspect.
-// Larger viewports get scaled up (contain fit); smaller ones scaled down.
-const REF_W = 2517
-const REF_H = 1398
 
 /**
  * CH.1 — Lightweight R3F mini room with one rotating door.
@@ -48,6 +51,10 @@ const REF_H = 1398
  *   - door swings open
  *   - camera dollies toward the door
  *   - white-out → CH.2
+ *
+ * The Canvas fills the viewport directly; camera framing follows the window
+ * aspect. Lighting was originally tuned at 2517×1398 — slight reframing on
+ * other aspects is expected and intentionally accepted as the simpler path.
  */
 
 const ROOM_COLOR = '#1c1c1c'
@@ -136,13 +143,27 @@ const SkyBeyondDoor: React.FC = () => (
   </mesh>
 )
 
+// Same 3D point as SkyBeyondDoor — the center of the door light area; passed
+// to the LightShadowRainbow effect so it can project to screen each frame.
+const LSR_SOURCE_3D = new THREE.Vector3(5.05, DOOR_H / 2, HINGE_Z + DOOR_W / 2)
+
+// Stable reference so R3F doesn't reinitialize the camera each re-render.
+const CAMERA_PROP = {
+  position: [-2.5, 1.7, -5] as [number, number, number],
+  fov: 60,
+  near: 0.1,
+  far: 100,
+}
+
 const CameraRig: React.FC<{ progress: number }> = ({ progress }) => {
   useFrame(({ camera }) => {
     const zoom = THREE.MathUtils.smoothstep(progress, 0.25, 0.85)
     const startPos = new THREE.Vector3(-2.5, 1.7, -5)
     const endPos = new THREE.Vector3(3.2, DOOR_H / 2, -11.0)
     camera.position.lerpVectors(startPos, endPos, zoom)
-    camera.lookAt(HINGE_X + 0.5, DOOR_H / 2, HINGE_Z + DOOR_W / 2)
+    // Aim at the door light center (5.05, …) so the door sits exactly at the
+    // screen center — important when sceneScale zooms in past 1.0.
+    camera.lookAt(5.05, DOOR_H / 2, HINGE_Z + DOOR_W / 2)
   })
   return null
 }
@@ -150,6 +171,15 @@ const CameraRig: React.FC<{ progress: number }> = ({ progress }) => {
 const Scene: React.FC<{ progress: number; tuning: LightingTuning }> = ({ progress, tuning }) => {
   const open = THREE.MathUtils.smoothstep(progress, 0.0, 0.35)
   const sunIntensity = open * tuning.intensityMult
+
+  // Canvas runs in frameloop="demand" — without an explicit pulse, useFrame
+  // never fires and the camera stays at its initial forward. Drive a 15fps
+  // invalidate so dolly + lookAt + doorUv updates actually run.
+  const invalidate = useThree(s => s.invalidate)
+  useEffect(() => {
+    const id = window.setInterval(() => invalidate(), 1000 / 15)
+    return () => clearInterval(id)
+  }, [invalidate])
 
   return (
     <>
@@ -175,6 +205,7 @@ const Scene: React.FC<{ progress: number; tuning: LightingTuning }> = ({ progres
       <Door open={open} />
       <CameraRig progress={progress} />
       <EffectComposer>
+        <LightShadowRainbow source={LSR_SOURCE_3D} progress={progress} />
         <Noise opacity={0.18} blendFunction={BlendFunction.OVERLAY} premultiply />
       </EffectComposer>
     </>
@@ -189,22 +220,6 @@ export const Ch1Scene: React.FC = () => {
   const triggeredRef = useRef(false)
   const rafRef = useRef<number | null>(null)
   const timeoutRef = useRef<number | null>(null)
-  const [viewport, setViewport] = useState(() => ({
-    w: typeof window === 'undefined' ? REF_W : window.innerWidth,
-    h: typeof window === 'undefined' ? REF_H : window.innerHeight,
-  }))
-
-  useEffect(() => {
-    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight })
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-
-  // Only activate zoom mode when viewport is taller than the reference.
-  // In zoom mode, use cover fit (max of w/h ratios) so we always fill the viewport
-  // with no letterbox — overflow may crop edges, never adds black bars.
-  const useFixedStage = viewport.h > REF_H
-  const scale = useFixedStage ? Math.max(viewport.w / REF_W, viewport.h / REF_H) : 1
 
   useEffect(() => {
     const trigger = () => {
@@ -214,9 +229,15 @@ export const Ch1Scene: React.FC = () => {
       triggeredRef.current = true
       const start = performance.now()
       const DURATION = 6000
-      const step = () => {
-        const t = Math.min(1, (performance.now() - start) / DURATION)
-        setProgress(t)
+      // CH.1 renders at ~15fps via Canvas frameloop="demand" + this throttle.
+      const FRAME_INTERVAL = 1000 / 15
+      let lastUpdate = 0
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / DURATION)
+        if (now - lastUpdate >= FRAME_INTERVAL || t >= 1) {
+          setProgress(t)
+          lastUpdate = now
+        }
         if (t < 1) {
           rafRef.current = requestAnimationFrame(step)
         } else {
@@ -253,46 +274,45 @@ export const Ch1Scene: React.FC = () => {
       position: 'fixed', inset: 0, zIndex: 100, background: '#000', cursor: 'pointer',
       overflow: 'hidden',
     }}>
-      {/* Stage is viewport-100% by default. Only when viewport is taller than the
-          reference height do we lock to REF_W×REF_H and scale up to fill — this
-          keeps the camera framing consistent with the tuned 2517×1398 reference. */}
-      <div style={useFixedStage ? {
-        width: REF_W,
-        height: REF_H,
-        position: 'absolute',
-        left: '50%',
-        top: '50%',
-        transform: `translate(-50%, -50%) scale(${scale})`,
-        transformOrigin: 'center center',
-      } : {
+      {/* Canvas fills the viewport directly. User adjust (offset/scale from the
+          dev panel) is applied on the wrapper around the Canvas. */}
+      <div style={{
         width: '100%',
         height: '100%',
         position: 'relative',
+        transform: `translate(${tuning.sceneOffsetX}px, ${tuning.sceneOffsetY}px) scale(${tuning.sceneScale})`,
+        transformOrigin: 'center center',
       }}>
-        <Canvas shadows camera={{ position: [-2.5, 1.7, -5], fov: 60, near: 0.1, far: 100 }}>
+        <Canvas
+          shadows
+          frameloop="demand"
+          camera={CAMERA_PROP}
+        >
           <Scene progress={progress} tuning={tuning} />
         </Canvas>
         <div style={{
           position: 'absolute', inset: 0, background: '#ffffff',
           opacity: whiteOut, pointerEvents: 'none',
         }} />
-        {progress === 0 && (
-          <div style={{
-            position: 'absolute',
-            bottom: '8%',
-            left: 0,
-            right: 0,
-            textAlign: 'center',
-            color: 'rgba(255,255,255,0.45)',
-            fontFamily: '"Unifont", monospace',
-            fontSize: '0.9rem',
-            letterSpacing: 4,
-            pointerEvents: 'none',
-          }}>
-            click or press any key
-          </div>
-        )}
       </div>
+      {/* Hint sits outside the user-adjust wrapper so it stays at full viewport
+          scale (sceneScale > 1 would otherwise crop it). */}
+      {progress === 0 && (
+        <div style={{
+          position: 'absolute',
+          bottom: '8%',
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          color: 'rgba(255,255,255,0.45)',
+          fontFamily: '"Unifont", monospace',
+          fontSize: '0.9rem',
+          letterSpacing: 4,
+          pointerEvents: 'none',
+        }}>
+          click or press any key
+        </div>
+      )}
       {devMode && (
         <LightingPanel
           tuning={tuning}
@@ -306,6 +326,9 @@ export const Ch1Scene: React.FC = () => {
 }
 
 const SLIDERS: Array<{ key: keyof LightingTuning; min: number; max: number; step: number }> = [
+  { key: 'sceneOffsetX',  min: -1000, max: 1000, step: 1 },
+  { key: 'sceneOffsetY',  min: -1000, max: 1000, step: 1 },
+  { key: 'sceneScale',    min: 0.3, max: 2.5, step: 0.01 },
   { key: 'lightX',        min: -50, max: 50,  step: 0.5 },
   { key: 'lightY',        min: -20, max: 30,  step: 0.1 },
   { key: 'lightZ',        min: -50, max: 50,  step: 0.5 },
