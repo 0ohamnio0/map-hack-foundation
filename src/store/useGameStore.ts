@@ -18,6 +18,8 @@ interface GameState {
   /** CH.2 우체통에 편지를 보냈는지 — true면 7/7 없이도 CH.3 문 통과 가능 */
   letterSent: boolean;
   goToChapter: (chapter: Chapter) => void;
+  /** 챕터 exit 시 해당 챕터에 귀속된 store 상태 초기화 (방명록·visitedEvents 타 챕터 항목은 보존) */
+  resetChapterState: (chapter: Chapter) => void;
   triggerEvent: (id: string) => boolean;
   addMovement: (direction: 'left' | 'right', amount: number) => void;
   addToCart: (medicine: string) => void;
@@ -62,6 +64,42 @@ export const useGameStore = create<GameState>((set, get) => ({
     setTimeout(() => {
       set({ isTransitioning: false });
     }, 800);
+  },
+
+  resetChapterState: (chapter: Chapter) => {
+    const { visitedEvents } = get();
+    const filterPrefixes = (prefixes: string[]) => {
+      const next = new Set<string>();
+      visitedEvents.forEach((id) => {
+        if (!prefixes.some((p) => id.startsWith(p))) next.add(id);
+      });
+      return next;
+    };
+    switch (chapter) {
+      case 'CH1':
+        set({ leftMovement: 0, rightMovement: 0 });
+        return;
+      case 'CH2':
+        set({
+          visitedEvents: filterPrefixes(['note_', 'ch2_']),
+          activeNoteId: null,
+          letterSent: false,
+        });
+        return;
+      case 'CH3':
+        if (effectTimeoutId) {
+          clearTimeout(effectTimeoutId);
+          effectTimeoutId = null;
+        }
+        set({
+          visitedEvents: filterPrefixes(['ch3_']),
+          cartItems: [],
+          activeEffect: null,
+        });
+        return;
+      default:
+        return;
+    }
   },
 
   triggerEvent: (id: string) => {

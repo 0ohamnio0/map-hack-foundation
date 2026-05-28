@@ -105,18 +105,17 @@ function makeFragment(id: number, count: number): TextFragment {
 }
 
 function makeNoiseBlock(id: number): TextFragment {
-  const w = 5 + Math.random() * 20
   return {
     id,
-    text: '█'.repeat(2 + Math.floor(Math.random() * 8)),
+    text: stylize(TARGET),
     x: Math.random() * 90,
     y: Math.random() * 96,
     fontSize: 8 + Math.random() * 14,
-    rotate: (Math.random() - 0.5) * 10,
+    rotate: (Math.random() - 0.5) * 30,
     opacity: 0.15 + Math.random() * 0.4,
     color: Math.random() < 0.5 ? '#000' : STAGE2_COLORS[Math.floor(Math.random() * STAGE2_COLORS.length)],
-    font: "'Courier New', monospace",
-    blend: 'normal',
+    font: FONTS[Math.floor(Math.random() * FONTS.length)],
+    blend: Math.random() < 0.25 ? 'multiply' : 'normal',
   }
 }
 
@@ -388,7 +387,9 @@ const BrowserPopup: React.FC<{
   initialY: number
   zIndex: number
   onClose: () => void
-}> = ({ post, initialX, initialY, zIndex, onClose }) => {
+  maxWidth?: number
+  scale?: number
+}> = ({ post, initialX, initialY, zIndex, onClose, maxWidth = 420, scale = 1 }) => {
   const [pos, setPos] = useState({ x: initialX, y: initialY })
   const [dragging, setDragging] = useState(false)
   const dragOffset = useRef({ x: 0, y: 0 })
@@ -417,11 +418,13 @@ const BrowserPopup: React.FC<{
       position: 'fixed',
       left: pos.x, top: pos.y,
       zIndex,
-      width: 'fit-content', maxWidth: 420,
+      width: maxWidth,
       borderRadius: 8, overflow: 'hidden',
       boxShadow: '0 16px 48px rgba(0,0,0,0.45)',
       background: '#fff',
       animation: 'popIn 0.3s ease-out',
+      transform: scale !== 1 ? `scale(${scale})` : undefined,
+      transformOrigin: '0 0',
     }}>
       {/* Title bar — draggable */}
       <div
@@ -458,6 +461,7 @@ const BrowserPopup: React.FC<{
             <div style={{
               lineHeight: 0,
               whiteSpace: 'nowrap', overflow: 'hidden',
+              textAlign: 'center',
             }}>
               {post.titleImages.map((src, i) => {
                 const isSpacer = src.includes('empty.gif')
@@ -527,7 +531,7 @@ const MessagePopup: React.FC<{
       zIndex,
       width: '100%', maxWidth: 420,
       transform: 'scale(1.3)',
-      transformOrigin: 'center center',
+      transformOrigin: '0 0',
     }}>
       <div style={{
         borderRadius: 8, overflow: 'hidden',
@@ -704,9 +708,12 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   // Dolly-out: 0 = play view (fullscreen blog), 1 = full computer centered on white bg
   const [dollyT, setDollyT] = useState(0)
   const [blogSnapshot, setBlogSnapshot] = useState<string | null>(null)
+  // 크레딧 후 모니터에 표시할 shutdown 스플래시 (snapshot을 override)
+  const [shutdownImage, setShutdownImage] = useState<string | null>(null)
   const dollyStartRef = useRef<number | null>(null)
   const textareaRef = useRef<HTMLDivElement>(null)
   const blogWrapRef = useRef<HTMLDivElement>(null)
+  const popupTriggeredRef = useRef(false)
 
   // Theme
   const t = overlayMode ? DARK_THEME : LIGHT_THEME
@@ -737,7 +744,8 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   }, [play, loop, overlayMode])
 
   useEffect(() => {
-    if (count >= 30 && !showMessage) {
+    if (count >= 30 && !popupTriggeredRef.current) {
+      popupTriggeredRef.current = true
       // 팝업 등장 직전에 효과음 시작 (cough1 → cough7 → spit) — 사운드가 팝업보다 ~350ms 선행
       const LEAD = 350
       play('popup_1')
@@ -748,7 +756,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       setTimeout(() => setShowBlog2(true), 5600 + LEAD)
       setTimeout(() => setShowLink(true), 8000)
     }
-  }, [count, showMessage, play])
+  }, [count, play])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -831,9 +839,14 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       if (t < 1) requestAnimationFrame(tick)
       else setTimeout(() => {
         setEnding(true)
-        loop('pc_fan', false)
-        play('screen_off')
+        // 컨테이너는 즉시 페이드인 (룸 자체는 3초 동안 보임)
         setTimeout(() => setEndingOpacity(1), 100)
+        // 셧다운 SFX 타이밍에 맞춰 vignette·크레딧·이미지 동시 발동
+        setTimeout(() => {
+          loop('pc_fan', false)
+          play('screen_off')
+          setShutdownImage(`${import.meta.env.BASE_URL ?? '/'}assets/ch5/shutdown.webp`)
+        }, 3000)
       }, 1000)
     }
     requestAnimationFrame(tick)
@@ -858,7 +871,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
         zIndex: overlayMode ? 20 : 100, opacity: endingOpacity, transition: 'opacity 2s ease',
         overflow: 'hidden',
       }}>
-        <RetroPCScene t={1} snapshot={blogSnapshot} />
+        <RetroPCScene t={1} snapshot={shutdownImage ?? blogSnapshot} shutdownActive={!!shutdownImage} vignetteEnabled={!!shutdownImage} />
         <div style={{
           position: 'absolute', right: '7vw', top: '50%',
           transform: 'translateY(-38%) scale(1.2)',
@@ -866,6 +879,8 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
           width: 'min(32vw, 480px)', maxHeight: '90vh', overflow: 'auto',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           gap: 32,
+          opacity: shutdownImage ? 1 : 0,
+          transition: 'opacity 2s ease',
           fontFamily: '"Unifont", monospace', color: '#ffffff',
           zIndex: 3,
           textAlign: 'center',
@@ -1247,7 +1262,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
         </div>
       </div>
 
-      {/* Browser window popups — draggable, staggered positions */}
+      {/* Browser window popups — scattered across screen */}
       {showMessage && !messagePopupClosed && (
         <MessagePopup
           message={
@@ -1257,8 +1272,8 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
               style={{ display: 'block', width: '100%', height: 'auto' }}
             />
           }
-          initialX={Math.round(window.innerWidth / 2 - 210)}
-          initialY={Math.round(window.innerHeight * 0.38)}
+          initialX={30}
+          initialY={40}
           zIndex={153}
           onClose={() => setMessagePopupClosed(true)}
         />
@@ -1266,19 +1281,22 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
       {showBlog1 && !popup1Closed && (
         <BrowserPopup
           post={BLOG_POSTS[0]}
-          initialX={Math.round(window.innerWidth / 2 - 260)}
-          initialY={Math.round(window.innerHeight * 0.12)}
+          initialX={Math.max(20, window.innerWidth - 580)}
+          initialY={80}
           zIndex={151}
           onClose={() => setPopup1Closed(true)}
+          scale={1.3}
         />
       )}
       {showBlog2 && !popup2Closed && (
         <BrowserPopup
           post={BLOG_POSTS[1]}
-          initialX={Math.round(window.innerWidth / 2 - 160)}
-          initialY={Math.round(window.innerHeight * 0.28)}
+          initialX={Math.max(20, Math.round(window.innerWidth / 2 - 448))}
+          initialY={Math.max(80, window.innerHeight - 360)}
           zIndex={152}
           onClose={() => setPopup2Closed(true)}
+          maxWidth={640}
+          scale={1.4}
         />
       )}
 

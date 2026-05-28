@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useGameStore, type Chapter } from '@/store/useGameStore';
 import { StartScreen } from '@/components/game/StartScreen';
 import { FadeOverlay } from '@/components/game/FadeOverlay';
@@ -56,12 +56,24 @@ const ChapterHUD: React.FC<{ chapter: string }> = ({ chapter }) => {
 
 export const Game: React.FC = () => {
   const chapter = useGameStore(s => s.chapter);
+  const resetChapterState = useGameStore(s => s.resetChapterState);
+  const prevChapterRef = useRef<Chapter>(chapter);
 
   useEffect(() => {
     // START는 user gesture 전이라 BGM 트리거를 StartScreen 1차 클릭에 위임
-    if (chapter === 'START') return;
+    // INTRO는 영상 canplay 시점에 IntroScene이 BGM·영상 동시 트리거 (sync)
+    if (chapter === 'START' || chapter === 'INTRO') return;
     playChapterMusic(chapter);
   }, [chapter]);
+
+  // 챕터 exit 시 떠나는 챕터의 store 상태 초기화 (씬 점프 버튼·재방문 대응)
+  useEffect(() => {
+    const prev = prevChapterRef.current;
+    if (prev !== chapter) {
+      resetChapterState(prev);
+      prevChapterRef.current = chapter;
+    }
+  }, [chapter, resetChapterState]);
 
   // Space는 점프 전용 — 마지막에 클릭한 버튼이 focus를 유지한 채 Space로 재트리거되는 것 차단
   useEffect(() => {

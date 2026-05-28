@@ -4,7 +4,7 @@ import { EffectComposer } from '@react-three/postprocessing'
 import { BloomEffect, KernelSize } from 'postprocessing'
 import * as THREE from 'three'
 import { RetroPC } from './RetroPC'
-import { DEFAULT_TUNING, type RetroPCTuning } from './retroPCTuning'
+import { DEFAULT_TUNING, SHUTDOWN_TUNING, type RetroPCTuning } from './retroPCTuning'
 import { useDevMode } from '../../hooks/useDevMode'
 
 /**
@@ -70,14 +70,21 @@ type Props = {
   snapshot: string | null
   /** Opacity of the entire scene (fade in/out control) */
   opacity?: number
+  /** 셧다운 상태 — SHUTDOWN_TUNING으로 전환 (dev 패널은 활성 튜닝을 편집) */
+  shutdownActive?: boolean
+  /** 크레딧 사이드 어둡게 vignette 표시 (ending 상태에서만) */
+  vignetteEnabled?: boolean
 }
 
 /**
  * Full 3D scene for CH.5 Scene 5-4 dolly-out ending.
  */
-export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1 }) => {
+export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1, shutdownActive = false, vignetteEnabled = false }) => {
   const crtFill = useRef<THREE.PointLight | null>(null)
-  const [tuning, setTuning] = useState<RetroPCTuning>(DEFAULT_TUNING)
+  const [normalTuning, setNormalTuning] = useState<RetroPCTuning>(DEFAULT_TUNING)
+  const [shutdownTuning, setShutdownTuning] = useState<RetroPCTuning>(SHUTDOWN_TUNING)
+  const tuning = shutdownActive ? shutdownTuning : normalTuning
+  const setTuning = shutdownActive ? setShutdownTuning : setNormalTuning
   const devMode = useDevMode()
 
   // Build the BloomEffect ourselves so we can mutate intensity directly.
@@ -123,18 +130,73 @@ export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1 }) => {
           color="#fff5e0"
         />
 
+        {/* 어슴푸레한 3D 방 — 바닥/벽 살짝 다른 명도로 분리감 (MeshBasic, tone map off) */}
+        <mesh position={[0, tuning.floorY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[8, 8]} />
+          <meshBasicMaterial color="#0c0c0c" toneMapped={false} />
+        </mesh>
+        <mesh position={[0, tuning.wallY, tuning.wallZ]}>
+          <planeGeometry args={[8, 4]} />
+          <meshBasicMaterial color="#060606" toneMapped={false} />
+        </mesh>
+
         <RetroPC screenDataUrl={snapshot} tuning={tuning} />
         <CameraRig t={t} fill={crtFill} />
         <EffectComposer>
           <primitive object={bloomEffect} dispose={null} />
         </EffectComposer>
       </Canvas>
-      {devMode && <TuningPanel tuning={tuning} setTuning={setTuning} />}
+      {vignetteEnabled && (
+        <div
+          style={{
+            position: 'absolute', inset: 0,
+            background: `radial-gradient(ellipse ${tuning.vignetteW}% ${tuning.vignetteH}% at ${tuning.vignetteCx}% 55%, transparent ${tuning.vignetteInner}%, rgba(0,0,0,${tuning.vignetteAlpha}) 90%)`,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+      {devMode && (
+        <TuningPanel
+          tuning={tuning}
+          setTuning={setTuning}
+          activeLabel={shutdownActive ? 'SHUTDOWN' : 'NORMAL'}
+          resetTo={shutdownActive ? SHUTDOWN_TUNING : DEFAULT_TUNING}
+        />
+      )}
     </div>
   )
 }
 
-const SLIDERS: Array<{ key: keyof RetroPCTuning; min: number; max: number; step: number }> = [
+type SliderDef = { key: keyof RetroPCTuning; min: number; max: number; step: number }
+
+const SliderRow: React.FC<{
+  def: SliderDef
+  tuning: RetroPCTuning
+  setTuning: React.Dispatch<React.SetStateAction<RetroPCTuning>>
+}> = ({ def, tuning, setTuning }) => {
+  const { key, min, max, step } = def
+  const digits = step < 0.001 ? 4 : step < 0.01 ? 3 : 2
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      <span style={{ flex: '0 0 124px' }}>{key}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={tuning[key]}
+        onChange={(e) => {
+          const v = parseFloat(e.target.value)
+          setTuning((prev) => ({ ...prev, [key]: v }))
+        }}
+        style={{ flex: 1 }}
+      />
+      <span style={{ flex: '0 0 52px', textAlign: 'right' }}>{tuning[key].toFixed(digits)}</span>
+    </label>
+  )
+}
+
+const BODY_SLIDERS: SliderDef[] = [
   { key: 'gradientTop',    min: 0.5, max: 2.0, step: 0.01 },
   { key: 'gradientBottom', min: 0.0, max: 1.5, step: 0.01 },
   { key: 'lightAmbient',   min: 0.0, max: 1.5, step: 0.01 },
@@ -146,17 +208,49 @@ const SLIDERS: Array<{ key: keyof RetroPCTuning; min: number; max: number; step:
   { key: 'screenGlow',     min: 0,   max: 2.5, step: 0.01 },
 ]
 
+const CRT_SLIDERS: SliderDef[] = [
+  { key: 'crtScale',          min: 0.5,  max: 4,    step: 0.01 },
+  { key: 'crtWarpStrength',   min: 0,    max: 2,    step: 0.01 },
+  { key: 'crtCenterZoom',     min: 0,    max: 1.5,  step: 0.01 },
+  { key: 'crtJitter',         min: 0,    max: 2,    step: 0.01 },
+  { key: 'crtAberration',     min: 0,    max: 0.02, step: 0.0005 },
+  { key: 'crtAberrationZoom', min: 0,    max: 0.3,  step: 0.005 },
+  { key: 'crtScanline',       min: 0,    max: 0.5,  step: 0.005 },
+  { key: 'crtGrid',           min: 0,    max: 0.5,  step: 0.005 },
+  { key: 'crtVignette',       min: 0.2,  max: 3,    step: 0.01 },
+  { key: 'crtDither',         min: 0,    max: 0.5,  step: 0.005 },
+  { key: 'crtBrightness',     min: 0,    max: 2,    step: 0.01 },
+]
+
+const ROOM_SLIDERS: SliderDef[] = [
+  { key: 'floorY', min: -1, max: 0.5, step: 0.01 },
+  { key: 'wallZ',  min: -3, max: 0,   step: 0.01 },
+  { key: 'wallY',  min: -1, max: 2.5, step: 0.01 },
+]
+
+const VIGNETTE_SLIDERS: SliderDef[] = [
+  { key: 'vignetteCx',    min: 0,   max: 100, step: 1 },
+  { key: 'vignetteW',     min: 10,  max: 200, step: 1 },
+  { key: 'vignetteH',     min: 10,  max: 200, step: 1 },
+  { key: 'vignetteInner', min: 0,   max: 90,  step: 1 },
+  { key: 'vignetteAlpha', min: 0,   max: 1,   step: 0.01 },
+]
+
 const TuningPanel: React.FC<{
   tuning: RetroPCTuning
   setTuning: React.Dispatch<React.SetStateAction<RetroPCTuning>>
-}> = ({ tuning, setTuning }) => {
+  activeLabel: string
+  resetTo: RetroPCTuning
+}> = ({ tuning, setTuning, activeLabel, resetTo }) => {
   return (
     <div
       style={{
         position: 'absolute',
         top: 16,
         right: 16,
-        width: 280,
+        width: 300,
+        maxHeight: '90vh',
+        overflowY: 'auto',
         padding: 14,
         background: 'rgba(20, 16, 40, 0.86)',
         color: '#e8e0ff',
@@ -167,27 +261,25 @@ const TuningPanel: React.FC<{
         backdropFilter: 'blur(6px)',
       }}
     >
-      <div style={{ marginBottom: 8, opacity: 0.7, letterSpacing: 1 }}>RETRO-PC · P to toggle</div>
-      {SLIDERS.map(({ key, min, max, step }) => (
-        <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ flex: '0 0 110px' }}>{key}</span>
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={tuning[key]}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value)
-              setTuning((prev) => ({ ...prev, [key]: v }))
-            }}
-            style={{ flex: 1 }}
-          />
-          <span style={{ flex: '0 0 44px', textAlign: 'right' }}>{tuning[key].toFixed(2)}</span>
-        </label>
+      <div style={{ marginBottom: 8, opacity: 0.7, letterSpacing: 1 }}>RETRO-PC · {activeLabel} · P to toggle</div>
+      <div style={{ marginTop: 4, marginBottom: 6, opacity: 0.55, fontSize: 10 }}>// BODY · LIGHT · BLOOM</div>
+      {BODY_SLIDERS.map((s) => (
+        <SliderRow key={s.key} def={s} tuning={tuning} setTuning={setTuning} />
+      ))}
+      <div style={{ marginTop: 10, marginBottom: 6, opacity: 0.55, fontSize: 10 }}>// CRT SHADER</div>
+      {CRT_SLIDERS.map((s) => (
+        <SliderRow key={s.key} def={s} tuning={tuning} setTuning={setTuning} />
+      ))}
+      <div style={{ marginTop: 10, marginBottom: 6, opacity: 0.55, fontSize: 10 }}>// ROOM (floor · wall)</div>
+      {ROOM_SLIDERS.map((s) => (
+        <SliderRow key={s.key} def={s} tuning={tuning} setTuning={setTuning} />
+      ))}
+      <div style={{ marginTop: 10, marginBottom: 6, opacity: 0.55, fontSize: 10 }}>// VIGNETTE (크레딧 사이드)</div>
+      {VIGNETTE_SLIDERS.map((s) => (
+        <SliderRow key={s.key} def={s} tuning={tuning} setTuning={setTuning} />
       ))}
       <button
-        onClick={() => setTuning(DEFAULT_TUNING)}
+        onClick={() => setTuning(resetTo)}
         style={{
           marginTop: 8,
           width: '100%',

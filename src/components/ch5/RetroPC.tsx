@@ -67,6 +67,9 @@ const CRT_VERTEX = /* glsl */ `
   }
 `
 
+// Ported from VFX-JS postEffect (https://amagi.dev/vfx-js/) — radial zoom-blur
+// CRT look with random angular jitter, scanline + grid deco, vignette, dither.
+// All strength values are uniforms so they can be tuned live via TuningPanel.
 const CRT_FRAGMENT = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
@@ -75,69 +78,86 @@ const CRT_FRAGMENT = /* glsl */ `
   uniform float uHasMap;
   uniform vec2 uUvMin;
   uniform vec2 uUvSize;
+  uniform float uScale;
+  uniform float uWarpStrength;
+  uniform float uCenterZoom;
+  uniform float uJitter;
+  uniform float uAberration;
+  uniform float uAberrationZoom;
+  uniform float uScanline;
+  uniform float uGrid;
+  uniform float uVignette;
+  uniform float uDither;
+  uniform float uBrightness;
 
-  float hash21(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
+  const float ASPECT = 1.345;
+
+  vec4 readTex(vec2 uv) {
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec4(0.0);
+    return texture2D(uMap, uv);
+  }
+
+  vec2 zoom(vec2 uv, float t) {
+    return (uv - 0.5) * t + 0.5;
+  }
+
+  float rand3(vec3 p) {
+    return fract(sin(dot(p, vec3(829.0, 4839.0, 432.0))) * 39428.0);
   }
 
   void main() {
-    // Remap glTF's sub-atlas UV range into 0..1 so the blog fills the screen
     vec2 uv = (vUv - uUvMin) / uUvSize;
 
-    // CRT curvature (barrel distortion)
-    vec2 c = uv - 0.5;
-    float r2 = dot(c, c);
-    uv = 0.5 + c * (1.0 + 0.185 * r2);
+    // Content pre-scale — >1 enlarges, <1 shrinks (independent of warp curve)
+    uv = (uv - 0.5) / max(uScale, 0.0001) + 0.5;
 
-    vec3 col;
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-      col = vec3(0.01, 0.015, 0.02);
-    } else if (uHasMap < 0.5) {
-      col = vec3(0.02, 0.04, 0.03);
-    } else {
-      // Chromatic aberration — edges separate harder
-      float aberr = 0.004 * (0.6 + r2 * 4.4);
-      col.r = texture2D(uMap, uv + vec2(aberr, 0.0)).r;
-      col.g = texture2D(uMap, uv).g;
-      col.b = texture2D(uMap, uv - vec2(aberr, 0.0)).b;
+    vec2 p = uv * 2.0 - 1.0;
+    p.x *= ASPECT;
+    float l = length(p);
 
-      // Horizontal scanlines (base 1.0 so peaks brighten, troughs dim)
-      float scan = 1.0 + 0.35 * sin(uv.y * 990.0);
-      col *= scan;
+    // Zoom warp — magnification baseline + edge falloff
+    float dist = pow(l, 2.0) * uWarpStrength;
+    dist = smoothstep(0.0, 1.0, dist);
+    uv = zoom(uv, uCenterZoom + dist);
 
-      // Aperture grille — RGB triad mask
-      float gx = uv.x * 900.0;
-      vec3 mask = vec3(
-        1.0 + 0.6 * sin(gx),
-        1.0 + 0.6 * sin(gx + 2.094),
-        1.0 + 0.6 * sin(gx + 4.188)
-      );
-      col *= mask;
+    // Radial random blur — angle-keyed jitter outward
+    float a = atan(p.y, p.x);
+    float rd = rand3(vec3(a, uTime, 0.0));
+    uv = (uv - 0.5) * (1.0 + rd * pow(l * 0.7, 3.0) * uJitter) + 0.5;
 
-      // Rolling scan bar
-      float bar = smoothstep(0.05, 0.0, abs(fract(uv.y - uTime * 0.09) - 0.5));
-      col += vec3(0.08, 0.10, 0.092) * bar;
+    // Chromatic aberration — base offset + y-modulated zoom split
+    vec2 uvr = uv, uvg = uv, uvb = uv;
+    float d = (1.0 + sin(uv.y * 20.0 + uTime * 3.0) * 0.1) * uAberrationZoom;
+    uvr.x += uAberration;
+    uvb.x -= uAberration;
+    uvr = zoom(uvr, 1.0 + d * l * l);
+    uvb = zoom(uvb, 1.0 - d * l * l);
 
-      // Vignette
-      float vig = smoothstep(1.05, 0.2, length(c) * 0.5);
-      col *= mix(0.42, 1.0, vig);
+    vec4 cr = readTex(uvr);
+    vec4 cg = readTex(uvg);
+    vec4 cb = readTex(uvb);
+    // 폴백: 스냅샷 없을 땐 검정 베이스 — deco가 흰색 스캔라인/그리드로 발산
+    vec3 col = uHasMap < 0.5 ? vec3(0.0) : vec3(cr.r, cg.g, cb.b);
 
-      // Phosphor decay — greenish tint in the deepest shadows
-      float lum = dot(col, vec3(0.299, 0.587, 0.114));
-      col = mix(vec3(0.02, 0.05, 0.04), col, smoothstep(0.0, 0.15, lum));
+    vec3 deco = vec3(0.0);
 
-      // Fine static noise
-      float n = hash21(gl_FragCoord.xy + uTime * 60.0);
-      col += (n - 0.5) * 0.05;
+    // Scanline — high-frequency vertical oscillation
+    float res = 1080.0;
+    deco += vec3(sin(uv.y * res * 0.7 + uTime * 100.0) * sin(uv.y * res * 0.3 - uTime * 130.0)) * uScanline;
 
-      // Global brightness (flicker disabled)
-      col *= 0.605;
+    // 20x20 grid
+    deco += vec3(smoothstep(0.01, 0.0, min(fract(uv.x * 20.0), fract(uv.y * 20.0)))) * uGrid;
 
-      // Emission for bloom pickup
-      col *= 0.5;
-    }
+    col += deco * smoothstep(2.0, 0.0, l);
+
+    // Vignette
+    col *= uVignette - l * l;
+
+    // Dither
+    col += rand3(vec3(p, uTime)) * uDither;
+
+    // Emission damp for bloom pickup
+    col *= uBrightness;
 
     gl_FragColor = vec4(col, 1.0);
   }
@@ -160,6 +180,17 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNIN
           uHasMap: { value: 0 },
           uUvMin: { value: new THREE.Vector2(0, 0) },
           uUvSize: { value: new THREE.Vector2(1, 1) },
+          uScale: { value: DEFAULT_TUNING.crtScale },
+          uWarpStrength: { value: DEFAULT_TUNING.crtWarpStrength },
+          uCenterZoom: { value: DEFAULT_TUNING.crtCenterZoom },
+          uJitter: { value: DEFAULT_TUNING.crtJitter },
+          uAberration: { value: DEFAULT_TUNING.crtAberration },
+          uAberrationZoom: { value: DEFAULT_TUNING.crtAberrationZoom },
+          uScanline: { value: DEFAULT_TUNING.crtScanline },
+          uGrid: { value: DEFAULT_TUNING.crtGrid },
+          uVignette: { value: DEFAULT_TUNING.crtVignette },
+          uDither: { value: DEFAULT_TUNING.crtDither },
+          uBrightness: { value: DEFAULT_TUNING.crtBrightness },
         },
         vertexShader: CRT_VERTEX,
         fragmentShader: CRT_FRAGMENT,
@@ -267,7 +298,18 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNIN
         tuning.lightDirX, tuning.lightDirY, tuning.lightDirZ,
       )
     }
-  }, [tuning])
+    crtMaterial.uniforms.uScale.value = tuning.crtScale
+    crtMaterial.uniforms.uWarpStrength.value = tuning.crtWarpStrength
+    crtMaterial.uniforms.uCenterZoom.value = tuning.crtCenterZoom
+    crtMaterial.uniforms.uJitter.value = tuning.crtJitter
+    crtMaterial.uniforms.uAberration.value = tuning.crtAberration
+    crtMaterial.uniforms.uAberrationZoom.value = tuning.crtAberrationZoom
+    crtMaterial.uniforms.uScanline.value = tuning.crtScanline
+    crtMaterial.uniforms.uGrid.value = tuning.crtGrid
+    crtMaterial.uniforms.uVignette.value = tuning.crtVignette
+    crtMaterial.uniforms.uDither.value = tuning.crtDither
+    crtMaterial.uniforms.uBrightness.value = tuning.crtBrightness
+  }, [tuning, crtMaterial])
 
   useFrame((_, dt) => {
     crtMaterial.uniforms.uTime.value += dt

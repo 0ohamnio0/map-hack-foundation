@@ -3,7 +3,7 @@ import KeyboardHints from '@/components/game/KeyboardHints';
 import { useGameStore } from '@/store/useGameStore';
 import { useFontReady } from '@/hooks/useFontReady';
 import { useGlitchText } from '@/hooks/useGlitchText';
-import { playChapterMusic } from '@/lib/chapterMusic';
+import { playChapterMusic, stopAllMusic } from '@/lib/chapterMusic';
 
 export const StartScreen: React.FC = () => {
   const goToChapter = useGameStore(s => s.goToChapter);
@@ -117,7 +117,11 @@ export const StartScreen: React.FC = () => {
         zIndex: 100,
         cursor: 'pointer',
       }}
-      onClick={() => goToChapter('INTRO')}
+      onClick={() => {
+        // INTRO 진입 정적을 위해 START BGM을 챕터 전환 페이드(400ms) 안에 끊음
+        stopAllMusic(400);
+        goToChapter('INTRO');
+      }}
     >
       <div
         style={{
