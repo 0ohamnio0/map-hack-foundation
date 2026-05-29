@@ -13,6 +13,7 @@ import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
 import { useSoundManager } from '@/hooks/useSoundManager'
 import { cellToWorld } from '@/utils/mazeGenerator'
+import { lineIntersectsAABB, scanGhostCandidates } from '@/utils/ghostSpawn'
 import type { WallAABB } from '@/components/game/PlayerController'
 
 // 고스트 GLB 로드가 실패해도 Canvas 전체가 죽지(블랙) 않게 — 실패 시 고스트만 생략
@@ -21,37 +22,6 @@ class GhostBoundary extends Component<{ children: ReactNode }, { failed: boolean
   static getDerivedStateFromError() { return { failed: true } }
   componentDidCatch(err: unknown) { console.warn('[ItaewonLayer] ghost load failed — skipping (no crash)', err) }
   render() { return this.state.failed ? null : this.props.children }
-}
-
-// 2D line vs AABB (XZ plane) — camera → ghost 사이 벽 occlusion 체크용
-function lineIntersectsAABB(
-  x0: number, z0: number,
-  x1: number, z1: number,
-  minX: number, maxX: number, minZ: number, maxZ: number
-): boolean {
-  const dx = x1 - x0
-  const dz = z1 - z0
-  let tmin = 0
-  let tmax = 1
-  if (Math.abs(dx) < 1e-8) {
-    if (x0 < minX || x0 > maxX) return false
-  } else {
-    const t1 = (minX - x0) / dx
-    const t2 = (maxX - x0) / dx
-    tmin = Math.max(tmin, Math.min(t1, t2))
-    tmax = Math.min(tmax, Math.max(t1, t2))
-    if (tmin > tmax) return false
-  }
-  if (Math.abs(dz) < 1e-8) {
-    if (z0 < minZ || z0 > maxZ) return false
-  } else {
-    const t1 = (minZ - z0) / dz
-    const t2 = (maxZ - z0) / dz
-    tmin = Math.max(tmin, Math.min(t1, t2))
-    tmax = Math.min(tmax, Math.max(t1, t2))
-    if (tmin > tmax) return false
-  }
-  return tmax >= 0 && tmin <= 1
 }
 
 const UNIFONT_URL = `${import.meta.env.BASE_URL}assets/fonts/unifont-16.0.02.otf`
@@ -233,100 +203,79 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   const prevGhostCellRef = useRef<{ gx: number; gy: number } | null>(null)
   const isFirstSpawnRef = useRef(true)
   const playerPosRef = useRef(_playerPos)
+  const wallAABBsRef = useRef(wallAABBs)
 
   useEffect(() => {
     playerPosRef.current = _playerPos
+    wallAABBsRef.current = wallAABBs
   })
 
   // Spawn ghost when a drug effect starts — 시야 270도 안 + 벽에 안 가려진(clear LOS) cell만, reset edge detection
   useEffect(() => {
     if (!activeEffect || !DRUG_EFFECTS.has(activeEffect)) return
 
-    const pp = playerPosRef.current
-    const pCellX = Math.round(pp.x / cellSize)
-    const pCellY = Math.round(pp.z / cellSize)
+    // 약 픽업 한 번에 setActiveEffect와 미로 재생성(setMaze)이 동시에 터짐. 한 프레임 미뤄
+    // '새 미로'의 벽이 확정된 뒤(wallAABBsRef) 배치 — 옛 벽 기준으로 잡혀 새 벽 뒤에 가려지던 레이스 제거.
+    const raf = requestAnimationFrame(() => {
+      const walls = wallAABBsRef.current
+      const pp = playerPosRef.current
+      const pCellX = Math.round(pp.x / cellSize)
+      const pCellY = Math.round(pp.z / cellSize)
 
-    const prev = prevGhostCellRef.current
-    const isFirst = isFirstSpawnRef.current
-    const camFwd = new THREE.Vector3()
-    camera.getWorldDirection(camFwd)
-    const camLen = Math.hypot(camFwd.x, camFwd.z) || 1
-    const fwdX = camFwd.x / camLen
-    const fwdZ = camFwd.z / camLen
-    const camX = camera.position.x
-    const camZ = camera.position.z
+      const isFirst = isFirstSpawnRef.current
+      const camFwd = new THREE.Vector3()
+      camera.getWorldDirection(camFwd)
+      const camLen = Math.hypot(camFwd.x, camFwd.z) || 1
+      const fwdX = camFwd.x / camLen
+      const fwdZ = camFwd.z / camLen
 
-    // camera→target 사이 벽 차단 검사. ghost 폭(±GHOST_HALF) 양 끝까지 3광선 전부 통과해야 clear.
-    // 풀 wall bounds 사용(inset 없음) — 모서리 스쳐 지나가는 false-clear 방지.
-    const hasClearLOS = (tx: number, tz: number): boolean => {
-      if (!wallAABBs || wallAABBs.length === 0) return true
-      const dx = tx - camX
-      const dz = tz - camZ
-      const len = Math.hypot(dx, dz) || 1
-      const ox = (-dz / len) * GHOST_HALF_WIDTH // sightline 수직 offset (몸통 폭)
-      const oz = (dx / len) * GHOST_HALF_WIDTH
-      const rays: [number, number][] = [[tx, tz], [tx + ox, tz + oz], [tx - ox, tz - oz]]
-      for (const [rx, rz] of rays) {
-        const blocked = wallAABBs.some((w) =>
-          lineIntersectsAABB(camX, camZ, rx, rz, w.minX, w.maxX, w.minZ, w.maxZ),
-        )
-        if (blocked) return false
+      // 실제 카메라 가로 시야(FOV) cos 임계 — 이 cone 안이면 화면에 보임. 가장자리 클리핑 방지로 약간 안쪽(*0.8)
+      const cam = camera as THREE.PerspectiveCamera
+      const halfV = THREE.MathUtils.degToRad(cam.fov || 75) / 2
+      const halfH = Math.atan(Math.tan(halfV) * (cam.aspect || 1.6))
+      const inViewCos = Math.cos(halfH * 0.8)
+
+      // 후보 스캔 — Ch3 약 픽업 re-roll과 동일 기준(ghostSpawn.ts). inView = 실제 화면 안
+      const candidates = scanGhostCandidates({
+        walls,
+        pCellX,
+        pCellY,
+        camX: camera.position.x,
+        camZ: camera.position.z,
+        fwdX,
+        fwdZ,
+        inViewCos,
+        cellSize,
+        mazeSize,
+        prevCell: prevGhostCellRef.current,
+      })
+
+      if (candidates.length === 0) {
+        console.warn('[ItaewonLayer] spawn failed — no clear-LOS cell at min distance', { activeEffect, isFirst, pCellX, pCellY })
+        return
       }
-      return true
-    }
 
-    // 실제 카메라 가로 시야(FOV) cos 임계 — 이 cone 안이면 화면에 보임. 가장자리 클리핑 방지로 약간 안쪽(*0.8)
-    const cam = camera as THREE.PerspectiveCamera
-    const halfV = THREE.MathUtils.degToRad(cam.fov || 75) / 2
-    const halfH = Math.atan(Math.tan(halfV) * (cam.aspect || 1.6))
-    const inViewCos = Math.cos(halfH * 0.8)
+      // 모두 MIN_CHEB 이상이라 가깝게 안 뜸. 화면 안 우선, 없으면 (먼) 나머지 [정책 B: 옆쪽이라도 띄움]
+      const inView = candidates.filter((c) => c.inView)
+      const usable = inView.length ? inView : candidates
 
-    // 결정적 스캔 — 후방 제외 + clear LOS + 최소거리(MIN_CHEB) 하드 제약(가깝게/겹치게 안 뜸). inView = 실제 화면 안
-    const MIN_CHEB = 2 // 최소 스폰 거리(셀). 너무 가까우면 ↑(3), 가까워도 되면 ↓
-    const MAX_R = 4
-    const candidates: { gx: number; gy: number; dist: number; inView: boolean }[] = []
-    for (let oy = -MAX_R; oy <= MAX_R; oy++) {
-      for (let ox = -MAX_R; ox <= MAX_R; ox++) {
-        if (Math.max(Math.abs(ox), Math.abs(oy)) < MIN_CHEB) continue // 본인 셀 + 너무 가까운 셀 제외
-        const cx = pCellX + ox
-        const cy = pCellY + oy
-        if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
-        if (prev && prev.gx === cx && prev.gy === cy) continue
-        const tw = cellToWorld(cx, cy, cellSize)
-        const dxg = tw.x - camX
-        const dzg = tw.z - camZ
-        const len = Math.hypot(dxg, dzg)
-        if (len < 0.001) continue
-        const dot = (fwdX * dxg + fwdZ * dzg) / len
-        if (dot < -0.707) continue // 완전 후방 제외(폴백 후보로만)
-        if (!hasClearLOS(tw.x, tw.z)) continue // 벽에 가려짐
-        candidates.push({ gx: cx, gy: cy, dist: Math.hypot(ox, oy), inView: dot >= inViewCos })
-      }
-    }
+      // 거리 정렬 후 — 첫 스폰은 먼 절반(드라마틱), 이후는 가까운 절반에서 random
+      usable.sort((a, b) => a.dist - b.dist)
+      const pool = isFirst
+        ? usable.slice(Math.floor(usable.length / 2))
+        : usable.slice(0, Math.max(1, Math.ceil(usable.length / 2)))
+      const target = pool[Math.floor(Math.random() * pool.length)]
 
-    if (candidates.length === 0) {
-      console.warn('[ItaewonLayer] spawn failed — no clear-LOS cell at min distance', { activeEffect, isFirst, pCellX, pCellY })
-      return
-    }
+      const world = cellToWorld(target.gx, target.gy, cellSize)
+      console.log(`[ItaewonLayer] ghost spawn → cell(${target.gx},${target.gy}) world(${world.x.toFixed(1)},${world.z.toFixed(1)}) | player cell(${pCellX},${pCellY}) fwd(${fwdX.toFixed(2)},${fwdZ.toFixed(2)}) | inView=${target.inView} fallback=${inView.length === 0} cands=${candidates.length}(inView ${inView.length})`)
+      setGhostPos([world.x, 0, world.z])
+      prevGhostCellRef.current = { gx: target.gx, gy: target.gy }
+      isFirstSpawnRef.current = false
+      wasInViewRef.current = false
+    })
 
-    // 모두 MIN_CHEB 이상이라 가깝게 안 뜸. 화면 안 우선, 없으면 (먼) 나머지
-    const inView = candidates.filter((c) => c.inView)
-    const usable = inView.length ? inView : candidates
-
-    // 거리 정렬 후 — 첫 스폰은 먼 절반(드라마틱), 이후는 가까운 절반에서 random
-    usable.sort((a, b) => a.dist - b.dist)
-    const pool = isFirst
-      ? usable.slice(Math.floor(usable.length / 2))
-      : usable.slice(0, Math.max(1, Math.ceil(usable.length / 2)))
-    const target = pool[Math.floor(Math.random() * pool.length)]
-
-    const world = cellToWorld(target.gx, target.gy, cellSize)
-    console.log('[ItaewonLayer] ghost spawn', { gx: target.gx, gy: target.gy, world, pCellX, pCellY, isFirst, candidates: candidates.length })
-    setGhostPos([world.x, 0, world.z])
-    prevGhostCellRef.current = { gx: target.gx, gy: target.gy }
-    isFirstSpawnRef.current = false
-    wasInViewRef.current = false
-  }, [activeEffect, cellSize, mazeSize, wallAABBs, camera])
+    return () => cancelAnimationFrame(raf)
+  }, [activeEffect, cellSize, mazeSize, camera])
 
   // 매 프레임 — ghost bbox 8 corner 중 4+개가 frustum 안 → 1회 트리거 (cycle 진행 중 X)
   useFrame(() => {
