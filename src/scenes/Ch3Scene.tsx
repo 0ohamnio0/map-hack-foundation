@@ -11,6 +11,7 @@ import { SceneExporter } from '@/components/dev/SceneExporter';
 import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
 import { generateMaze, cellToWorld, type MazeData } from '@/utils/mazeGenerator';
+import { scanGhostCandidates } from '@/utils/ghostSpawn';
 import { useDevMode } from '@/hooks/useDevMode';
 import { useMute } from '@/hooks/useMute';
 import { Ch3Effects } from '@/components/effects/ChapterEffects';
@@ -323,6 +324,69 @@ function findFittingCorner(maze: MazeData, cellSize: number): FittingPlacement {
   return { pos: { x: cw.x + nx * offset, z: cw.z + nz * offset }, nx, nz };
 }
 
+// 시착실 거울 영상 — 볼 때마다(시야 진입 edge) 풀에서 랜덤 1개 재생. 안 보일 땐 일시정지(perf).
+const MIRROR_VIDEO_COUNT = 15;
+const MIRROR_VIDEOS = Array.from({ length: MIRROR_VIDEO_COUNT }, (_, i) =>
+  `${import.meta.env.BASE_URL}assets/video/mirror/mirror_${String(i).padStart(2, '0')}.mp4`,
+);
+
+const _mirrorCenter = new THREE.Vector3();
+const _mirrorFrustum = new THREE.Frustum();
+const _mirrorFMat = new THREE.Matrix4();
+
+const MirrorScreen: React.FC<{ position: [number, number, number]; rotationY: number; width: number; height: number }> = ({ position, rotationY, width, height }) => {
+  const { camera } = useThree();
+  const meshRef = useRef<THREE.Mesh>(null);
+  const wasInView = useRef(false);
+
+  const videoEl = useMemo(() => {
+    const v = document.createElement('video');
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.crossOrigin = 'anonymous';
+    v.preload = 'auto';
+    return v;
+  }, []);
+  const texture = useMemo(() => {
+    const t = new THREE.VideoTexture(videoEl);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, [videoEl]);
+
+  const pickRandom = useCallback(() => {
+    videoEl.src = MIRROR_VIDEOS[Math.floor(Math.random() * MIRROR_VIDEOS.length)];
+    videoEl.currentTime = 0;
+    videoEl.play().catch(() => {});
+  }, [videoEl]);
+
+  useEffect(() => {
+    pickRandom();
+    return () => { videoEl.pause(); videoEl.removeAttribute('src'); videoEl.load(); texture.dispose(); };
+  }, [pickRandom, videoEl, texture]);
+
+  useFrame(() => {
+    const m = meshRef.current;
+    if (!m) return;
+    m.getWorldPosition(_mirrorCenter);
+    const dist = camera.position.distanceTo(_mirrorCenter);
+    _mirrorFMat.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    _mirrorFrustum.setFromProjectionMatrix(_mirrorFMat);
+    const inView = dist < CELL_SIZE * 1.6 && _mirrorFrustum.containsPoint(_mirrorCenter);
+    if (inView && !wasInView.current) pickRandom(); // 볼 때마다 랜덤
+    if (inView && videoEl.paused) videoEl.play().catch(() => {});
+    if (!inView && !videoEl.paused) videoEl.pause();
+    wasInView.current = inView;
+  });
+
+  return (
+    <mesh ref={meshRef} position={position} rotation={[0, rotationY, 0]}>
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide} />
+    </mesh>
+  );
+};
+
 /** Fitting room booth — 두 벽(side+back)을 미로 코너에 붙이고 안쪽으로 개방, 거울은 back에 */
 const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz: number }> = ({ worldPos, nx, nz }) => {
   const W = FITTING_W, D = FITTING_D, T = 0.15, H = FITTING_H, Hh = H / 2;
@@ -338,14 +402,6 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz
   // 빨강 벨벳 커튼 — 4벽. emissive + 바닥 블록 크기 픽셀라이즈(세로 폴드 유지)
   const curtainMat = useMemo(() => makeSnapMaterialWithTexture('curtain.webp',
     { emissive: 0.4, pixelize: blkPix(FITTING_W), pixelAspect: FITTING_W / FITTING_H }), []);
-  // 거울 틀 — 알파(중앙 개구부 투명, 뒤로 그린/영상 비침) + emissive + 바닥 블록 픽셀라이즈
-  const frameMat = useMemo(() => {
-    const m = makeSnapMaterialWithTexture('mirror_frame.webp',
-      { emissive: 0.9, pixelize: blkPix(FRAME_W), pixelAspect: FRAME_W / FRAME_H });
-    m.transparent = true;
-    m.side = THREE.DoubleSide;
-    return m;
-  }, []);
   return (
     <group position={[worldPos.x, FITTING_Y, worldPos.z]}>
       {/* 4면 닫힌 박스 — flush 2면(코너 벽에 붙음) + outer 2면 + 천장. 벽=커튼 텍스처 */}
@@ -370,15 +426,13 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz
         <boxGeometry args={[W, T, D]} />
         <meshStandardMaterial color="#554433" />
       </mesh>
-      {/* 그린 플레이스홀더 (영상 교체 예정) — 틀 개구부 크기, 틀 뒤에 둠 */}
-      <mesh position={[0, mirrorY, -nz * (Dh + 0.08)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]}>
-        <planeGeometry args={[OPEN_W, OPEN_H]} />
-        <meshBasicMaterial color="#22ff66" toneMapped={false} side={THREE.DoubleSide} />
-      </mesh>
-      {/* 거울 틀 이미지 (알파 — 중앙 개구부로 그린/영상 비침) — 그린 앞에 겹침 */}
-      <mesh position={[0, mirrorY, -nz * (Dh + 0.12)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]} material={frameMat}>
-        <planeGeometry args={[FRAME_W, FRAME_H]} />
-      </mesh>
+      {/* 거울 면 — 영상(볼 때마다 랜덤). 프레임 제거 */}
+      <MirrorScreen
+        position={[0, mirrorY, -nz * (Dh + 0.08)]}
+        rotationY={nz < 0 ? 0 : Math.PI}
+        width={OPEN_W}
+        height={OPEN_H}
+      />
     </group>
   );
 };
@@ -789,27 +843,83 @@ const ElevatorCutscene: React.FC<{
   return null;
 };
 
+// GSAP elastic(0.5, 0.43) 이징 포팅 — amplitude<1이라 GSAP 내부에서 amplitude=1, s=period/4로 클램프됨
+function elasticOut(t: number): number {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  const period = 0.43;
+  const s = period / 4;
+  return Math.pow(2, -10 * t) * Math.sin(((t - s) * (2 * Math.PI)) / period) + 1;
+}
+
+// 캡슐 약 한 알 — 위 절반 흰색 캡(cap), 아래 절반 약 색(body). 어두운 미로에서 보이도록 살짝 발광
+const PILL_R = 0.15; // 반구 반지름 = 원통 반지름
+const PILL_L = 0.34; // 직선 원통부 전체 길이
+const Pill: React.FC<{ color: string }> = ({ color }) => (
+  <group>
+    {/* 위 절반 — 흰색 캡 */}
+    <mesh position={[0, PILL_L / 4, 0]}>
+      <cylinderGeometry args={[PILL_R, PILL_R, PILL_L / 2, 24]} />
+      <meshStandardMaterial color="#f5f5f5" roughness={0.22} metalness={0} emissive="#f5f5f5" emissiveIntensity={0.12} />
+    </mesh>
+    <mesh position={[0, PILL_L / 2, 0]}>
+      <sphereGeometry args={[PILL_R, 24, 16]} />
+      <meshStandardMaterial color="#f5f5f5" roughness={0.22} metalness={0} emissive="#f5f5f5" emissiveIntensity={0.12} />
+    </mesh>
+    {/* 아래 절반 — 약 색 body */}
+    <mesh position={[0, -PILL_L / 4, 0]}>
+      <cylinderGeometry args={[PILL_R, PILL_R, PILL_L / 2, 24]} />
+      <meshStandardMaterial color={color} roughness={0.2} metalness={0} emissive={color} emissiveIntensity={0.45} />
+    </mesh>
+    <mesh position={[0, -PILL_L / 2, 0]}>
+      <sphereGeometry args={[PILL_R, 24, 16]} />
+      <meshStandardMaterial color={color} roughness={0.2} metalness={0} emissive={color} emissiveIntensity={0.45} />
+    </mesh>
+  </group>
+);
+
 const MedicinePickup: React.FC<{
   med: typeof MEDICINES[0];
   worldPos: { x: number; z: number };
   collected: boolean;
 }> = ({ med, worldPos, collected }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const collectStartRef = useRef<number | null>(null);
+  const [gone, setGone] = useState(false);
 
   useFrame(({ clock }) => {
-    if (meshRef.current && !collected) {
-      meshRef.current.rotation.y = clock.elapsedTime * 2;
-      meshRef.current.position.y = 0.5 + Math.sin(clock.elapsedTime * 3) * 0.1;
+    const g = groupRef.current;
+    if (!g) return;
+    const t = clock.elapsedTime;
+
+    if (!collected) {
+      // idle — 회전 + 둥실 + elastic 펄스 루프 (살짝 stretch/squash)
+      g.rotation.y = t * 1.2;
+      g.position.y = 0.5 + Math.sin(t * 2.2) * 0.12;
+      const phase = t % 2.6; // 2.6초마다 한 번 탱글탱글 펄스
+      const pop = phase < 1 ? 0.18 * (1 - elasticOut(phase)) : 0;
+      g.scale.set(1 - pop * 0.5, 1 + pop, 1 - pop * 0.5);
+    } else {
+      // 수집 — elastic 펀치 후 위로 솟으며 빠르게 회전 + 축소
+      if (collectStartRef.current === null) collectStartRef.current = t;
+      const ct = (t - collectStartRef.current) / 0.45; // 0..1
+      if (ct >= 1) {
+        setGone(true);
+        return;
+      }
+      g.rotation.y = t * 8;
+      g.position.y = 0.5 + ct * 1.2;
+      const s = ct < 0.35 ? 1 + 0.4 * elasticOut(ct / 0.35) : 1.4 * (1 - (ct - 0.35) / 0.65);
+      g.scale.setScalar(Math.max(0, s));
     }
   });
 
-  if (collected) return null;
+  if (gone) return null;
 
   return (
-    <mesh ref={meshRef} position={[worldPos.x, 0.5, worldPos.z]}>
-      <boxGeometry args={[0.3, 0.5, 0.3]} />
-      <meshStandardMaterial color={med.color} emissive={med.color} emissiveIntensity={0.3} />
-    </mesh>
+    <group ref={groupRef} position={[worldPos.x, 0.5, worldPos.z]}>
+      <Pill color={med.color} />
+    </group>
   );
 };
 
@@ -870,12 +980,43 @@ const CartHud: React.FC = () => {
   );
 };
 
+function wallsFromMaze(maze: MazeData): WallAABB[] {
+  return maze.wallPositions.map(w => ({
+    minX: w.x - w.scaleX / 2,
+    maxX: w.x + w.scaleX / 2,
+    minZ: w.z - w.scaleZ / 2,
+    maxZ: w.z + w.scaleZ / 2,
+  }));
+}
+
+// 약 픽업 시: 정면(inView)에 ghost가 설 clear-LOS 칸이 존재하는 미로가 나올 때까지 re-roll.
+// 못 찾으면 상한 후 마지막 미로 반환(ItaewonLayer가 270° 옆쪽 B 폴백). 10x10 생성 ~0.1ms → 상한 80회도 ~10ms.
+function rollMazeWithFrontSpawn(
+  profile: { removalRatio: number },
+  pCellX: number, pCellY: number,
+  camX: number, camZ: number, fwdX: number, fwdZ: number, inViewCos: number,
+): MazeData {
+  const MAX_TRIES = 80;
+  let last: MazeData | null = null;
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const m = generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: Math.floor(Math.random() * 0xFFFFFFFF), forceCenterCorner: true, ...profile }, CELL_SIZE);
+    last = m;
+    const cands = scanGhostCandidates({ walls: wallsFromMaze(m), pCellX, pCellY, camX, camZ, fwdX, fwdZ, inViewCos, cellSize: CELL_SIZE, mazeSize: MAZE_SIZE });
+    if (cands.some(c => c.inView)) {
+      if (i > 0) console.log(`[Ch3] front-spawn maze found after ${i + 1} re-rolls`);
+      return m;
+    }
+  }
+  console.warn(`[Ch3] no front-spawn maze in ${MAX_TRIES} rolls — side fallback (B)`);
+  return last as MazeData;
+}
+
 const Ch3Inner: React.FC<{
   maze: MazeData;
   onPlayerMove?: (pos: { x: number; z: number }) => void;
   onElevatorZoneChange?: (inZone: boolean) => void;
   onExitZoneChange?: (inZone: boolean) => void;
-  onDrugPickup?: (index: number) => void;
+  onDrugPickup?: (index: number, maze: MazeData) => void;
   onCollectedChange?: (collected: Set<number>) => void;
 }> = ({ maze, onPlayerMove, onElevatorZoneChange, onExitZoneChange, onDrugPickup, onCollectedChange }) => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
@@ -883,6 +1024,7 @@ const Ch3Inner: React.FC<{
   const setActiveEffect = useGameStore(s => s.setActiveEffect);
   const setNotification = useGameStore(s => s.setNotification);
   const { play } = useSoundManager();
+  const { camera } = useThree();
   const [collected, setCollected] = useState<Set<number>>(new Set());
   const [posState, setPosState] = useState({ x: 0, z: 0 });
 
@@ -890,14 +1032,7 @@ const Ch3Inner: React.FC<{
   const exitWorld = useMemo(() => cellToWorld(maze.end.x, maze.end.y, CELL_SIZE), [maze]);
   const mazeWorldSize = MAZE_SIZE * CELL_SIZE;
 
-  const wallAABBs = useMemo<WallAABB[]>(() => {
-    return maze.wallPositions.map(w => ({
-      minX: w.x - w.scaleX / 2,
-      maxX: w.x + w.scaleX / 2,
-      minZ: w.z - w.scaleZ / 2,
-      maxZ: w.z + w.scaleZ / 2,
-    }));
-  }, [maze]);
+  const wallAABBs = useMemo<WallAABB[]>(() => wallsFromMaze(maze), [maze]);
 
   const medPositions = useMemo(() =>
     MEDICINES.map((m, i) => {
@@ -925,6 +1060,19 @@ const Ch3Inner: React.FC<{
           const wp = medPositions[i];
           const dist = Math.sqrt((px - wp.x) ** 2 + (pz - wp.z) ** 2);
           if (dist < CELL_SIZE * 0.6) {
+            // 정면 보장 re-roll — 현재 카메라/플레이어 기준으로 ghost가 화면 안에 설 미로를 골라 넘김
+            const cam = camera as THREE.PerspectiveCamera;
+            const camFwd = new THREE.Vector3();
+            cam.getWorldDirection(camFwd);
+            const camLen = Math.hypot(camFwd.x, camFwd.z) || 1;
+            const halfV = THREE.MathUtils.degToRad(cam.fov || 75) / 2;
+            const halfH = Math.atan(Math.tan(halfV) * (cam.aspect || 1.6));
+            const inViewCos = Math.cos(halfH * 0.8);
+            const newMaze = rollMazeWithFrontSpawn(
+              med.mazeProfile,
+              Math.round(px / CELL_SIZE), Math.round(pz / CELL_SIZE),
+              cam.position.x, cam.position.z, camFwd.x / camLen, camFwd.z / camLen, inViewCos,
+            );
             setCollected(prev => {
               const next = new Set(prev).add(i);
               onCollectedChange?.(next);
@@ -936,7 +1084,7 @@ const Ch3Inner: React.FC<{
             setNotification(med.name);
             triggerEvent(`ch3_med_${i}`);
             setTimeout(() => setNotification(null), 2000);
-            onDrugPickup?.(i);
+            onDrugPickup?.(i, newMaze);
           }
         }
       });
@@ -956,7 +1104,7 @@ const Ch3Inner: React.FC<{
 
     const interval = setInterval(check, 100);
     return () => clearInterval(interval);
-  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange, onExitZoneChange]);
+  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange, onExitZoneChange, camera]);
 
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
@@ -1029,10 +1177,9 @@ export const Ch3Scene: React.FC = () => {
   const [maze, setMaze] = useState<MazeData>(() =>
     generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: Math.floor(Math.random() * 0xFFFFFFFF), forceCenterCorner: true }, CELL_SIZE),
   );
-  const handleDrugPickup = useCallback((drugIndex: number) => {
-    const profile = MEDICINES[drugIndex].mazeProfile;
-    const newSeed = Math.floor(Math.random() * 0xFFFFFFFF);
-    setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, forceCenterCorner: true, ...profile }, CELL_SIZE));
+  // 미로는 Ch3Inner가 카메라 기준으로 정면 스폰 보장 re-roll 해서 넘겨줌 (rollMazeWithFrontSpawn)
+  const handleDrugPickup = useCallback((_drugIndex: number, newMaze: MazeData) => {
+    setMaze(newMaze);
   }, []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });

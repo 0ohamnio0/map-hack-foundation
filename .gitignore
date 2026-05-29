@@ -27,3 +27,6 @@ scripts/pool_inspect.png
 *.sw?
 .vercel
 .env*.local
+
+# 시착실 거울 영상 — 로컬 전용(임시), 77MB 히스토리 박힘 방지
+public/assets/video/mirror/
