@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { LightShadowRainbow } from '@/components/effects/LightShadowRainbow'
 import { useGameStore } from '@/store/useGameStore'
 import { useDevMode } from '@/hooks/useDevMode'
+import { useSoundManager } from '@/hooks/useSoundManager'
 
 type LightingTuning = {
   lightX: number
@@ -220,6 +221,7 @@ export const Ch1Scene: React.FC = () => {
   const triggeredRef = useRef(false)
   const rafRef = useRef<number | null>(null)
   const timeoutRef = useRef<number | null>(null)
+  const { play } = useSoundManager()
 
   useEffect(() => {
     const trigger = () => {
@@ -232,6 +234,7 @@ export const Ch1Scene: React.FC = () => {
       // CH.1 renders at ~15fps via Canvas frameloop="demand" + this throttle.
       const FRAME_INTERVAL = 1000 / 15
       let lastUpdate = 0
+      play('door_creak');
       const step = (now: number) => {
         const t = Math.min(1, (now - start) / DURATION)
         if (now - lastUpdate >= FRAME_INTERVAL || t >= 1) {
@@ -241,7 +244,7 @@ export const Ch1Scene: React.FC = () => {
         if (t < 1) {
           rafRef.current = requestAnimationFrame(step)
         } else {
-          timeoutRef.current = window.setTimeout(() => goToChapter('CH2'), 200)
+          timeoutRef.current = window.setTimeout(() => {goToChapter('CH2'); play('transition')}, 200)
         }
       }
       rafRef.current = requestAnimationFrame(step)
