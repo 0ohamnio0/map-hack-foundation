@@ -10,6 +10,10 @@ import { Ch3Scene } from '@/scenes/Ch3Scene';
 import { Ch4Screen } from '@/screens/Ch4Screen';
 import { Ch5Screen } from '@/screens/Ch5Screen';
 import { playChapterMusic } from '@/lib/chapterMusic';
+import { SketchDebugPanel } from '@/components/effects/SketchDebugPanel';
+
+const SKETCH_DEBUG = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('sketch') === '1';
 
 const CHAPTERS: Chapter[] = ['START', 'INTRO', 'CH1', 'CH2', 'CH3', 'CH4', 'CH5'];
 
@@ -89,6 +93,11 @@ export const Game: React.FC = () => {
     return () => window.removeEventListener('keydown', handler, true);
   }, []);
 
+  // 디버그: ?sketch=1 → CH3로 바로 진입 (스케치 효과 상시 full은 Ch3Effects가 처리)
+  useEffect(() => {
+    if (SKETCH_DEBUG) useGameStore.setState({ chapter: 'CH3' });
+  }, []);
+
   const renderScene = () => {
     switch (chapter) {
       case 'START': return <StartScreen />;
@@ -116,6 +125,7 @@ export const Game: React.FC = () => {
       <ChapterHUD chapter={chapter} />
       <FadeOverlay />
       <EffectOverlay />
+      {SKETCH_DEBUG && <SketchDebugPanel />}
     </>
   );
 };

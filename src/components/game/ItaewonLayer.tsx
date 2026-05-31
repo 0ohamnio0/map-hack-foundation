@@ -6,7 +6,7 @@
  *   ch.2 스타일 머티리얼, 평상시 opacity 0.7, 한 발자국 안 0.9
  *   ghost bbox의 50%+가 카메라 frustum 안에 들어오는 순간 → Mirror_Viewing + 대사 (1회, ghost re-spawn 시 reset)
  */
-import { useRef, useState, useEffect, useMemo, Component, Suspense, type ReactNode } from 'react'
+import { useRef, useState, useEffect, useMemo, useCallback, Component, Suspense, type ReactNode } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Text, useGLTF, useAnimations } from '@react-three/drei'
 import * as THREE from 'three'
@@ -14,6 +14,10 @@ import { useGameStore } from '@/store/useGameStore'
 import { useSoundManager } from '@/hooks/useSoundManager'
 import { cellToWorld } from '@/utils/mazeGenerator'
 import type { WallAABB } from '@/components/game/PlayerController'
+
+// 디버그: ?sketch=1 → 약 없이도 ghost 상시 노출 (스케치 룩 튜닝용)
+const SKETCH_DEBUG = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('sketch') === '1'
 
 // 고스트 GLB 로드가 실패해도 Canvas 전체가 죽지(블랙) 않게 — 실패 시 고스트만 생략
 class GhostBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -238,10 +242,8 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     playerPosRef.current = _playerPos
   })
 
-  // Spawn ghost when a drug effect starts — 시야 270도 안 + 벽에 안 가려진(clear LOS) cell만, reset edge detection
-  useEffect(() => {
-    if (!activeEffect || !DRUG_EFFECTS.has(activeEffect)) return
-
+  // 스폰 로직 — 시야 270도 안 + 벽에 안 가려진(clear LOS) cell 선택 후 ghostPos 세팅
+  const spawnGhost = useCallback(() => {
     const pp = playerPosRef.current
     const pCellX = Math.round(pp.x / cellSize)
     const pCellY = Math.round(pp.z / cellSize)
@@ -305,7 +307,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     }
 
     if (candidates.length === 0) {
-      console.warn('[ItaewonLayer] spawn failed — no clear-LOS cell at min distance', { activeEffect, isFirst, pCellX, pCellY })
+      console.warn('[ItaewonLayer] spawn failed — no clear-LOS cell at min distance', { isFirst, pCellX, pCellY })
       return
     }
 
@@ -326,7 +328,20 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     prevGhostCellRef.current = { gx: target.gx, gy: target.gy }
     isFirstSpawnRef.current = false
     wasInViewRef.current = false
-  }, [activeEffect, cellSize, mazeSize, wallAABBs, camera])
+  }, [cellSize, mazeSize, wallAABBs, camera])
+
+  // 약 효과 시작 시 스폰
+  useEffect(() => {
+    if (!activeEffect || !DRUG_EFFECTS.has(activeEffect)) return
+    spawnGhost()
+  }, [activeEffect, spawnGhost])
+
+  // 디버그: ?sketch=1 → 약 없이도 마운트 후 ghost 상시 노출
+  useEffect(() => {
+    if (!SKETCH_DEBUG) return
+    const id = setTimeout(() => spawnGhost(), 600)
+    return () => clearTimeout(id)
+  }, [spawnGhost])
 
   // 매 프레임 — ghost bbox 8 corner 중 4+개가 frustum 안 → 1회 트리거 (cycle 진행 중 X)
   useFrame(() => {

@@ -17,7 +17,12 @@ interface GameState {
   noteLanguage: 'ko' | 'en';
   /** CH.2 우체통에 편지를 보냈는지 — true면 7/7 없이도 CH.3 문 통과 가능 */
   letterSent: boolean;
+  /** 새 챕터의 씬이 실제로 표시 준비됐는지 — 전환 커튼(FadeOverlay) 페이드 인 게이트.
+   *  false면 무거운 씬(CH.2)이 markChapterReady()를 부를 때까지 검은 화면 유지. */
+  chapterReady: boolean;
   goToChapter: (chapter: Chapter) => void;
+  /** 무거운 씬이 로드·물리 안정화(캐릭터 착지) 완료 시 호출 → 전환 커튼 해제 신호 */
+  markChapterReady: () => void;
   /** 챕터 exit 시 해당 챕터에 귀속된 store 상태 초기화 (방명록·visitedEvents 타 챕터 항목은 보존) */
   resetChapterState: (chapter: Chapter) => void;
   triggerEvent: (id: string) => boolean;
@@ -46,6 +51,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   chapter: 'START',
   visitedEvents: new Set<string>(),
   isTransitioning: false,
+  chapterReady: true,
   leftMovement: 0,
   rightMovement: 0,
   cartItems: [],
@@ -56,7 +62,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   letterSent: false,
 
   goToChapter: (chapter: Chapter) => {
-    set({ isTransitioning: true });
+    // 씬 전환 크로스페이드(검은 커튼). 이건 짧게 — 실제 "로딩화면"은 각 씬 내부의
+    // 로딩 오버레이가 담당하며, chapterReady 신호로 실제 로드 완료까지 유지된다.
+    // 무거운 씬은 chapterReady=false로 시작 → 씬이 markChapterReady()를 부를 때까지 로딩 유지.
+    const needsLoad = chapter === 'CH2';
+    set({ isTransitioning: true, chapterReady: !needsLoad });
     // Mid-point transition (400ms fade out, 400ms fade in)
     setTimeout(() => {
       set({ chapter });
@@ -65,6 +75,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ isTransitioning: false });
     }, 800);
   },
+
+  markChapterReady: () => set({ chapterReady: true }),
 
   resetChapterState: (chapter: Chapter) => {
     const { visitedEvents } = get();

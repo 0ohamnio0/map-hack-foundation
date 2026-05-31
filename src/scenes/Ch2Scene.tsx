@@ -1333,7 +1333,14 @@ const Ch2PhysicsScene: React.FC<{
   useFBX(MAIN_FBX_URL);
 
   const [physicsReady, setPhysicsReady] = useState(false);
-  const handlePhysicsReady = useCallback(() => setPhysicsReady(true), []);
+  const markChapterReady = useGameStore(s => s.markChapterReady);
+  const handlePhysicsReady = useCallback(() => {
+    setPhysicsReady(true);
+    // 로딩 커튼 해제 신호. physicsReady 직후 Ecctrl이 y=2에서 스폰돼 바닥까지 떨어지므로
+    // (~0.6s), 착지 완료를 보장하는 여유를 두고 ready를 알린다. 그래야 커튼이 걷힐 때
+    // 캐릭터가 공중이 아니라 바닥에 서 있다.
+    window.setTimeout(() => markChapterReady(), 1500);
+  }, [markChapterReady]);
   const [ch2Toggles] = useCh2Toggles();
   const ecctrlRef = useRef<CustomEcctrlRigidBody>(null);
 
@@ -1543,10 +1550,27 @@ export const Ch2Scene: React.FC = () => {
   const [atMailbox, setAtMailbox] = useState(false);
   const [postalActive, setPostalActive] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingFadeOut, setLoadingFadeOut] = useState(false);
 
+  // 로딩 오버레이는 실제 로드 완료(chapterReady = 캐릭터 착지 신호)까지 유지하되 최소 노출 시간을 둔다.
+  // chapterReady가 끝내 안 와도 MAX_SHOW 안에 강제 종료(영구 로딩 방지).
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 3000);
-    return () => clearTimeout(t);
+    const MIN_SHOW = 3500;   // 최소 노출 시간 — "조금 더 길게"
+    const MAX_SHOW = 10000;  // 안전 상한
+    const start = performance.now();
+    let timer = 0;
+    const tick = () => {
+      const elapsed = performance.now() - start;
+      const ready = useGameStore.getState().chapterReady;
+      if ((ready && elapsed >= MIN_SHOW) || elapsed >= MAX_SHOW) {
+        setLoadingFadeOut(true);
+        window.setTimeout(() => setLoading(false), 260);
+        return;
+      }
+      timer = window.setTimeout(tick, 80);
+    };
+    timer = window.setTimeout(tick, 80);
+    return () => window.clearTimeout(timer);
   }, []);
   const goToChapter  = useGameStore(s => s.goToChapter);
   const activeNoteId = useGameStore(s => s.activeNoteId);
@@ -1790,7 +1814,8 @@ export const Ch2Scene: React.FC = () => {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           color: '#f3eedd',
           fontFamily: '"Unifont", monospace',
-          animation: 'ch2LoadingFadeOut 0.25s ease-in 2.75s forwards',
+          opacity: loadingFadeOut ? 0 : 1,
+          transition: 'opacity 0.25s ease-in',
         }}>
           <div style={{ fontSize: 26, marginBottom: 14, animation: 'ch2LoadingSpin 1s linear infinite' }}>↻</div>
           <div style={{ fontSize: 15, letterSpacing: 8, marginBottom: 56 }}>l o a d i n g . . .</div>
@@ -1799,7 +1824,6 @@ export const Ch2Scene: React.FC = () => {
           </div>
           <style>{`
             @keyframes ch2LoadingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-            @keyframes ch2LoadingFadeOut { to { opacity: 0; } }
           `}</style>
         </div>
       )}

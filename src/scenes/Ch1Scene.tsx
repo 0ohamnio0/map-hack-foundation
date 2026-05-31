@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Noise } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
@@ -158,7 +158,7 @@ const CAMERA_PROP = {
 
 const CameraRig: React.FC<{ progress: number }> = ({ progress }) => {
   useFrame(({ camera }) => {
-    const zoom = THREE.MathUtils.smoothstep(progress, 0.25, 0.85)
+    const zoom = THREE.MathUtils.smoothstep(progress, 0.0, 0.85)
     const startPos = new THREE.Vector3(-2.5, 1.7, -5)
     const endPos = new THREE.Vector3(3.2, DOOR_H / 2, -11.0)
     camera.position.lerpVectors(startPos, endPos, zoom)
@@ -173,15 +173,6 @@ const Scene: React.FC<{ progress: number; tuning: LightingTuning }> = ({ progres
   const open = THREE.MathUtils.smoothstep(progress, 0.0, 0.35)
   const sunIntensity = open * tuning.intensityMult
 
-  // Canvas runs in frameloop="demand" — without an explicit pulse, useFrame
-  // never fires and the camera stays at its initial forward. Drive a 15fps
-  // invalidate so dolly + lookAt + doorUv updates actually run.
-  const invalidate = useThree(s => s.invalidate)
-  useEffect(() => {
-    const id = window.setInterval(() => invalidate(), 1000 / 15)
-    return () => clearInterval(id)
-  }, [invalidate])
-
   return (
     <>
       <fog attach="fog" args={['#000000', tuning.fogNear, tuning.fogFar]} />
@@ -192,7 +183,7 @@ const Scene: React.FC<{ progress: number; tuning: LightingTuning }> = ({ progres
         intensity={sunIntensity}
         color="#ffffff"
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-near={0.1}
         shadow-camera-far={30}
         shadow-camera-left={-tuning.shadowSize}
@@ -221,6 +212,7 @@ export const Ch1Scene: React.FC = () => {
   const triggeredRef = useRef(false)
   const rafRef = useRef<number | null>(null)
   const timeoutRef = useRef<number | null>(null)
+  const sfxTimeoutRef = useRef<number | null>(null)
   const { play } = useSoundManager()
 
   useEffect(() => {
@@ -231,16 +223,12 @@ export const Ch1Scene: React.FC = () => {
       triggeredRef.current = true
       const start = performance.now()
       const DURATION = 6000
-      // CH.1 renders at ~15fps via Canvas frameloop="demand" + this throttle.
-      const FRAME_INTERVAL = 1000 / 15
-      let lastUpdate = 0
-      play('door_creak');
+      // 문은 smoothstep(progress,0,0.35) ease-in이라 맨 처음엔 거의 안 움직인다.
+      // creak을 살짝 지연시켜 문이 실제로 swing하기 시작하는 시점에 맞춘다.
+      sfxTimeoutRef.current = window.setTimeout(() => play('door_creak'), 350)
       const step = (now: number) => {
         const t = Math.min(1, (now - start) / DURATION)
-        if (now - lastUpdate >= FRAME_INTERVAL || t >= 1) {
-          setProgress(t)
-          lastUpdate = now
-        }
+        setProgress(t)
         if (t < 1) {
           rafRef.current = requestAnimationFrame(step)
         } else {
@@ -267,6 +255,7 @@ export const Ch1Scene: React.FC = () => {
       window.removeEventListener('click', clickHandler)
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
       if (timeoutRef.current !== null) clearTimeout(timeoutRef.current)
+      if (sfxTimeoutRef.current !== null) clearTimeout(sfxTimeoutRef.current)
     }
   }, [goToChapter, devMode])
 
@@ -288,7 +277,7 @@ export const Ch1Scene: React.FC = () => {
       }}>
         <Canvas
           shadows
-          frameloop="demand"
+          dpr={[1, 1.5]}
           camera={CAMERA_PROP}
         >
           <Scene progress={progress} tuning={tuning} />

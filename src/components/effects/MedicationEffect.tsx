@@ -242,8 +242,9 @@ const fragmentShader = /* glsl */ `
       outputColor = vec4(mix(inputColor.rgb, distorted.rgb, intensity), inputColor.a);
 
     } else {
-      // 다 먹음: whiteflash
-      outputColor = vec4(mix(inputColor.rgb, vec3(1.0), intensity), 1.0);
+      // 다 먹음 (Fluoxetine): 화이트아웃 대신 SketchEffect가 화면을 손그림으로 변환.
+      // 여기선 통과 — 스케치는 별도 이펙트가 progress로 구동한다.
+      outputColor = inputColor;
     }
   }
 `

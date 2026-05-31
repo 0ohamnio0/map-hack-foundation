@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
   EffectComposer,
@@ -12,7 +12,8 @@ import { ChannelShift } from './ChannelShiftEffect'
 import { BokehBlurEffect, type BokehBlurEffectImpl } from './BokehBlurEffect'
 import { PixelateEffect, type PixelateEffectImpl } from './PixelateEffect'
 import { MedicationEffect, type MedicationEffectImpl } from './MedicationEffect'
-import { OverdoseEffect, type OverdoseEffectImpl } from './OverdoseEffect'
+import { SketchEffect, type SketchEffectImpl } from './SketchEffect'
+import { sketchParams } from './SketchDebugPanel'
 import { useGameStore } from '@/store/useGameStore'
 
 /**
@@ -141,21 +142,24 @@ const HOLD_EFFECTS = ['desaturate', 'blur', 'darken', 'anxiolytic']
 
 /**
  * CH.3 Effects — 마트 형광등 불안정 + 약 복용 GLSL 이펙트
- * Vignette + Noise + MedicationEffect + OverdoseEffect
+ * Vignette + Noise + MedicationEffect + SketchEffect(Fluoxetine→손그림)
  */
 export function Ch3Effects() {
   const medRef = useRef<MedicationEffectImpl>(null)
-  const overdoseRef = useRef<OverdoseEffectImpl>(null)
+  const sketchRef = useRef<SketchEffectImpl>(null)
+  // 디버그: ?sketch=1 → 스케치 효과를 상시 full로 고정 (룩 확인/튜닝용)
+  const sketchDebug = useMemo(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sketch') === '1',
+    [],
+  )
+  const debugTime = useRef(0)
   const activeEffect = useGameStore((s) => s.activeEffect)
-  const cartItems = useGameStore((s) => s.cartItems)
 
   const medElapsed = useRef(0)
   const medActive = useRef(false)
   const medReleasing = useRef(false)
   const medReleaseElapsed = useRef(0)
   const medEffectName = useRef<string | null>(null)
-  const overdoseElapsed = useRef(0)
-  const overdoseActive = useRef(false)
 
   // Map effect names to shader type indices
   const effectTypeMap: Record<string, number> = {
@@ -172,7 +176,7 @@ export function Ch3Effects() {
     blur: 10,
     darken: 8,
     anxiolytic: 6,
-    whiteflash: 1.8,
+    whiteflash: 6,  // 스케치 변환 — 잉크 손그림이 충분히 보이도록 (fade 1.5 + hold 3 + fade 1.5)
   }
   const medDuration = useRef(6.5)
 
@@ -198,23 +202,9 @@ export function Ch3Effects() {
     }
   }, [activeEffect])
 
-  const overdoseDone = useRef(false)
-
-  // Trigger overdose when cart has 5+ unique meds collected
-  // (cartItems duplicates on pickup, so 5+ items = all meds taken)
-  useEffect(() => {
-    if (cartItems.length >= 5 && !overdoseActive.current && !overdoseDone.current) {
-      overdoseElapsed.current = 0
-      overdoseActive.current = true
-    }
-  }, [cartItems])
-
-  // Overdose display duration: 15s of visible effect, then all shaders OFF
-  const OVERDOSE_DISPLAY = 15
-
   useFrame((_, delta) => {
-    // Drive MedicationEffect (skip if overdose is done — all shaders off)
-    if (medRef.current && medActive.current && !overdoseDone.current) {
+    // Drive MedicationEffect
+    if (medRef.current && medActive.current) {
       medElapsed.current += delta
       const isHold = !!medEffectName.current && HOLD_EFFECTS.includes(medEffectName.current)
       if (isHold) {
@@ -234,25 +224,32 @@ export function Ch3Effects() {
       } else {
         // whiteflash 등 — 기존 고정 엔벨로프(in→hold→out)
         medRef.current.setPhase(medElapsed.current, medDuration.current)
+        // Fluoxetine(흰 약): 화이트아웃 대신 화면을 손그림 스케치로 — 같은 엔벨로프로 progress 구동
+        if (medEffectName.current === 'whiteflash' && sketchRef.current) {
+          const tt = medElapsed.current
+          const dur = medDuration.current
+          const fade = 1.5
+          let p: number
+          if (tt < fade) p = tt / fade
+          else if (tt < dur - fade) p = 1
+          else if (tt < dur) p = 1 - (tt - (dur - fade)) / fade
+          else p = 0
+          sketchRef.current.setProgress(p)
+          sketchRef.current.setTime(medElapsed.current)
+        }
         if (medElapsed.current > medDuration.current) {
           medActive.current = false
           medRef.current.reset()
+          sketchRef.current?.reset()
         }
       }
     }
-    // Drive OverdoseEffect — show for OVERDOSE_DISPLAY seconds then kill all
-    if (overdoseRef.current && overdoseActive.current && !overdoseDone.current) {
-      overdoseElapsed.current += delta
-      overdoseRef.current.setPhase(overdoseElapsed.current)
-
-      if (overdoseElapsed.current > OVERDOSE_DISPLAY) {
-        // Turn off ALL shaders
-        overdoseActive.current = false
-        overdoseDone.current = true
-        overdoseRef.current.reset()
-        if (medRef.current) medRef.current.reset()
-        medActive.current = false
-      }
+    // 디버그 오버라이드 — ?sketch=1이면 스케치를 항상 full + 패널 파라미터 라이브 반영
+    if (sketchDebug && sketchRef.current) {
+      debugTime.current += delta
+      sketchRef.current.setParams(sketchParams)
+      sketchRef.current.setProgress(1)
+      sketchRef.current.setTime(debugTime.current)
     }
   })
 
@@ -263,9 +260,10 @@ export function Ch3Effects() {
         opacity={0.04}
         blendFunction={BlendFunction.OVERLAY}
       />
-      {/* STEP 9: Drug effects (REF-8, REF-11) */}
+      {/* STEP 9: Drug effects (REF-8) */}
       <MedicationEffect ref={medRef} />
-      <OverdoseEffect ref={overdoseRef} />
+      {/* Fluoxetine(흰 약) — 화면을 잉크/종이 손그림으로. 마지막에 둬서 최종 화면을 스케치로 덮음. */}
+      <SketchEffect ref={sketchRef} />
     </EffectComposer>
   )
 }
