@@ -24,6 +24,7 @@ import { Ch2Signs, type SignBuilding } from '@/components/game/Ch2Signs';
 import { Ch2FlatProps } from '@/components/game/Ch2FlatProps';
 import { Ch2CustomBuildings } from '@/components/game/Ch2CustomBuildings';
 import { CameraOrbitOverride } from '@/components/game/CameraOrbitOverride';
+import { Ch2CamCuts } from '@/components/game/Ch2CamCuts';
 import { CH2_NOTES } from '@/data/ch2Notes';
 
 const BASE = import.meta.env.BASE_URL;
@@ -285,6 +286,48 @@ const PostalCutscene: React.FC<{ active: boolean; onEnded: () => void }> = ({ ac
           pointerEvents: 'none',
         }}
       />
+    </div>
+  );
+};
+
+// ---------- CCTV Glitch (감시카메라 채널 전환 깜빡) ----------
+// CCTV 컷 진입/복귀 순간에 짧게 깔려 하드컷 + 복귀 스왑(~200ms)을 가린다.
+
+const CCTV_GLITCH_MS = 240;
+
+const CctvGlitch: React.FC<{ flickerKey: number }> = ({ flickerKey }) => {
+  const [showing, setShowing] = useState(false);
+
+  useEffect(() => {
+    if (flickerKey === 0) return; // 초기 마운트엔 안 침
+    setShowing(true);
+    const t = setTimeout(() => setShowing(false), CCTV_GLITCH_MS);
+    return () => clearTimeout(t);
+  }, [flickerKey]);
+
+  if (!showing) return null;
+
+  return (
+    <div
+      key={flickerKey}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1800,
+        pointerEvents: 'none',
+        mixBlendMode: 'screen',
+        animation: `cctvGlitchFlicker ${CCTV_GLITCH_MS}ms steps(1, end) forwards`,
+      }}
+    >
+      <style>{`
+        @keyframes cctvGlitchFlicker {
+          0%   { background: #000; opacity: 1; }
+          16%  { background: repeating-linear-gradient(0deg, #fff 0 2px, #000 2px 4px); opacity: 0.85; transform: translateY(-3px); }
+          32%  { background: #0a0a0a; opacity: 1; }
+          48%  { background: repeating-linear-gradient(0deg, #9fd0ff 0 1px, #000 1px 3px); opacity: 0.6; transform: translateY(2px); }
+          64%  { background: #000; opacity: 0.9; }
+          80%  { background: repeating-linear-gradient(0deg, #fff 0 1px, transparent 1px 5px); opacity: 0.4; }
+          100% { background: transparent; opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 };
@@ -1327,7 +1370,10 @@ const Ch2PhysicsScene: React.FC<{
   onExitZoneChange: (inZone: boolean) => void;
   onMailboxZoneChange: (inZone: boolean) => void;
   freezeControls: boolean;
-}> = ({ airportActive, onAirportTrigger, onExitZoneChange, onMailboxZoneChange, freezeControls }) => {
+  activeCut: string | null;
+  onCutStart: (id: string) => void;
+  onCutEnd: () => void;
+}> = ({ airportActive, onAirportTrigger, onExitZoneChange, onMailboxZoneChange, freezeControls, activeCut, onCutStart, onCutEnd }) => {
   // Suspends here until main FBX is cached — Physics only mounts after this resolves.
   // PlayerCharacter's own useFBX call then hits the warm cache and never re-suspends.
   useFBX(MAIN_FBX_URL);
@@ -1467,11 +1513,19 @@ const Ch2PhysicsScene: React.FC<{
             camCollision={true}
             autoBalance={false}
             disableControl={freezeControls}
+            disableFollowCam={activeCut !== null}
             position={[0, 2, -8]}
           >
             <PlayerCharacter airportActive={airportActive} />
           </Ecctrl>
-          <CameraOrbitOverride targetRef={ecctrlRef} enabled={!freezeControls} />
+          <CameraOrbitOverride targetRef={ecctrlRef} enabled={!freezeControls && activeCut === null} />
+          <Ch2CamCuts
+            targetRef={ecctrlRef}
+            activeId={activeCut}
+            enabled={!freezeControls}
+            onStart={onCutStart}
+            onEnd={onCutEnd}
+          />
          </>
         )}
       </KeyboardControls>
@@ -1480,7 +1534,7 @@ const Ch2PhysicsScene: React.FC<{
         onAirportTrigger={onAirportTrigger}
         onExitZoneChange={onExitZoneChange}
         onMailboxZoneChange={onMailboxZoneChange}
-        disabled={!physicsReady || freezeControls}
+        disabled={!physicsReady || freezeControls || activeCut !== null}
       />
     </Physics>
   );
@@ -1494,7 +1548,10 @@ const Ch2Inner: React.FC<{
   onExitZoneChange: (inZone: boolean) => void;
   onMailboxZoneChange: (inZone: boolean) => void;
   freezeControls: boolean;
-}> = ({ airportActive, onAirportTrigger, onExitZoneChange, onMailboxZoneChange, freezeControls }) => {
+  activeCut: string | null;
+  onCutStart: (id: string) => void;
+  onCutEnd: () => void;
+}> = ({ airportActive, onAirportTrigger, onExitZoneChange, onMailboxZoneChange, freezeControls, activeCut, onCutStart, onCutEnd }) => {
   return (
     <>
       <color attach="background" args={['#0a0a0a']} />
@@ -1523,6 +1580,9 @@ const Ch2Inner: React.FC<{
           onExitZoneChange={onExitZoneChange}
           onMailboxZoneChange={onMailboxZoneChange}
           freezeControls={freezeControls}
+          activeCut={activeCut}
+          onCutStart={onCutStart}
+          onCutEnd={onCutEnd}
         />
       </React.Suspense>
 
@@ -1546,6 +1606,8 @@ const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
 
 export const Ch2Scene: React.FC = () => {
   const [airportActive, setAirportActive] = useState(false);
+  const [activeCut, setActiveCut] = useState<string | null>(null);
+  const [glitchKey, setGlitchKey] = useState(0);
   const [atExit, setAtExit] = useState(false);
   const [atMailbox, setAtMailbox] = useState(false);
   const [postalActive, setPostalActive] = useState(false);
@@ -1588,6 +1650,10 @@ export const Ch2Scene: React.FC = () => {
 
   const startAirport = useCallback(() => setAirportActive(true),  []);
   const endAirport   = useCallback(() => setAirportActive(false), []);
+
+  // 카메라 컷 — 진입/복귀 모두 글리치 깜빡으로 하드컷 마스킹
+  const startCut = useCallback((id: string) => { setActiveCut(id);   setGlitchKey(k => k + 1); }, []);
+  const endCut   = useCallback(() => { setActiveCut(null); setGlitchKey(k => k + 1); }, []);
 
   const freezeControls = airportActive || activeNoteId !== null || postalActive;
 
@@ -1654,10 +1720,14 @@ export const Ch2Scene: React.FC = () => {
           onExitZoneChange={setAtExit}
           onMailboxZoneChange={setAtMailbox}
           freezeControls={freezeControls}
+          activeCut={activeCut}
+          onCutStart={startCut}
+          onCutEnd={endCut}
         />
       </Canvas>
 
       <AirportCutscene active={airportActive} onDone={endAirport} />
+      <CctvGlitch flickerKey={glitchKey} />
       <PostalCutscene active={postalActive} onEnded={onPostalEnded} />
       <NoteReader />
 
@@ -1791,6 +1861,8 @@ export const Ch2Scene: React.FC = () => {
           <div style={{ color: '#ff0', fontSize: 10, letterSpacing: 2, marginBottom: 2 }}>DEV MODE</div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label="Airport Cutscene" onClick={() => { if (!airportActive) startAirport(); }} />
+          <DevButton label="CCTV Cut (20발자국)" onClick={() => { if (!activeCut) startCut('cctv'); }} />
+          <DevButton label="Peek Cut (벽틈)" onClick={() => { if (!activeCut) startCut('peek'); }} />
           <DevButton label="Postal Cutscene" onClick={() => { if (!postalActive) setPostalActive(true); }} />
           <DevButton label="Send Letter (시 소멸)" onClick={() => sendLetter()} />
           <DevButton label="Skip → CH3" onClick={() => goToChapter('CH3')} />
