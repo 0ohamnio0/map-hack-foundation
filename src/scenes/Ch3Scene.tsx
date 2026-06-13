@@ -323,6 +323,56 @@ function findFittingCorner(maze: MazeData, cellSize: number): FittingPlacement {
   return { pos: { x: cw.x + nx * offset, z: cw.z + nz * offset }, nx, nz };
 }
 
+// 시착실 거울 영상 — pingpong 루프 31종. 진입 시 랜덤 시작 + 종료 시 다음 영상으로 순차 전환.
+const MIRROR_VIDEO_BASE = `${import.meta.env.BASE_URL ?? '/'}assets/video/mirror/`;
+const MIRROR_VIDEO_COUNT = 31;
+const mirrorVideoUrl = (i: number) => `${MIRROR_VIDEO_BASE}mirror_${String(i).padStart(2, '0')}.mp4`;
+
+const MirrorScreen: React.FC<{
+  position: [number, number, number];
+  rotation: [number, number, number];
+  width: number;
+  height: number;
+}> = ({ position, rotation, width, height }) => {
+  const idxRef = useRef(Math.floor(Math.random() * MIRROR_VIDEO_COUNT));
+  const { texture, video } = useMemo(() => {
+    const v = document.createElement('video');
+    v.src = mirrorVideoUrl(idxRef.current);
+    v.loop = false; // 종료(ended) 이벤트로 다음 영상 전환
+    v.muted = true;
+    v.playsInline = true;
+    const tex = new THREE.VideoTexture(v);
+    tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.NearestFilter; // 픽셀 스냅 룩 유지
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return { texture: tex, video: v };
+  }, []);
+
+  useEffect(() => {
+    const onEnded = () => {
+      idxRef.current = (idxRef.current + 1) % MIRROR_VIDEO_COUNT;
+      video.src = mirrorVideoUrl(idxRef.current);
+      video.play().catch(() => {});
+    };
+    video.addEventListener('ended', onEnded);
+    video.play().catch(() => {});
+    return () => {
+      video.removeEventListener('ended', onEnded);
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      texture.dispose();
+    };
+  }, [video, texture]);
+
+  return (
+    <mesh position={position} rotation={rotation}>
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide} />
+    </mesh>
+  );
+};
+
 /** Fitting room booth — 두 벽(side+back)을 미로 코너에 붙이고 안쪽으로 개방, 거울은 back에 */
 const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz: number }> = ({ worldPos, nx, nz }) => {
   const W = FITTING_W, D = FITTING_D, T = 0.15, H = FITTING_H, Hh = H / 2;
@@ -370,11 +420,13 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz
         <boxGeometry args={[W, T, D]} />
         <meshStandardMaterial color="#554433" />
       </mesh>
-      {/* 그린 플레이스홀더 (영상 교체 예정) — 틀 개구부 크기, 틀 뒤에 둠 */}
-      <mesh position={[0, mirrorY, -nz * (Dh + 0.08)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]}>
-        <planeGeometry args={[OPEN_W, OPEN_H]} />
-        <meshBasicMaterial color="#22ff66" toneMapped={false} side={THREE.DoubleSide} />
-      </mesh>
+      {/* 거울 영상 (pingpong 루프) — 틀 개구부 크기, 틀 뒤에 둠 */}
+      <MirrorScreen
+        position={[0, mirrorY, -nz * (Dh + 0.08)]}
+        rotation={[0, nz < 0 ? 0 : Math.PI, 0]}
+        width={OPEN_W}
+        height={OPEN_H}
+      />
       {/* 거울 틀 이미지 (알파 — 중앙 개구부로 그린/영상 비침) — 그린 앞에 겹침 */}
       <mesh position={[0, mirrorY, -nz * (Dh + 0.12)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]} material={frameMat}>
         <planeGeometry args={[FRAME_W, FRAME_H]} />
@@ -736,10 +788,12 @@ const ElevatorCutscene: React.FC<{
           position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 1005, pointerEvents: 'none',
           animation: 'elevDoorsFade 2.6s ease-in forwards',
         }}>
+          {/* transform 대신 top/margin으로 배치 — translate는 이 200vh 패널을 거대 단일 GPU 레이어로
+              승격시켜 레티나(DPR2)에서 GPU 최대 텍스처 한계 초과 → 슬라이드 중 검정/투명 블록 깨짐.
+              루트(타일) 레이어에 그려지게 두고, 애니메이션하는 leaf만 작은 레이어로 승격시킨다. */}
           <div style={{
-            position: 'absolute', top: 0, left: '50%',
+            position: 'absolute', top: '-62vh', left: '50%', marginLeft: '-150vh',
             height: '200vh', aspectRatio: '3 / 2',
-            transform: 'translateX(-50%) translateY(-62vh)',
           }}>
             <img src={`${ELEV}full_nodoor.webp`} alt="" style={{ display: 'block', width: '100%', height: '100%' }} />
             {/* 도어 개구부 클립 — leaf가 좌우로 슬라이드하며 문틀로 사라짐, 사이로 우주씬 노출 */}
@@ -748,10 +802,12 @@ const ElevatorCutscene: React.FC<{
             }}>
               <img src={`${ELEV}door_left.webp`} alt="" style={{
                 position: 'absolute', left: 0, top: 0, width: '50%', height: '100%',
+                willChange: 'transform',
                 animation: 'elevDoorL 1.7s cubic-bezier(0.45, 0, 0.2, 1) forwards',
               }} />
               <img src={`${ELEV}door_right.webp`} alt="" style={{
                 position: 'absolute', right: 0, top: 0, width: '50%', height: '100%',
+                willChange: 'transform',
                 animation: 'elevDoorR 1.7s cubic-bezier(0.45, 0, 0.2, 1) forwards',
               }} />
             </div>
