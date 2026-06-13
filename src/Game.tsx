@@ -15,6 +15,9 @@ import { SketchDebugPanel } from '@/components/effects/SketchDebugPanel';
 const SKETCH_DEBUG = typeof window !== 'undefined'
   && new URLSearchParams(window.location.search).get('sketch') === '1';
 
+const DEBUG_HUD = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('debug') === '1';
+
 const CHAPTERS: Chapter[] = ['START', 'INTRO', 'CH1', 'CH2', 'CH3', 'CH4', 'CH5'];
 
 const ChapterHUD: React.FC<{ chapter: string }> = ({ chapter }) => {
@@ -122,7 +125,7 @@ export const Game: React.FC = () => {
   return (
     <>
       {renderScene()}
-      <ChapterHUD chapter={chapter} />
+      {DEBUG_HUD && <ChapterHUD chapter={chapter} />}
       <FadeOverlay />
       <EffectOverlay />
       {SKETCH_DEBUG && <SketchDebugPanel />}
