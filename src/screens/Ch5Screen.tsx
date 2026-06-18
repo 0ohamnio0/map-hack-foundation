@@ -689,6 +689,7 @@ type Props = {
 export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   const { play, loop } = useSoundManager()
   const goToChapter = useGameStore(s => s.goToChapter)
+  const markGameCompleted = useGameStore(s => s.markGameCompleted)
   const [fragments, setFragments] = useState<TextFragment[]>([])
   const [count, setCount] = useState(0)
   const nextId = useRef(0)
@@ -713,6 +714,11 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   // 본체 전원 버튼(셧다운 후 본체 클릭) → 완전 검은 화면
   const [poweredOff, setPoweredOff] = useState(false)
   const dollyStartRef = useRef<number | null>(null)
+
+  // 엔딩 크레딧 도달 = 완주 → 상단 챕터 네비 해금 (debug=1 없이도 노출)
+  useEffect(() => {
+    if (ending) markGameCompleted()
+  }, [ending, markGameCompleted])
   const textareaRef = useRef<HTMLDivElement>(null)
   const blogWrapRef = useRef<HTMLDivElement>(null)
   const popupTriggeredRef = useRef(false)

@@ -20,7 +20,11 @@ interface GameState {
   /** 새 챕터의 씬이 실제로 표시 준비됐는지 — 전환 커튼(FadeOverlay) 페이드 인 게이트.
    *  false면 무거운 씬(CH.2)이 markChapterReady()를 부를 때까지 검은 화면 유지. */
   chapterReady: boolean;
+  /** 엔딩 크레딧 도달(완주) 여부 — true면 debug=1 없이도 상단 챕터 네비 노출 */
+  gameCompleted: boolean;
   goToChapter: (chapter: Chapter) => void;
+  /** 엔딩 크레딧 진입 시 호출 → 챕터 선택 네비 해금 */
+  markGameCompleted: () => void;
   /** 무거운 씬이 로드·물리 안정화(캐릭터 착지) 완료 시 호출 → 전환 커튼 해제 신호 */
   markChapterReady: () => void;
   /** 챕터 exit 시 해당 챕터에 귀속된 store 상태 초기화 (방명록·visitedEvents 타 챕터 항목은 보존) */
@@ -52,6 +56,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   visitedEvents: new Set<string>(),
   isTransitioning: false,
   chapterReady: true,
+  gameCompleted: false,
   leftMovement: 0,
   rightMovement: 0,
   cartItems: [],
@@ -77,6 +82,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   markChapterReady: () => set({ chapterReady: true }),
+
+  markGameCompleted: () => set({ gameCompleted: true }),
 
   resetChapterState: (chapter: Chapter) => {
     const { visitedEvents } = get();

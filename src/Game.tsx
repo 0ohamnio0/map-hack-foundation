@@ -66,6 +66,7 @@ const ChapterHUD: React.FC<{ chapter: string }> = ({ chapter }) => {
 export const Game: React.FC = () => {
   const chapter = useGameStore(s => s.chapter);
   const resetChapterState = useGameStore(s => s.resetChapterState);
+  const gameCompleted = useGameStore(s => s.gameCompleted);
   const prevChapterRef = useRef<Chapter>(chapter);
   const isMobileDevice = useIsMobileDevice();
 
@@ -131,7 +132,7 @@ export const Game: React.FC = () => {
   return (
     <>
       {renderScene()}
-      {DEBUG_HUD && <ChapterHUD chapter={chapter} />}
+      {(DEBUG_HUD || gameCompleted) && <ChapterHUD chapter={chapter} />}
       <FadeOverlay />
       <EffectOverlay />
       {SKETCH_DEBUG && <SketchDebugPanel />}
