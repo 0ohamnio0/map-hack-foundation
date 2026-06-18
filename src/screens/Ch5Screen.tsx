@@ -710,6 +710,8 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   const [blogSnapshot, setBlogSnapshot] = useState<string | null>(null)
   // 크레딧 후 모니터에 표시할 shutdown 스플래시 (snapshot을 override)
   const [shutdownImage, setShutdownImage] = useState<string | null>(null)
+  // 본체 전원 버튼(셧다운 후 본체 클릭) → 완전 검은 화면
+  const [poweredOff, setPoweredOff] = useState(false)
   const dollyStartRef = useRef<number | null>(null)
   const textareaRef = useRef<HTMLDivElement>(null)
   const blogWrapRef = useRef<HTMLDivElement>(null)
@@ -854,6 +856,15 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
 
   // --- Credits (Scene 5-4 end) — film-style center stack ---
   if (ending) {
+    // 본체 전원 버튼을 눌러 PC를 끈 상태 — 크레딧·룸 전부 사라지고 완전 검은 화면
+    if (poweredOff) {
+      return (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: '#000000',
+          zIndex: overlayMode ? 20 : 100,
+        }} />
+      )
+    }
     const role = (heading: string, ko: string, en: string) => (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
         <div style={{
@@ -871,7 +882,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
         zIndex: overlayMode ? 20 : 100, opacity: endingOpacity, transition: 'opacity 2s ease',
         overflow: 'hidden',
       }}>
-        <RetroPCScene t={1} snapshot={shutdownImage ?? blogSnapshot} shutdownActive={!!shutdownImage} vignetteEnabled={!!shutdownImage} />
+        <RetroPCScene t={1} snapshot={shutdownImage ?? blogSnapshot} shutdownActive={!!shutdownImage} vignetteEnabled={!!shutdownImage} onPowerOff={() => setPoweredOff(true)} />
         <div style={{
           position: 'absolute', right: '7vw', top: '50%',
           transform: 'translateY(-38%) scale(1.2)',

@@ -74,12 +74,14 @@ type Props = {
   shutdownActive?: boolean
   /** 크레딧 사이드 어둡게 vignette 표시 (ending 상태에서만) */
   vignetteEnabled?: boolean
+  /** 셧다운 상태에서 본체 클릭 = 전원 끄기 콜백 */
+  onPowerOff?: () => void
 }
 
 /**
  * Full 3D scene for CH.5 Scene 5-4 dolly-out ending.
  */
-export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1, shutdownActive = false, vignetteEnabled = false }) => {
+export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1, shutdownActive = false, vignetteEnabled = false, onPowerOff }) => {
   const crtFill = useRef<THREE.PointLight | null>(null)
   const [normalTuning, setNormalTuning] = useState<RetroPCTuning>(DEFAULT_TUNING)
   const [shutdownTuning, setShutdownTuning] = useState<RetroPCTuning>(SHUTDOWN_TUNING)
@@ -109,7 +111,7 @@ export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1, shutdo
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      pointerEvents: 'none',
+      pointerEvents: (shutdownActive && onPowerOff) ? 'auto' : 'none',
       opacity,
       transition: 'opacity 0.4s ease',
       zIndex: 2,
@@ -140,7 +142,7 @@ export const RetroPCScene: React.FC<Props> = ({ t, snapshot, opacity = 1, shutdo
           <meshBasicMaterial color="#060606" toneMapped={false} />
         </mesh>
 
-        <RetroPC screenDataUrl={snapshot} tuning={tuning} />
+        <RetroPC screenDataUrl={snapshot} tuning={tuning} onPowerOff={shutdownActive ? onPowerOff : undefined} />
         <CameraRig t={t} fill={crtFill} />
         <EffectComposer>
           <primitive object={bloomEffect} dispose={null} />

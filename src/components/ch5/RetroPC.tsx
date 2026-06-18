@@ -10,6 +10,8 @@ type Props = {
   /** html2canvas dataURL — replaces the baked Windows 98 screen with the blog snapshot */
   screenDataUrl?: string | null
   tuning?: RetroPCTuning
+  /** 본체 클릭 = 전원 끄기 (셧다운 후 엔딩에서만 전달). 지정 시 본체 위 커서가 pointer로 바뀐다 */
+  onPowerOff?: () => void
 }
 
 const BODY_VERTEX = /* glsl */ `
@@ -163,7 +165,7 @@ const CRT_FRAGMENT = /* glsl */ `
   }
 `
 
-export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNING }) => {
+export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNING, onPowerOff }) => {
   const { scene: rawScene, materials } = useGLTF(MODEL_URL)
   // Clone so each mount gets fresh meshes — useGLTF caches the scene at module
   // level, and we swap materials per-mesh. Without cloning, the second mount
@@ -315,7 +317,14 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNIN
     crtMaterial.uniforms.uTime.value += dt
   })
 
-  return <primitive object={scene} />
+  return (
+    <primitive
+      object={scene}
+      onClick={onPowerOff ? (e: { stopPropagation: () => void }) => { e.stopPropagation(); onPowerOff(); } : undefined}
+      onPointerOver={onPowerOff ? () => { document.body.style.cursor = 'pointer'; } : undefined}
+      onPointerOut={onPowerOff ? () => { document.body.style.cursor = ''; } : undefined}
+    />
+  )
 }
 
 useGLTF.preload(MODEL_URL)
