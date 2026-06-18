@@ -138,7 +138,7 @@ export function Ch2Effects() {
 }
 
 // 약 효과 중 ghost 만날 때까지 hold하는 타입 (whiteflash는 순간 플래시라 제외)
-const HOLD_EFFECTS = ['desaturate', 'blur', 'darken', 'anxiolytic']
+const HOLD_EFFECTS = ['desaturate', 'blur', 'darken', 'anxiolytic', 'whiteflash']
 
 /**
  * CH.3 Effects — 마트 형광등 불안정 + 약 복용 GLSL 이펙트
@@ -210,11 +210,21 @@ export function Ch3Effects() {
       if (isHold) {
         // ghost 만날 때까지 full hold → 만나면(medReleasing) 1.5s fade out
         medRef.current.setHoldPhase(medElapsed.current, medReleasing.current, medReleaseElapsed.current)
+        // Fluoxetine(흰 약): 같은 hold 엔벨로프로 손그림 스케치 구동 (fade-in → ghost까지 hold → 1.5s fade-out)
+        if (medEffectName.current === 'whiteflash' && sketchRef.current) {
+          const fadeIn = 1.5
+          const p = medReleasing.current
+            ? Math.max(0, 1 - medReleaseElapsed.current / 1.5)
+            : Math.min(1, medElapsed.current / fadeIn)
+          sketchRef.current.setProgress(p)
+          sketchRef.current.setTime(medElapsed.current)
+        }
         if (medReleasing.current) {
           medReleaseElapsed.current += delta
           if (medReleaseElapsed.current > 1.5) {
             medActive.current = false
             medRef.current.reset()
+            sketchRef.current?.reset()
           }
         } else if (medElapsed.current > medDuration.current + 20) {
           // 안전장치: ghost spawn 실패 등으로 영영 안 끝나는 것 방지
@@ -222,21 +232,8 @@ export function Ch3Effects() {
           medReleaseElapsed.current = 0
         }
       } else {
-        // whiteflash 등 — 기존 고정 엔벨로프(in→hold→out)
+        // 비-HOLD 고정 엔벨로프(in→hold→out)
         medRef.current.setPhase(medElapsed.current, medDuration.current)
-        // Fluoxetine(흰 약): 화이트아웃 대신 화면을 손그림 스케치로 — 같은 엔벨로프로 progress 구동
-        if (medEffectName.current === 'whiteflash' && sketchRef.current) {
-          const tt = medElapsed.current
-          const dur = medDuration.current
-          const fade = 1.5
-          let p: number
-          if (tt < fade) p = tt / fade
-          else if (tt < dur - fade) p = 1
-          else if (tt < dur) p = 1 - (tt - (dur - fade)) / fade
-          else p = 0
-          sketchRef.current.setProgress(p)
-          sketchRef.current.setTime(medElapsed.current)
-        }
         if (medElapsed.current > medDuration.current) {
           medActive.current = false
           medRef.current.reset()

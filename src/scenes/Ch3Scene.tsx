@@ -1135,16 +1135,15 @@ export const Ch3Scene: React.FC = () => {
     }
   }, [collectedSet, setNotification]);
 
-  // Minimap markers: 시착실(=엘리베이터) magenta + 약 위치 (수집 전) + 출구(전부 모은 후).
+  // Minimap markers: 시착실(=엘리베이터) magenta(엘베 사용 전까지만) + 약 위치 (수집 전) + 출구(전부 모은 후).
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
-    const fr = findFittingCorner(maze, CELL_SIZE).pos;
-    const markers: MinimapMarker[] = [
-      { x: fr.x, z: fr.z, color: '#c040ff', radius: 3.5, glow: true },
-    ];
+    const markers: MinimapMarker[] = [];
+    if (!elevatorVisited) {
+      const fr = findFittingCorner(maze, CELL_SIZE).pos;
+      markers.push({ x: fr.x, z: fr.z, color: '#c040ff', radius: 3.5, glow: true });
+    }
     MEDICINES.forEach((med, i) => {
       if (collectedSet.has(i)) return;
-      const isLast = i === MEDICINES.length - 1;
-      if (isLast && collectedSet.size < MEDICINES.length - 1) return;
       // medPositions와 동일 logic — i=0 (빨간약)은 player start 인접 셀
       const wp = (i === 0)
         ? cellToWorld(maze.start.x + 1, maze.start.y, CELL_SIZE)
@@ -1156,7 +1155,7 @@ export const Ch3Scene: React.FC = () => {
       markers.push({ x: ex.x, z: ex.z, color: '#0f0', radius: 4.5, glow: true });
     }
     return markers;
-  }, [collectedSet, maze]);
+  }, [collectedSet, maze, elevatorVisited]);
 
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
