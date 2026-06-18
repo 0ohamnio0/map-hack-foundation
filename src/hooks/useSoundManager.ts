@@ -23,7 +23,6 @@ const SOUND_MAP: Record<string, string | null> = {
   gulp_green: 'ch3/gulp_green.mp3',
   gulp_white: 'ch3/gulp_white.mp3',
   mart_bgm: 'ch3/mart_bgm.mp3',
-  space: 'ch3/space.mp3',
   npc_super: 'ch3/npc_super.mp3',
   elevator_room: 'ch3/elevator_room.mp3',
   elevator_ding: 'ch3/elevator_ding.mp3',

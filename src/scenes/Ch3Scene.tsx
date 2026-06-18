@@ -933,7 +933,8 @@ const Ch3Inner: React.FC<{
   onExitZoneChange?: (inZone: boolean) => void;
   onDrugPickup?: (index: number) => void;
   onCollectedChange?: (collected: Set<number>) => void;
-}> = ({ maze, onPlayerMove, onElevatorZoneChange, onExitZoneChange, onDrugPickup, onCollectedChange }) => {
+  cartMuted?: boolean;
+}> = ({ maze, onPlayerMove, onElevatorZoneChange, onExitZoneChange, onDrugPickup, onCollectedChange, cartMuted }) => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const addToCart = useGameStore(s => s.addToCart);
   const setActiveEffect = useGameStore(s => s.setActiveEffect);
@@ -1076,6 +1077,7 @@ const Ch3Inner: React.FC<{
         initialLookDir={[0, 1]}
         gridCellSize={CELL_SIZE}
         gridInputCooldown={0.4}
+        cartMuted={cartMuted}
       />
     </>
   );
@@ -1210,6 +1212,7 @@ export const Ch3Scene: React.FC = () => {
           onExitZoneChange={setAtExit}
           onDrugPickup={handleDrugPickup}
           onCollectedChange={setCollectedSet}
+          cartMuted={!!cutscenePhase}
         />
         <SceneExporter chapter="ch3" />
       </Canvas>

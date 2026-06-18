@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useGameStore, type Chapter } from '@/store/useGameStore';
 import { StartScreen } from '@/components/game/StartScreen';
+import { MobileBlock } from '@/components/game/MobileBlock';
 import { FadeOverlay } from '@/components/game/FadeOverlay';
 import { EffectOverlay } from '@/components/game/EffectOverlay';
 import { IntroScene } from '@/scenes/IntroScene';
@@ -11,6 +12,7 @@ import { Ch4Screen } from '@/screens/Ch4Screen';
 import { Ch5Screen } from '@/screens/Ch5Screen';
 import { playChapterMusic } from '@/lib/chapterMusic';
 import { SketchDebugPanel } from '@/components/effects/SketchDebugPanel';
+import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 
 const SKETCH_DEBUG = typeof window !== 'undefined'
   && new URLSearchParams(window.location.search).get('sketch') === '1';
@@ -65,6 +67,7 @@ export const Game: React.FC = () => {
   const chapter = useGameStore(s => s.chapter);
   const resetChapterState = useGameStore(s => s.resetChapterState);
   const prevChapterRef = useRef<Chapter>(chapter);
+  const isMobileDevice = useIsMobileDevice();
 
   useEffect(() => {
     // START는 user gesture 전이라 BGM 트리거를 StartScreen 1차 클릭에 위임
@@ -100,6 +103,9 @@ export const Game: React.FC = () => {
   useEffect(() => {
     if (SKETCH_DEBUG) useGameStore.setState({ chapter: 'CH3' });
   }, []);
+
+  // 모바일/태블릿은 게임(R3F 캔버스)을 마운트하기 전에 차단.
+  if (isMobileDevice) return <MobileBlock />;
 
   const renderScene = () => {
     switch (chapter) {

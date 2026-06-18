@@ -51,6 +51,8 @@ interface Props {
   gridCellSize?: number;
   /** Override grid input cooldown in seconds. Default 0.22. */
   gridInputCooldown?: number;
+  /** When true, suppress the CH.3 rolling-cart sound (e.g. during cutscenes). */
+  cartMuted?: boolean;
 }
 
 const PLAYER_HALF = 0.3;
@@ -67,7 +69,7 @@ function collidesWithWalls(px: number, pz: number, walls: WallAABB[]): boolean {
 
 export const PlayerController: React.FC<Props> = ({
   mode, showCharacter, bounds, collisionWalls, onPosition,
-  startPosition, initialLookDir, gridCellSize, gridInputCooldown,
+  startPosition, initialLookDir, gridCellSize, gridInputCooldown, cartMuted,
 }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
@@ -204,7 +206,7 @@ export const PlayerController: React.FC<Props> = ({
         const moving =
           Math.abs(gridTargetPos.current.x - gridCurrentPos.current.x) +
           Math.abs(gridTargetPos.current.z - gridCurrentPos.current.z) > 0.03;
-        const targetVol = moving ? CART_VOL : 0;
+        const targetVol = (moving && !cartMuted) ? CART_VOL : 0;
         const cur = cartHowl.volume() as number;
         const nv = cur + (targetVol - cur) * (1 - Math.exp(-CART_FADE * dt));
         cartHowl.volume(nv);

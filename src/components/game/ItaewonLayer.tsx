@@ -11,7 +11,6 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Text, useGLTF, useAnimations } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
-import { useSoundManager } from '@/hooks/useSoundManager'
 import { cellToWorld } from '@/utils/mazeGenerator'
 import type { WallAABB } from '@/components/game/PlayerController'
 
@@ -229,7 +228,6 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   const { camera } = useThree()
   const activeEffect = useGameStore((s) => s.activeEffect)
   const markGhostEncounter = useGameStore((s) => s.markGhostEncounter)
-  const { play } = useSoundManager()
   const [showText, setShowText] = useState(false)
   const [textOpacity, setTextOpacity] = useState(0)
   const [ghostPos, setGhostPos] = useState<[number, number, number] | null>(null)
@@ -379,7 +377,6 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     wasInViewRef.current = true
     markGhostEncounter() // 약 효과 종료 신호 (minimum duration 후 cleanup)
     setShowText(true)
-    play('space') // NPC 발견 순간 space SFX
     let opacity = 0
     const fadeIn = setInterval(() => {
       opacity += 0.02
