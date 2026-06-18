@@ -229,6 +229,29 @@ export function NoteReader() {
         gap: 16,
       }}
     >
+      {/* 혼동가중치 θ 전용 배경 — 검은 강아지 그림이 시 모달 뒤로 깔리며 한 번 그려진 뒤 마지막 프레임에 멈춤 */}
+      {activeNoteId === 'theta' && (
+        <video
+          key={activeNoteId}
+          src={`${BASE}poems/blackdog.webm`}
+          autoPlay
+          muted
+          playsInline
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center center',
+            transform: 'translateY(0%)',
+            zIndex: 10,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
       {/* 한/영 토글 (Q 키 또는 클릭) */}
       <div
         onClick={e => e.stopPropagation()}
