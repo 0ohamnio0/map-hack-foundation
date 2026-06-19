@@ -25,6 +25,14 @@ const NOTE_PAPER: Record<string, string> = {
   highstreamer:`${BASE}assets/tex/paper/paper-07.webp`,
 }
 
+// 노트별 시 조각 드로잉 배경 (밝기=알파 키잉한 VP9 알파 WebM) — 한 번 그려진 뒤 마지막 프레임에 정지
+const NOTE_BACKDROP: Record<string, string> = {
+  theta:       `${BASE}poems/blackdog.webm`,
+  entropy:     `${BASE}poems/entropy.webm`,
+  bichae:      `${BASE}poems/bichae.webm`,
+  'hell-salad':`${BASE}poems/hell-salad.webm`,
+}
+
 function NoteText({ ko, en }: { ko: string; en?: string }) {
   const lang = useGameStore(s => s.noteLanguage)
   const raw = lang === 'en' && en ? en : ko
@@ -229,11 +237,11 @@ export function NoteReader() {
         gap: 16,
       }}
     >
-      {/* 혼동가중치 θ 전용 배경 — 검은 강아지 그림이 시 모달 뒤로 깔리며 한 번 그려진 뒤 마지막 프레임에 멈춤 */}
-      {activeNoteId === 'theta' && (
+      {/* 시 조각 드로잉 배경 — 해당 쪽지 그림이 시 모달 뒤로 깔리며 한 번 그려진 뒤 마지막 프레임에 멈춤 */}
+      {activeNoteId && NOTE_BACKDROP[activeNoteId] && (
         <video
           key={activeNoteId}
-          src={`${BASE}poems/blackdog.webm`}
+          src={NOTE_BACKDROP[activeNoteId]}
           autoPlay
           muted
           playsInline
