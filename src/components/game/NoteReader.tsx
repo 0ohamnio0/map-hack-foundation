@@ -25,6 +25,14 @@ const NOTE_PAPER: Record<string, string> = {
   highstreamer:`${BASE}assets/tex/paper/paper-07.webp`,
 }
 
+// 노트별 시 조각 드로잉 배경 (밝기=알파 키잉한 VP9 알파 WebM) — 한 번 그려진 뒤 마지막 프레임에 정지
+const NOTE_BACKDROP: Record<string, string> = {
+  theta:       `${BASE}poems/blackdog.webm`,
+  entropy:     `${BASE}poems/entropy.webm`,
+  bichae:      `${BASE}poems/bichae.webm`,
+  'hell-salad':`${BASE}poems/hell-salad.webm`,
+}
+
 function NoteText({ ko, en }: { ko: string; en?: string }) {
   const lang = useGameStore(s => s.noteLanguage)
   const raw = lang === 'en' && en ? en : ko
@@ -129,6 +137,7 @@ const DESIGN_PAGE_H = 'calc(592px * 2339 / 1654 - 6px)'
 
 export function NoteReader() {
   const activeNoteId = useGameStore(s => s.activeNoteId)
+  const visitedEvents = useGameStore(s => s.visitedEvents)
   const closeNote = useGameStore(s => s.closeNote)
   const noteLanguage = useGameStore(s => s.noteLanguage)
   const setNoteLanguage = useGameStore(s => s.setNoteLanguage)
@@ -229,15 +238,23 @@ export function NoteReader() {
         gap: 16,
       }}
     >
-      {/* 혼동가중치 θ 전용 배경 — 검은 강아지 그림이 시 모달 뒤로 깔리며 한 번 그려진 뒤 마지막 프레임에 멈춤 */}
-      {activeNoteId === 'theta' && (
+      {/* 시 조각 드로잉 배경 — 최초 획득 시엔 한 번 그려지는 애니메이션, 이미 수집해 다시 열람할 땐
+          애니 없이 완성 프레임만 고정 (수집 UI 재열람 = visitedEvents에 note_* 기록된 상태) */}
+      {activeNoteId && NOTE_BACKDROP[activeNoteId] && (() => {
+        const replayDone = visitedEvents.has(`note_${activeNoteId}`)
+        return (
         <video
           key={activeNoteId}
-          src={`${BASE}poems/blackdog.webm`}
-          autoPlay
+          src={NOTE_BACKDROP[activeNoteId]}
+          autoPlay={!replayDone}
           muted
           playsInline
           aria-hidden
+          onLoadedMetadata={replayDone ? (e) => {
+            const v = e.currentTarget
+            // 완성 프레임으로 시크해 정지 — 마지막 직전(-0.05s)이 빈 프레임 방지에 안전
+            v.currentTime = Math.max(0, v.duration - 0.05)
+          } : undefined}
           style={{
             position: 'absolute',
             inset: 0,
@@ -250,7 +267,8 @@ export function NoteReader() {
             pointerEvents: 'none',
           }}
         />
-      )}
+        )
+      })()}
 
       {/* 한/영 토글 (Q 키 또는 클릭) */}
       <div
