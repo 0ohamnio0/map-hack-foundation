@@ -16,6 +16,16 @@ export const StartScreen: React.FC = () => {
   const line1 = useGlitchText(noticeLine1Texts, { interval: 3200, scrambleMs: 700, delayMs: 0 });
   const line3 = useGlitchText(noticeLine3Texts, { interval: 3200, scrambleMs: 700, delayMs: 700 });
 
+  // Safari는 VP9 알파(투명 영상)를 지원하지 않아 시 조각 드로잉 등 일부 연출이 깨짐 → Safari에서만 안내 노출
+  const isSafari = useMemo(
+    () =>
+      typeof navigator !== 'undefined' &&
+      /^((?!chrome|chromium|crios|android|edg|fxios|firefox|opr|samsungbrowser).)*safari/i.test(navigator.userAgent),
+    [],
+  );
+  const noticeSafariTexts = useMemo(() => ['Safari는 권장하지 않습니다 · Chrome 또는 Edge로 열어주세요', 'Safari is not recommended — please use Chrome or Edge'], []);
+  const lineSafari = useGlitchText(noticeSafariTexts, { interval: 3200, scrambleMs: 700, delayMs: 1400 });
+
   // Map Hack 타이틀 화면 "→ 시작" 한·영 글리치
   const startTexts = useMemo(() => ['→ 시작', '→ START'], []);
   const startLabel = useGlitchText(startTexts, { interval: 2400, scrambleMs: 500 });
@@ -84,6 +94,9 @@ export const StartScreen: React.FC = () => {
               <KeyboardHints />
             </div>
             <div>{line3}</div>
+            {isSafari && (
+              <div style={{ color: '#e6c46a', opacity: 0.95 }}>{lineSafari}</div>
+            )}
           </div>
           <p
             style={{
