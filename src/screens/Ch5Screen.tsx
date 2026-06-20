@@ -862,13 +862,16 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
 
   // --- Credits (Scene 5-4 end) — film-style center stack ---
   if (ending) {
-    // 본체 전원 버튼을 눌러 PC를 끈 상태 — 크레딧·룸 전부 사라지고 완전 검은 화면
+    // 본체 전원 버튼을 눌러 PC를 끈 상태 — 모니터 화면만 블랙(snapshot=null → CRT 셰이더 uHasMap=0).
+    // 룸·본체는 그대로 보이고, 크레딧 텍스트만 사라진다. (전체화면 블랙 아님)
     if (poweredOff) {
       return (
         <div style={{
           position: 'fixed', inset: 0, backgroundColor: '#000000',
-          zIndex: overlayMode ? 20 : 100,
-        }} />
+          zIndex: overlayMode ? 20 : 100, overflow: 'hidden',
+        }}>
+          <RetroPCScene t={1} snapshot={null} shutdownActive vignetteEnabled />
+        </div>
       )
     }
     const role = (heading: string, ko: string, en: string) => (

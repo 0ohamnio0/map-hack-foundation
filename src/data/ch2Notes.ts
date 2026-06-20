@@ -25,6 +25,10 @@ export interface PoemNote {
   title: string;
   titleEn?: string;
   pages: PoemPage[];
+  /** 미니 카드로 렌더 (CH.3 짧은 시 조각 — 종이/텍스트 작게). NoteReader가 참조. */
+  compact?: boolean;
+  /** 시의 마지막 장이 아님 → 오버레이 하단에 "계속... →" 표시 (CH.3 분할 시). */
+  continues?: boolean;
 }
 
 export const CH2_NOTES: PoemNote[] = [

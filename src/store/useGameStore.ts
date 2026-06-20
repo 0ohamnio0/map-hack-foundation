@@ -13,6 +13,8 @@ interface GameState {
   notification: string | null;
   /** CH.2 떨어진 쪽지 — 현재 열려 있는 쪽지 id (null이면 닫힌 상태) */
   activeNoteId: string | null;
+  /** CH.3 시 조각 — 현재 근접해 [E] 가능한 조각 id (하단 읽기 프롬프트용) */
+  nearFragmentId: string | null;
   /** 노트 본문 표시 언어 — 세션 전역 유지 (Q 키로 토글) */
   noteLanguage: 'ko' | 'en';
   /** CH.2 우체통에 편지를 보냈는지 — true면 7/7 없이도 CH.3 문 통과 가능 */
@@ -39,6 +41,7 @@ interface GameState {
   setNotification: (text: string | null) => void;
   openNote: (id: string) => void;
   closeNote: () => void;
+  setNearFragmentId: (id: string | null) => void;
   setNoteLanguage: (lang: 'ko' | 'en') => void;
   toggleNoteLanguage: () => void;
   /** 편지 전송 완료 — note_* 기록은 보존(맵 재생성 방지), letterSent=true (HUD에선 소멸 표시) */
@@ -63,6 +66,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeEffect: null,
   notification: null,
   activeNoteId: null,
+  nearFragmentId: null,
   noteLanguage: 'ko',
   letterSent: false,
 
@@ -194,6 +198,10 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   openNote: (id: string) => {
     set({ activeNoteId: id });
+  },
+
+  setNearFragmentId: (id: string | null) => {
+    if (get().nearFragmentId !== id) set({ nearFragmentId: id });
   },
 
   closeNote: () => {

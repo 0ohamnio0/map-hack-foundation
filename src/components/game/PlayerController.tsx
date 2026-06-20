@@ -53,6 +53,8 @@ interface Props {
   gridInputCooldown?: number;
   /** When true, suppress the CH.3 rolling-cart sound (e.g. during cutscenes). */
   cartMuted?: boolean;
+  /** When true, ignore movement input (e.g. while a note/fragment overlay is open). */
+  freeze?: boolean;
 }
 
 const PLAYER_HALF = 0.3;
@@ -69,7 +71,7 @@ function collidesWithWalls(px: number, pz: number, walls: WallAABB[]): boolean {
 
 export const PlayerController: React.FC<Props> = ({
   mode, showCharacter, bounds, collisionWalls, onPosition,
-  startPosition, initialLookDir, gridCellSize, gridInputCooldown, cartMuted,
+  startPosition, initialLookDir, gridCellSize, gridInputCooldown, cartMuted, freeze,
 }) => {
   const keys = useKeyboard();
   const { shouldUpdate } = useFixedFramerate(24);
@@ -119,7 +121,7 @@ export const PlayerController: React.FC<Props> = ({
       const cooldown = gridInputCooldown ?? GRID_INPUT_COOLDOWN;
       gridCooldown.current = Math.max(0, gridCooldown.current - dt);
 
-      if (gridCooldown.current <= 0) {
+      if (gridCooldown.current <= 0 && !freeze) {
         const left = k.has('ArrowLeft') || k.has('KeyA');
         const right = k.has('ArrowRight') || k.has('KeyD');
         const forward = k.has('ArrowUp') || k.has('KeyW');

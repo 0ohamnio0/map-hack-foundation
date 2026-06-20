@@ -17,6 +17,9 @@ import { Ch3Effects } from '@/components/effects/ChapterEffects';
 import { StarNestOverlay } from '@/components/effects/StarNestOverlay';
 import { PixelateEffect, type PixelateEffectImpl } from '@/components/effects/PixelateEffect';
 import { ItaewonLayer } from '@/components/game/ItaewonLayer';
+import { NoteReader } from '@/components/game/NoteReader';
+import { PoemFragment, FRAG_TINT } from '@/components/game/PoemFragment';
+import { BATTLE_FRAGMENT_IDS, NPC_FRAGMENT_IDS } from '@/data/ch3Fragments';
 import { suspendChapterMusic, startElevatorMusic, endElevatorMusic } from '@/lib/chapterMusic';
 
 const MAZE_SIZE = 10;
@@ -207,12 +210,16 @@ const FlickerLight: React.FC = () => {
 
 const MEDICINES = [
   // duration = 효과 minimum 지속 시간 (ms). 그 후 자동 종료. encounter는 ghost cycle 트리거 (효과 종료와 별개)
-  { name: 'Lithium Carbonate', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 }, mazeProfile: { removalRatio: 0.1 } },
-  { name: 'Aripiprazole', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 }, mazeProfile: { removalRatio: 0 } },
-  { name: 'Quetiapine Fumarate', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 }, mazeProfile: { removalRatio: 0.05 } },
-  { name: 'Alprazolam', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 }, mazeProfile: { removalRatio: 0.3 } },
-  { name: 'Fluoxetine', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 }, mazeProfile: { removalRatio: 0.6 } },
+  { name: 'Lithium Carbonate', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 } },
+  { name: 'Aripiprazole', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 } },
+  { name: 'Quetiapine Fumarate', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 } },
+  { name: 'Alprazolam', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 } },
+  { name: 'Fluoxetine', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 } },
 ];
+
+// 약 먹을수록 미로가 단순해진다 — 픽업 순서(약 종류 무관)대로 벽 제거 비율 단조 증가.
+// index = 0-based 픽업 차수. 마지막(5번째 = 흰약)은 1.0 → 내벽 전부 제거 = 빈 정사각형.
+const MAZE_REMOVAL_RAMP = [0.15, 0.35, 0.55, 0.78, 1.0];
 
 // 약 이름 영문 → 한글 매핑 (cart 클릭 시 글리치 표기)
 const MED_KOREAN: Record<string, string> = {
@@ -244,6 +251,8 @@ function glitchText(src: string, target: string, progress: number): string {
 const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
   const [clicked, setClicked] = useState(false);
   const [display, setDisplay] = useState(item);
+  // 진짜 물건 담은 것처럼 라벨마다 랜덤 기울기 (마운트 1회 고정)
+  const tilt = useMemo(() => (Math.random() * 2 - 1) * 14, []); // ±14deg
 
   useEffect(() => {
     setDisplay(item);
@@ -295,7 +304,8 @@ const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
         backgroundColor: 'rgba(0,0,0,0.7)',
         border: '1px solid rgba(255,255,255,0.2)',
         cursor: 'pointer',
-        transition: 'transform 0.15s, opacity 0.15s',
+        transform: `rotate(${tilt}deg)`,
+        transition: 'opacity 0.15s',
       }}
       onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.6'; }}
       onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
@@ -310,17 +320,18 @@ const FITTING_W = 1.5;
 const FITTING_D = 1.5;
 const FITTING_H = 3.8;
 
-// --- Fitting room (= space elevator portal) — 중앙 셀의 ㄱ자 코너에 고정 ---
-// 미로 생성 시 forceCenterCorner로 중앙 셀에 북+서 벽을 강제(nx=-1,nz=-1) → 부스가 항상 같은 자리.
-// 그래야 그 코너 벽에 옷 텍스처를 입힐 수 있음. 반환은 결정적(Ch3Inner·Ch3Scene 동일).
+// --- Fitting room (= space elevator portal) — 중앙 셀 북쪽 변에 고정, 거울은 남(+z)을 향함 ---
+// x는 셀 중심에 정렬(=플레이어 그리드 열과 일치) → 거울 바로 정면 열에 설 수 있다. z만 북쪽(−z)으로 밀어
+// 부스를 셀 안쪽에 들이고 거울이 남쪽 진입 통로를 마주보게 한다. 반환은 결정적(Ch3Inner·Ch3Scene 동일).
 type FittingPlacement = { pos: { x: number; z: number }; nx: number; nz: number };
 function findFittingCorner(maze: MazeData, cellSize: number): FittingPlacement {
   const cx0 = Math.floor(maze.width / 2);
   const cy0 = Math.floor(maze.height / 2);
-  const offset = cellSize / 2 - FITTING_W / 2 - 0.4; // 부스 반폭 + 코너에서 0.4 빼냄(벽에 박히던 것 완화)
-  const nx = -1, nz = -1; // 중앙 셀 북서(ㄱ) 코너 — forceCenterCorner와 일치
+  const offset = cellSize / 2 - FITTING_D / 2 - 0.4; // 부스 반깊이 + 북벽에서 0.4 띄움
+  const nx = -1, nz = -1; // nz=-1 → 거울이 +z(남, 진입 방향)을 향함. nx는 부스 박스 좌우 구성용
   const cw = cellToWorld(cx0, cy0, cellSize);
-  return { pos: { x: cw.x + nx * offset, z: cw.z + nz * offset }, nx, nz };
+  // x = 셀 중심(그리드 정렬), z만 북쪽 코너로 — 플레이어가 같은 열에서 거울을 정면으로 본다.
+  return { pos: { x: cw.x, z: cw.z + nz * offset }, nx, nz };
 }
 
 // 시착실 거울 영상 — pingpong 루프 31종. 진입 시 랜덤 시작 + 종료 시 다음 영상으로 순차 전환.
@@ -385,8 +396,8 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz
   // 픽셀라이즈를 바닥과 같은 블록 크기로 — 면마다 월드폭이 달라 pixelize 값을 환산
   const FLOOR_BLOCK = ((MAZE_SIZE * CELL_SIZE) / 16) * WALL_PIXELIZE / 29;
   const blkPix = (w: number) => (29 * FLOOR_BLOCK) / w;
-  // 빨강 벨벳 커튼 — 4벽. emissive + 바닥 블록 크기 픽셀라이즈(세로 폴드 유지)
-  const curtainMat = useMemo(() => makeSnapMaterialWithTexture('curtain.webp',
+  // 커튼 — 4벽. 색 반전 텍스처(curtain_invert.webp) 사용. emissive + 바닥 블록 크기 픽셀라이즈(세로 폴드 유지)
+  const curtainMat = useMemo(() => makeSnapMaterialWithTexture('curtain_invert.webp',
     { emissive: 0.4, pixelize: blkPix(FITTING_W), pixelAspect: FITTING_W / FITTING_H }), []);
   // 거울 틀 — 알파(중앙 개구부 투명, 뒤로 그린/영상 비침) + emissive + 바닥 블록 픽셀라이즈
   const frameMat = useMemo(() => {
@@ -869,35 +880,6 @@ const MedicinePickup: React.FC<{
   );
 };
 
-/** Exit marker — invisible until all 5 medicines are collected, then 1s fade-in. */
-const ExitMarker: React.FC<{ worldPos: { x: number; z: number }; visible: boolean }> = ({ worldPos, visible }) => {
-  const matRef = useRef<THREE.MeshStandardMaterial>(null);
-  const opacityRef = useRef(0);
-
-  useFrame((_, delta) => {
-    const target = visible ? 1 : 0;
-    opacityRef.current = THREE.MathUtils.lerp(opacityRef.current, target, Math.min(delta * 1.5, 1));
-    if (matRef.current) {
-      matRef.current.opacity = opacityRef.current;
-      matRef.current.emissiveIntensity = 0.2 * opacityRef.current;
-    }
-  });
-
-  return (
-    <mesh position={[worldPos.x, 1.5, worldPos.z]}>
-      <boxGeometry args={[1.5, 3, 0.3]} />
-      <meshStandardMaterial
-        ref={matRef}
-        color="#4a4"
-        emissive="#0f0"
-        emissiveIntensity={0}
-        transparent
-        opacity={0}
-      />
-    </mesh>
-  );
-};
-
 // cart — Canvas 안 카메라 고정 HUD 평면. 메인 씬에 있어 약 효과(EffectComposer)를 동일하게 받음
 const CART_ASPECT = 1536 / 1030;
 const CartHud: React.FC = () => {
@@ -926,25 +908,53 @@ const CartHud: React.FC = () => {
   );
 };
 
+// --- finale 빈 네모 벽 갤러리 — 전략적 행성 전투 9조각 (PoemFragment는 공유 컴포넌트) ---
+const GALLERY_WALL = MAZE_SIZE * CELL_SIZE; // 70 — 경계 벽 좌표
+const FRAG_Y = 1.7;         // finale 벽 조각 중심 높이 (시점 ~1.8)
+const WALL_INSET = 0.3;     // 벽면에서 안쪽으로 띄움
+// 9조각 배치 — 시계방향(N 좌→우, E 상→하, S 우→좌, W) = 시 읽는 순서. rotY: 플레인 법선이 실내(중앙)를 향하도록.
+const POSTER_PLACEMENTS: { x: number; z: number; rotY: number }[] = [
+  { x: 15, z: WALL_INSET, rotY: 0 },                       // 1 — North
+  { x: 35, z: WALL_INSET, rotY: 0 },                       // 2 — North
+  { x: 55, z: WALL_INSET, rotY: 0 },                       // 3 — North
+  { x: GALLERY_WALL - WALL_INSET, z: 23.3, rotY: -Math.PI / 2 }, // 4 — East
+  { x: GALLERY_WALL - WALL_INSET, z: 46.7, rotY: -Math.PI / 2 }, // 5 — East
+  { x: 55, z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },  // 6 — South
+  { x: 35, z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },  // 7 — South
+  { x: 15, z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },  // 8 — South
+  { x: WALL_INSET, z: 35, rotY: Math.PI / 2 },             // 9 — West
+];
+
+// finale 빈 네모 벽 갤러리 — 전략적 행성 전투 9조각 (id battle1..9, ch3Fragments 레지스트리 index 5~13)
+const PoemGallery: React.FC = () => (
+  <Suspense fallback={null}>
+    {POSTER_PLACEMENTS.map((p, i) => (
+      <PoemFragment key={i} id={BATTLE_FRAGMENT_IDS[i]} paperIdx={5 + i} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} />
+    ))}
+  </Suspense>
+);
+
 const Ch3Inner: React.FC<{
   maze: MazeData;
   onPlayerMove?: (pos: { x: number; z: number }) => void;
   onElevatorZoneChange?: (inZone: boolean) => void;
-  onExitZoneChange?: (inZone: boolean) => void;
-  onDrugPickup?: (index: number) => void;
+  onDrugPickup?: (index: number, pickupCount: number) => void;
   onCollectedChange?: (collected: Set<number>) => void;
   cartMuted?: boolean;
-}> = ({ maze, onPlayerMove, onElevatorZoneChange, onExitZoneChange, onDrugPickup, onCollectedChange, cartMuted }) => {
+}> = ({ maze, onPlayerMove, onElevatorZoneChange, onDrugPickup, onCollectedChange, cartMuted }) => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const addToCart = useGameStore(s => s.addToCart);
   const setActiveEffect = useGameStore(s => s.setActiveEffect);
   const setNotification = useGameStore(s => s.setNotification);
+  const noteOpen = useGameStore(s => s.activeNoteId !== null); // 시 조각 오버레이 열림 → 이동 정지
   const { play } = useSoundManager();
+  const elevatorVisited = useGameStore(s => s.visitedEvents.has('ch3_elevator'));
   const [collected, setCollected] = useState<Set<number>>(new Set());
   const [posState, setPosState] = useState({ x: 0, z: 0 });
+  // 흰약 차단 알림 스로틀 — 존 진입당 1회만 (100ms 루프 스팸 방지)
+  const whiteBlockedRef = useRef(false);
 
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
-  const exitWorld = useMemo(() => cellToWorld(maze.end.x, maze.end.y, CELL_SIZE), [maze]);
   const mazeWorldSize = MAZE_SIZE * CELL_SIZE;
 
   const wallAABBs = useMemo<WallAABB[]>(() => {
@@ -981,6 +991,19 @@ const Ch3Inner: React.FC<{
           if (isLast && collected.size < MEDICINES.length - 1) return;
           const wp = medPositions[i];
           const dist = Math.sqrt((px - wp.x) ** 2 + (pz - wp.z) ** 2);
+          // 흰약은 시착실(우주 엘리베이터)을 먼저 보지 않으면 복용 불가 — 다가가면 안내만
+          if (isLast && !elevatorVisited) {
+            if (dist < CELL_SIZE * 0.6) {
+              if (!whiteBlockedRef.current) {
+                whiteBlockedRef.current = true;
+                setNotification('먼저 가운데 시착실에 들어가 봐야 한다');
+                setTimeout(() => setNotification(null), 2400);
+              }
+            } else {
+              whiteBlockedRef.current = false;
+            }
+            return;
+          }
           if (dist < CELL_SIZE * 0.6) {
             setCollected(prev => {
               const next = new Set(prev).add(i);
@@ -993,27 +1016,19 @@ const Ch3Inner: React.FC<{
             setNotification(med.name);
             triggerEvent(`ch3_med_${i}`);
             setTimeout(() => setNotification(null), 2000);
-            onDrugPickup?.(i);
+            onDrugPickup?.(i, collected.size + 1);
           }
         }
       });
 
-      // 시착실 = 엘리베이터 portal — proximity-only state (E-confirm in Ch3Scene)
+      // 시착실 = 엘리베이터 portal(중간) / 흰약 후엔 CH4 출구 — proximity-only state (E-confirm in Ch3Scene)
       const elevDist = Math.sqrt((px - fittingRoomWorld.x) ** 2 + (pz - fittingRoomWorld.z) ** 2);
       onElevatorZoneChange?.(elevDist < CELL_SIZE * 0.6);
-
-      // Exit zone — gated until all 5 medicines collected, E-confirm in Ch3Scene
-      if (collected.size === MEDICINES.length) {
-        const exitDist = Math.sqrt((px - exitWorld.x) ** 2 + (pz - exitWorld.z) ** 2);
-        onExitZoneChange?.(exitDist < CELL_SIZE * 0.6);
-      } else {
-        onExitZoneChange?.(false);
-      }
     };
 
     const interval = setInterval(check, 100);
     return () => clearInterval(interval);
-  }, [posState, collected, medPositions, exitWorld, fittingRoomWorld, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange, onExitZoneChange]);
+  }, [posState, collected, medPositions, fittingRoomWorld, elevatorVisited, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange]);
 
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
@@ -1055,6 +1070,11 @@ const Ch3Inner: React.FC<{
       {/* 시착실 = 엘리베이터 portal at center */}
       <FittingRoom worldPos={fittingRoomWorld} nx={fitting.nx} nz={fitting.nz} />
 
+      {/* 빈 네모 갤러리 — 흰약 복용(전부 수집) 후 텅 빈 벽에 시 「전략적 행성 전투」 9조각 (수집형) */}
+      {collected.size === MEDICINES.length && (
+        <PoemGallery />
+      )}
+
       {/* STEP 5: Itaewon memorial layer at cell (3,3) */}
       <ItaewonLayer
         cellWorldPos={itaewonCellWorld}
@@ -1063,9 +1083,6 @@ const Ch3Inner: React.FC<{
         playerPos={posState}
         wallAABBs={wallAABBs}
       />
-
-      {/* Exit marker — hidden until all 5 medicines collected, then 1s fade-in */}
-      <ExitMarker worldPos={exitWorld} visible={collected.size === MEDICINES.length} />
 
       <PlayerController
         mode="1st"
@@ -1078,6 +1095,7 @@ const Ch3Inner: React.FC<{
         gridCellSize={CELL_SIZE}
         gridInputCooldown={0.4}
         cartMuted={cartMuted}
+        freeze={noteOpen}
       />
     </>
   );
@@ -1087,10 +1105,23 @@ export const Ch3Scene: React.FC = () => {
   const [maze, setMaze] = useState<MazeData>(() =>
     generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: Math.floor(Math.random() * 0xFFFFFFFF), forceCenterCorner: true }, CELL_SIZE),
   );
-  const handleDrugPickup = useCallback((drugIndex: number) => {
-    const profile = MEDICINES[drugIndex].mazeProfile;
+  // 흰약 순간 플래시(반짝) — isFinal 픽업 시 0.65s 흰 오버레이
+  const [whiteFlash, setWhiteFlash] = useState(false);
+  const handleDrugPickup = useCallback((_drugIndex: number, pickupCount: number) => {
+    // 픽업 순서대로 미로가 단순화 — 마지막(흰약) 픽업이면 내벽 0 = 빈 네모(시착실만 남음).
+    const removalRatio = MAZE_REMOVAL_RAMP[Math.min(pickupCount - 1, MAZE_REMOVAL_RAMP.length - 1)];
+    const isFinal = pickupCount >= MEDICINES.length;
     const newSeed = Math.floor(Math.random() * 0xFFFFFFFF);
-    setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, forceCenterCorner: true, ...profile }, CELL_SIZE));
+    // isFinal엔 forceCenterCorner off — 중앙 코너벽까지 빼야 진짜 벽 하나 없는 정사각형. 시착실 부스는 자체 벽이라 그대로 남음.
+    const buildMaze = () => setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, forceCenterCorner: !isFinal, removalRatio }, CELL_SIZE));
+    if (isFinal) {
+      // 시퀀스: 반짝(흰 플래시) → 정점(~0.25s)에 빈 네모로 교체(플래시가 가림) → 빈 맵 위 라인 드로잉(ChapterEffects whiteflash)
+      setWhiteFlash(true);
+      setTimeout(() => setWhiteFlash(false), 700);
+      setTimeout(buildMaze, 250);
+    } else {
+      buildMaze();
+    }
   }, []);
   const startWorld = useMemo(() => cellToWorld(maze.start.x, maze.start.y, CELL_SIZE), [maze]);
   const [playerPos, setPlayerPos] = useState({ x: startWorld.x, z: startWorld.z });
@@ -1112,8 +1143,19 @@ export const Ch3Scene: React.FC = () => {
     return () => loop('mart_bgm', false);
   }, [cutscenePhase, loop]);
   const [collectedSet, setCollectedSet] = useState<Set<number>>(new Set());
-  const [atElevator, setAtElevator] = useState(false);
-  const [atExit, setAtExit] = useState(false);
+  const [atFittingRoom, setAtFittingRoom] = useState(false);
+  // 뷰포트 비율 — 카메라 고정 카트 HUD의 화면상 위치 계산용 (글자를 카트 바구니 안에 얹기)
+  const [vp, setVp] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const on = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  // 시 조각 — CH.2 쪽지 시스템 재사용. 열람/닫기/언어토글/수집기록은 store + NoteReader가 담당.
+  const activeNoteId = useGameStore(s => s.activeNoteId);
+  const openNote = useGameStore(s => s.openNote);
+  const visitedEvents = useGameStore(s => s.visitedEvents);
+  const nearFragmentId = useGameStore(s => s.nearFragmentId); // 근접 조각 → 하단 [E] 읽기 프롬프트
   const cartItems = useGameStore(s => s.cartItems);
   const removeFromCart = useGameStore(s => s.removeFromCart);
   const setNotification = useGameStore(s => s.setNotification);
@@ -1125,37 +1167,30 @@ export const Ch3Scene: React.FC = () => {
   const [muted, toggleMute] = useMute();
 
   // 약 5개 전부 수집 → 출구 안내 (마지막 약 알림 직후 표시)
-  const allCollectedNotifiedRef = useRef(false);
-  useEffect(() => {
-    if (collectedSet.size === MEDICINES.length && !allCollectedNotifiedRef.current) {
-      allCollectedNotifiedRef.current = true;
-      const t1 = setTimeout(() => setNotification('전부 복용했다 — 초록 출구로'), 2200);
-      const t2 = setTimeout(() => setNotification(null), 5200);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
-    }
-  }, [collectedSet, setNotification]);
-
-  // Minimap markers: 시착실(=엘리베이터) magenta(엘베 사용 전까지만) + 약 위치 (수집 전) + 출구(전부 모은 후).
+  // Minimap markers: 시착실 — 전부 수집 후엔 초록 출구, 그 전엔 엘베(magenta, 사용 전까지) + 약 위치(수집 전, 흰약은 첫 4개 모은 뒤 노출).
+  const allCollected = collectedSet.size === MEDICINES.length;
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
     const markers: MinimapMarker[] = [];
-    if (!elevatorVisited) {
-      const fr = findFittingCorner(maze, CELL_SIZE).pos;
+    const fr = findFittingCorner(maze, CELL_SIZE).pos;
+    if (allCollected) {
+      // 빈 네모 — 가운데 시착실이 CH4 출구
+      markers.push({ x: fr.x, z: fr.z, color: '#0f0', radius: 4.5, glow: true });
+    } else if (!elevatorVisited) {
       markers.push({ x: fr.x, z: fr.z, color: '#c040ff', radius: 3.5, glow: true });
     }
     MEDICINES.forEach((med, i) => {
       if (collectedSet.has(i)) return;
+      // 흰약(마지막)은 첫 4개 모으기 전엔 숨김 — pickup/렌더 게이팅과 일치
+      const isLast = i === MEDICINES.length - 1;
+      if (isLast && collectedSet.size < MEDICINES.length - 1) return;
       // medPositions와 동일 logic — i=0 (빨간약)은 player start 인접 셀
       const wp = (i === 0)
         ? cellToWorld(maze.start.x + 1, maze.start.y, CELL_SIZE)
         : cellToWorld(med.cell.gx, med.cell.gy, CELL_SIZE);
       markers.push({ x: wp.x, z: wp.z, color: med.color, radius: 2 });
     });
-    if (collectedSet.size === MEDICINES.length) {
-      const ex = cellToWorld(MAZE_SIZE - 1, MAZE_SIZE - 1, CELL_SIZE);
-      markers.push({ x: ex.x, z: ex.z, color: '#0f0', radius: 4.5, glow: true });
-    }
     return markers;
-  }, [collectedSet, maze, elevatorVisited]);
+  }, [collectedSet, maze, elevatorVisited, allCollected]);
 
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
@@ -1180,9 +1215,9 @@ export const Ch3Scene: React.FC = () => {
     }, ELEVATOR_DURATION + SPACE_DURATION + RETURN_FADE);
   }, []);
 
-  // E 키 — 엘리베이터/출구 진입 확정
-  const showElevatorPrompt = atElevator && !elevatorVisited && !cutscenePhase;
-  const showExitPrompt = atExit && !cutscenePhase;
+  // E 키 — 시착실 진입 확정. 전부 복용 후엔 CH4 출구, 그 전엔 엘베 컷신(중간 detour, 1회). 시 조각 오버레이 중엔 비활성.
+  const showExitPrompt = atFittingRoom && allCollected && !cutscenePhase && activeNoteId === null;
+  const showElevatorPrompt = atFittingRoom && !allCollected && !elevatorVisited && !cutscenePhase && activeNoteId === null;
   useEffect(() => {
     if (!showElevatorPrompt && !showExitPrompt) return;
     const handler = (e: KeyboardEvent) => {
@@ -1207,8 +1242,7 @@ export const Ch3Scene: React.FC = () => {
         <Ch3Inner
           maze={maze}
           onPlayerMove={setPlayerPos}
-          onElevatorZoneChange={setAtElevator}
-          onExitZoneChange={setAtExit}
+          onElevatorZoneChange={setAtFittingRoom}
           onDrugPickup={handleDrugPickup}
           onCollectedChange={setCollectedSet}
           cartMuted={!!cutscenePhase}
@@ -1218,6 +1252,72 @@ export const Ch3Scene: React.FC = () => {
 
       {/* Elevator cutscene overlay */}
       <ElevatorCutscene phase={cutscenePhase} />
+
+      {/* 흰약 반짝 — 짧은 화이트 플래시. 이 밑에서 맵이 빈 네모로 교체됨(플래시가 가림) */}
+      {whiteFlash && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 3000, background: '#fff',
+          pointerEvents: 'none', animation: 'ch3WhiteFlash 0.65s ease-out forwards',
+        }}>
+          <style>{`@keyframes ch3WhiteFlash {
+            0% { opacity: 0; } 12% { opacity: 1; } 30% { opacity: 1; } 100% { opacity: 0; }
+          }`}</style>
+        </div>
+      )}
+
+      {/* 시 조각 본문 오버레이 — CH.2와 동일한 NoteReader(종이·폰트·한영 Q토글). store.activeNoteId로 구동 */}
+      <NoteReader />
+
+      {/* 시 조각 수집 슬롯 — 좌하단. 플레이 중엔 NPC(ckshp/맹점) 5칸(첫 수집 후), finale엔 전략적 행성 전투 9칸.
+          정렬 순서로 번호 표시 · 수집된 것만 점등 · 클릭 재열람. */}
+      {!cutscenePhase && (() => {
+        const ids = allCollected ? BATTLE_FRAGMENT_IDS : NPC_FRAGMENT_IDS;
+        const anyGot = ids.some(id => visitedEvents.has(`note_${id}`));
+        if (!allCollected && !anyGot) return null; // 플레이 중엔 첫 NPC 조각 수집 후 표시
+        return (
+          <div style={{
+            position: 'fixed', left: 24, bottom: 24,
+            zIndex: activeNoteId !== null ? 2100 : 1500,
+            display: 'flex', gap: 6, pointerEvents: 'none', userSelect: 'none',
+          }}>
+            {ids.map((id, i) => {
+              const got = visitedEvents.has(`note_${id}`);
+              return (
+                <div
+                  key={id}
+                  onClick={() => { if (got) openNote(id); }}
+                  style={{
+                    width: 26, height: 34,
+                    border: `1px solid ${got ? FRAG_TINT : 'rgba(255,255,255,0.18)'}`,
+                    background: 'rgba(0,0,0,0.55)',
+                    boxShadow: got ? `0 0 8px ${FRAG_TINT}66` : 'none',
+                    opacity: got ? 1 : 0.4,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: got ? FRAG_TINT : 'rgba(243,238,221,0.5)',
+                    fontFamily: '"Unifont", monospace', fontSize: 11,
+                    cursor: got ? 'pointer' : 'default', pointerEvents: 'auto',
+                  }}
+                >
+                  {i + 1}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* 시 조각 근접 — 화면 하단 [E] 읽기 (조각 위에 안 가림). 도어 프롬프트와 위치 겹쳐도 동시 발생 거의 없음 */}
+      {nearFragmentId && activeNoteId === null && !cutscenePhase && (
+        <div style={{
+          position: 'fixed', left: '50%', bottom: '14%', transform: 'translateX(-50%)',
+          zIndex: 1500, fontFamily: '"Unifont", monospace', fontSize: 14, letterSpacing: 4,
+          color: '#f3eedd', background: 'rgba(0,0,0,0.65)', padding: '8px 18px',
+          border: '1px solid rgba(243,238,221,0.35)', textShadow: '0 0 6px rgba(0,0,0,0.8)',
+          pointerEvents: 'none', userSelect: 'none',
+        }}>
+          [E] 읽기
+        </div>
+      )}
 
       {/* Door E-confirm prompts */}
       {(showElevatorPrompt || showExitPrompt) && (
@@ -1244,7 +1344,7 @@ export const Ch3Scene: React.FC = () => {
 
       {/* Hide minimap & UI during cutscene */}
       {!cutscenePhase && (
-        <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} markers={minimapMarkers} showExit={collectedSet.size === MEDICINES.length} />
+        <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} markers={minimapMarkers} showExit={false} />
       )}
 
       {/* Notification */}
@@ -1268,25 +1368,38 @@ export const Ch3Scene: React.FC = () => {
         </div>
       )}
 
-      {/* STEP 4: Cart UI — clickable items, discard → replace */}
-      {!cutscenePhase && cartItems.length > 0 && (
-        <div style={{
-          position: 'fixed',
-          bottom: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          display: 'flex',
-          gap: 6,
-          zIndex: 200,
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          maxWidth: '90vw',
-        }}>
-          {cartItems.map((item, i) => (
-            <GlitchCartButton key={`${i}-${item}`} item={item} />
-          ))}
-        </div>
-      )}
+      {/* STEP 4: Cart UI — 약 글자가 카트 바구니 안에 담겨 쌓임.
+          카트 HUD(카메라 고정 평면)의 화면 사각형을 역산: 높이=뷰포트 45% 하단정렬, 폭=67.1/aspect%.
+          그 안에서 와이어 바스켓 내부(이미지 x 22~78%, y 13~50%) 위에 글자를 얹는다. */}
+      {!cutscenePhase && cartItems.length > 0 && (() => {
+        const aspect = vp.w / vp.h;
+        const cartWidthPct = 67.11 / aspect;          // 카트 화면 폭(%)
+        const cartLeftPct = (100 - cartWidthPct) / 2;  // 가로 중앙 정렬
+        // 카트 세로: 화면 55%~100% (하단 45%). 바구니 내부는 그 13%~50% 구간.
+        const basketLeft = cartLeftPct + cartWidthPct * 0.22;
+        const basketWidth = cartWidthPct * 0.56;
+        const basketTop = 55 + 45 * 0.13;
+        const basketHeight = 45 * (0.50 - 0.13);
+        return (
+          <div style={{
+            position: 'fixed',
+            left: `${basketLeft}%`,
+            top: `${basketTop}%`,
+            width: `${basketWidth}%`,
+            height: `${basketHeight}%`,
+            display: 'flex',
+            gap: 4,
+            zIndex: 200,
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignContent: 'flex-end', // 바구니 바닥부터 쌓이듯
+          }}>
+            {cartItems.map((item, i) => (
+              <GlitchCartButton key={`${i}-${item}`} item={item} />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Dev Panel — toggle with ` key */}
       {devMode && (

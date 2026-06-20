@@ -225,11 +225,9 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
         loop
         autoPlay
         style={{
-          // 16:9(영상 원비율) 박스, 화면 정중앙, ~0.5배 — 레터박스 없음
-          position: 'absolute', left: '50%', top: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 'min(50vw, 89vh)', aspectRatio: '16 / 9',
-          height: 'auto', objectFit: 'fill',
+          // 전체화면 fill — 뷰포트 전체를 덮음 (cover, 레터박스 없음, 비율 유지하며 크롭)
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%', objectFit: 'cover',
           mixBlendMode: 'screen',
           opacity: 0.2,
           pointerEvents: 'none',
@@ -1666,8 +1664,8 @@ export const Ch2Scene: React.FC = () => {
   }, [airportActive, activeNoteId, postalActive]);
 
   const allNotesCollected = collectedNotes === totalNotes;
-  // 7/7 모으거나, 우체통에 편지를 보냈으면 문 통과 가능
-  const canEnter = allNotesCollected || letterSent;
+  // 편지를 보내야만 문 통과 가능 — 7/7 수집은 편지 발송의 선행 조건일 뿐, 발송 전엔 나갈 수 없다.
+  const canEnter = letterSent;
   // 우체통 반경에서 아직 편지 안 보냈으면 편지가 문 입장보다 우선
   // (반경 겹침 — 이 상태에선 E가 CH.3 진입 대신 편지 보내기로만)
   const mailboxSendable = atMailbox && allNotesCollected && !letterSent;
@@ -1749,7 +1747,11 @@ export const Ch2Scene: React.FC = () => {
           pointerEvents: 'none',
           userSelect: 'none',
         }}>
-          {canEnter ? '[E] 들어가기' : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
+          {letterSent
+            ? '[E] 들어가기'
+            : allNotesCollected
+              ? '편지를 보내기 전에는 나갈 수 없습니다'
+              : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
         </div>
       )}
 

@@ -11,8 +11,12 @@ import { useDevMode } from '@/hooks/useDevMode'
 import { useSoundManager } from '@/hooks/useSoundManager'
 import { useScrambleTransition } from '@/hooks/useGlitchText'
 import { CH2_NOTES, type PageSegment } from '@/data/ch2Notes'
+import { CH3_FRAGMENTS } from '@/data/ch3Fragments'
 
 const BASE = import.meta.env.BASE_URL
+
+// CH.2 쪽지 + CH.3 시 조각 — 같은 PoemNote 구조라 하나의 레지스트리로 조회(폰트·스타일 통일)
+const ALL_NOTES = [...CH2_NOTES, ...CH3_FRAGMENTS]
 
 // 노트별 종이 텍스처 매핑 (Note.tsx와 일치)
 const NOTE_PAPER: Record<string, string> = {
@@ -24,6 +28,10 @@ const NOTE_PAPER: Record<string, string> = {
   termination: `${BASE}assets/tex/paper/paper-06.webp`,
   highstreamer:`${BASE}assets/tex/paper/paper-07.webp`,
 }
+// CH.3 시 조각 — CH.2 종이 텍스처 8종(paper-01~08)을 순환 재사용
+CH3_FRAGMENTS.forEach((n, i) => {
+  NOTE_PAPER[n.id] = `${BASE}assets/tex/paper/paper-0${(i % 8) + 1}.webp`
+})
 
 // 노트별 시 조각 드로잉 배경 (밝기=알파 키잉한 VP9 알파 WebM) — 한 번 그려진 뒤 마지막 프레임에 정지
 const NOTE_BACKDROP: Record<string, string> = {
@@ -126,12 +134,16 @@ function SegmentRenderer({ segment }: { segment: PageSegment }) {
 }
 
 const PAPER_HEIGHT = 'min(80vh, 980px, calc(92vw * 2339 / 1654))'
+// CH.3 짧은 시 조각 — 미니 카드(작은 종이). 짧은 본문에 비해 종이가 비어 보이던 문제 해소.
+const PAPER_HEIGHT_COMPACT = 'min(56vh, 660px, calc(86vw * 2339 / 1654))'
 const PAPER_ASPECT = '1654 / 2339'
 
 // 텍스트는 항상 DESIGN_W 디자인폭으로 레이아웃 → zoom = 종이폭 / DESIGN_W 로
 // 박스를 종이에 정확히 1:1 매핑 (박스=종이폭이라 우측 잘림·제목 오프셋 없음).
 // 폭을 줄일수록(↓) 같은 종이에서 텍스트가 커짐 — 592 = 888/1.5 (적정값 확정).
 const DESIGN_W = 592
+// 미니 카드는 디자인폭을 좁혀 같은 종이에서 텍스트가 상대적으로 커지게 (작은 카드여도 읽힘)
+const DESIGN_W_COMPACT = 400
 // A4 페이지 높이에서 6px 뺌 — zoom 서브픽셀 반올림이 스크롤 컨테이너를
 // <1px 초과시켜 생기는 '유령 스크롤' 흡수 (내용이 실제로 넘치면 정상 스크롤).
 const DESIGN_PAGE_H = 'calc(592px * 2339 / 1654 - 6px)'
@@ -146,7 +158,10 @@ export function NoteReader() {
   const { play } = useSoundManager()
   const [page, setPage] = useState(0)
 
-  const note = activeNoteId === null ? null : CH2_NOTES.find(n => n.id === activeNoteId) ?? null
+  const note = activeNoteId === null ? null : ALL_NOTES.find(n => n.id === activeNoteId) ?? null
+  // 미니 카드(CH.3 조각)면 종이·디자인폭 축소
+  const paperHeight = note?.compact ? PAPER_HEIGHT_COMPACT : PAPER_HEIGHT
+  const designW = note?.compact ? DESIGN_W_COMPACT : DESIGN_W
   const totalPages = note ? note.pages.length : 0
 
   // 새 쪽지 열림: 페이지 초기화 + 언어 한글 리셋 + paper SFX
@@ -210,7 +225,7 @@ export function NoteReader() {
     if (!el) return
     const ro = new ResizeObserver(([entry]) => {
       // 캡 없음 — 박스가 항상 종이폭에 정확히 맞아야 잘림/오프셋이 안 생김.
-      setScale(entry.contentRect.width / DESIGN_W)
+      setScale(entry.contentRect.width / designW)
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -331,7 +346,7 @@ export function NoteReader() {
           position: 'absolute',
           top: 0,
           left: 0,
-          height: PAPER_HEIGHT,
+          height: paperHeight,
           aspectRatio: PAPER_ASPECT,
           backgroundColor: '#f1ede1',
           boxShadow: '2px 2px 6px rgba(0,0,0,0.22)',
@@ -344,7 +359,7 @@ export function NoteReader() {
         key={page}
         style={{
           // A4 비율(1654 / 2339) 고정 — 좁은 viewport에선 폭 기준으로도 캡
-          height: PAPER_HEIGHT,
+          height: paperHeight,
           aspectRatio: PAPER_ASPECT,
           backgroundColor: '#ffffff',
           color: '#1a1a1a',
@@ -367,7 +382,7 @@ export function NoteReader() {
         }}>
         {/* 888 디자인 페이지 — 고정폭 레이아웃 + 종이폭/888 균일 zoom (리플로우/잘림 없음) */}
         <div style={{
-          width: DESIGN_W,
+          width: designW,
           minHeight: DESIGN_PAGE_H,
           margin: '0 auto',
           boxSizing: 'border-box',
@@ -408,6 +423,24 @@ export function NoteReader() {
             <SegmentRenderer key={i} segment={seg} />
           ))}
         </div>
+
+        {/* 시의 마지막 장이 아니면 — 다음 조각이 더 있음을 알리는 표시 */}
+        {note.continues && (
+          <div style={{
+            marginTop: 'auto',
+            paddingTop: 18,
+            width: '100%',
+            textAlign: 'right',
+            fontFamily: '"Unifont", monospace',
+            fontSize: 13,
+            letterSpacing: 2,
+            color: '#1a1a1a',
+            opacity: 0.55,
+            userSelect: 'none',
+          }}>
+            계속... →
+          </div>
+        )}
 
         {/* 페이지 풋터 — 종이 안쪽 검정, 다중 페이지일 때만 (발견성) */}
         {multi && (

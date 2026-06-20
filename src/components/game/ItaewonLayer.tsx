@@ -13,6 +13,8 @@ import * as THREE from 'three'
 import { useGameStore } from '@/store/useGameStore'
 import { cellToWorld } from '@/utils/mazeGenerator'
 import type { WallAABB } from '@/components/game/PlayerController'
+import { PoemFragment } from '@/components/game/PoemFragment'
+import { NPC_FRAGMENT_IDS } from '@/data/ch3Fragments'
 
 // 디버그: ?sketch=1 → 약 없이도 ghost 상시 노출 (스케치 룩 튜닝용)
 const SKETCH_DEBUG = typeof window !== 'undefined'
@@ -231,6 +233,9 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   const [showText, setShowText] = useState(false)
   const [textOpacity, setTextOpacity] = useState(0)
   const [ghostPos, setGhostPos] = useState<[number, number, number] | null>(null)
+  // NPC 등장 시 그 자리에 뜨는 수집형 시 조각 — 스폰 순서(약 순서)대로 ckshp/맹점 매핑
+  const [npcFragId, setNpcFragId] = useState<string | null>(null)
+  const spawnCountRef = useRef(0)
   const wasInViewRef = useRef(false)
   const prevGhostCellRef = useRef<{ gx: number; gy: number } | null>(null)
   const isFirstSpawnRef = useRef(true)
@@ -323,6 +328,9 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     const world = cellToWorld(target.gx, target.gy, cellSize)
     console.log('[ItaewonLayer] ghost spawn', { gx: target.gx, gy: target.gy, world, pCellX, pCellY, isFirst, candidates: candidates.length })
     setGhostPos([world.x, 0, world.z])
+    // 이 스폰에 대응하는 시 조각(약 순서) — ckshp1..3, maengjeom1..2
+    setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])
+    spawnCountRef.current += 1
     prevGhostCellRef.current = { gx: target.gx, gy: target.gy }
     isFirstSpawnRef.current = false
     wasInViewRef.current = false
@@ -413,6 +421,19 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
             />
           </Suspense>
         </GhostBoundary>
+      )}
+
+      {/* NPC 발밑 바닥에 놓이는 수집형 시 조각 (ckshp/맹점) — 근접 시 화면 하단 [E] 읽기 (CH.2 쪽지 느낌) */}
+      {ghostPos && npcFragId && (
+        <Suspense fallback={null}>
+          <PoemFragment
+            key={npcFragId}
+            id={npcFragId}
+            paperIdx={(NPC_FRAGMENT_IDS as readonly string[]).indexOf(npcFragId)}
+            position={[ghostPos[0], 0.06, ghostPos[2]]}
+            lieFlat
+          />
+        </Suspense>
       )}
     </>
   )
