@@ -29,6 +29,7 @@ const NOTE_PAPER: Record<string, string> = {
 const NOTE_BACKDROP: Record<string, string> = {
   theta:       `${BASE}poems/blackdog.webm`,
   entropy:     `${BASE}poems/entropy.webm`,
+  'jeju-fire': `${BASE}poems/jeju-fire.webm`,
   bichae:      `${BASE}poems/bichae.webm`,
   'hell-salad':`${BASE}poems/hell-salad.webm`,
 }
