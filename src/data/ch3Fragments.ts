@@ -22,8 +22,8 @@ export const CH3_FRAGMENTS: PoemNote[] = [
   {
     id: 'ckshp1',
     position: [0, 0],
-    title: 'ckshp',
-    titleEn: 'ckshp',
+    title: 'ckshp*',
+    titleEn: 'ckshp*',
     pages: [
       {
         segments: [
@@ -42,7 +42,7 @@ So packed there wasn't room to set down a single sigh, let alone a body
 I kept trying to cram myself in somehow, no matter how I tried I really couldn't get in, but
 we danced there anyway
 Came back out
-leaned against nothing for a while and watched the line that never got shorter`,
+leaned against a wall for a while and watched the line that never got shorter`,
           },
           { type: 'rule' },
           {
@@ -58,15 +58,15 @@ leaned against nothing for a while and watched the line that never got shorter`,
   {
     id: 'ckshp2',
     position: [0, 0],
-    title: 'ckshp',
-    titleEn: 'ckshp',
+    title: 'ckshp*',
+    titleEn: 'ckshp*',
     pages: [
       {
         segments: [
           {
             type: 'text',
             ko: `물을 마시고 조금 울고 다시 땅 속으로 들어간다. 낯선 사람들의 살과 계속 닿으면서 동시에 좋아하는 사람들의 눈을 찾아 마주친다. 가만히 빠져나가는 손을 잡으면 신나는 음악 신나는 음악 신나는 음악 . . .`,
-            en: `Drink some water, cry a little, go back underground. Skin of strangers brushing me the whole time while I hunt for the eyes of the ones I love and meet them. Catch a hand quietly slipping away and the music's good the music's good the music's good . . .`,
+            en: `Drink some water, cry a little, go back underground. Skin of strangers brushing me the whole time while I hunt for the eyes of the ones I love. Catch a hand quietly slipping away and the music's good music's good music's good. . .`,
           },
           {
             type: 'text',
@@ -79,7 +79,7 @@ leaned against nothing for a while and watched the line that never got shorter`,
 계속 걸을 수도 있었을 것이다
 계속 걷기를 택한 쪽의 우리들을 상상한다`,
             en: `At four in the morning
-shops selling three-necked statues kept appearing no matter how far we walked
+shop selling three-headed statues kept appearing no matter how far we walked
 We looked at a dog's bust lit orange by the streetlamp through the dark show window, and we said
 If we go this way the road seems like it'll end.
 Then let's go the way the road doesn't end.
@@ -94,8 +94,8 @@ I imagine the version of us that chose to keep walking`,
   {
     id: 'ckshp3',
     position: [0, 0],
-    title: 'ckshp',
-    titleEn: 'ckshp',
+    title: 'ckshp*',
+    titleEn: 'ckshp*',
     pages: [
       {
         segments: [
@@ -111,9 +111,9 @@ we would have walked it`,
             ko: `생채기도 머지 않아 완치될 줄 믿소.
 생채기도 머지 않아 완치될 줄 믿소.*
 그러나 믿은 적이 없어서 낫질 않는다`,
-            en: `I trust even these scratches will soon be healed.
-I trust even these scratches will soon be healed.*
-But I've never once trusted it, so it never heals`,
+            en: `I trust scratches will soon be healed.
+I trust scratches will soon be healed.*
+But I've never trusted it, so they never heal`,
           },
           { type: 'rule' },
           {
@@ -148,17 +148,17 @@ But I've never once trusted it, so it never heals`,
 너무 화들짝 놀란 바람에 엉망으로 토했고
 토사물 속에서 허우적대며 웃고 흐느꼈고
 이번 한 번만 살아보면 안 될까 애원하고 빌었다`,
-            en: `The day the shadow was born I struck my head down hard, up and down
-Only now will I look like a corpse that's lost its sight
+            en: `The day the shade was born I struck my head down hard, up and down
+Only now will I look like a corpse lost its sight
 True tearing is perfect expectation and waiting and the erasing
 of everything
 Can you feel it?
 Slide a hand behind the eyeball and there's the gap where the nerve is severed
-They said even when light lands on it you feel nothing
+Even when light lands on it you feel nothing
 When you burrowed in through that place
 I startled so badly I threw up all over
 flailed in the vomit and laughed and wept
-and begged, pleaded — couldn't I live just this once`,
+and begged, pleaded; couldn't I live just this once`,
           },
         ],
       },
@@ -188,18 +188,18 @@ and begged, pleaded — couldn't I live just this once`,
 기다리고 있어
 그림자가 태어난 날로부터`,
             en: `Only now will it look like this
-And then from above, from below, everything glared at me
+And then from above, from below, everyone glared at me
 The lights rushed in all at once and tore me apart piece by piece
 Even now? Even now? Only the sound of crisp, fresh laughter came
 I thought I'd just vanish like that
-but quietly white and light and white light came down
-and since then I've been thinking
+But quietly white and light and white light came down
+And since then I've been thinking
 I wish the light would pour down even more
 The sin and disgrace of having lived
 The joy of knowing I'll never understand the world again
-That I want to dance with you on a street the light has erased clean
+That I want to dance with you on a street the light has erased everything clean
 I'm waiting
-ever since the day the shadow was born`,
+Ever since the day the shade was born`,
           },
         ],
       },
@@ -225,7 +225,7 @@ ever since the day the shadow was born`,
             en: `Take aim at every planet in the universe and fire
 pew pew
 Everything I need is inside me
-ha ha ha!
+haha ha!
 poem game
 game poem`,
           },
@@ -238,8 +238,8 @@ game poem`,
 결국 악당이 되어 우주를 파괴할 게임을 제작한다`,
             en: `Lord A of the Red Earth
 saved the universe once, but nobody believes it
-held his post on a lonely star, but for a thousand years no one came
-In the end he turns villain and builds a game to destroy the universe`,
+held their post on a lonely star, but for a thousand years no one came
+In the end they turn villain and build a game to destroy the universe`,
           },
           { type: 'text', ko: `「전략적 행성 전투」`, en: `"Strategic Planetary Battle"` },
         ],
@@ -262,10 +262,10 @@ In the end he turns villain and builds a game to destroy the universe`,
 빠르게 달릴 때면 노래를 부른다
 꼭 너같이 생겼어
 기분이 좋지 않은 날 집에 있는 여자친구를 팬다`,
-            en: `The hero, J
-works as a motorcycle courier in Seoul
+            en: `The main character, J
+works as a delivery rider in Seoul
 sings whenever he rides fast
-He looks just like you
+looks just like you
 On the days he's in a bad mood he beats the girlfriend waiting at home`,
           },
           { type: 'text', ko: `시작`, en: `start` },
@@ -278,7 +278,7 @@ On the days he's in a bad mood he beats the girlfriend waiting at home`,
 높은 생명 수당
 배달비는 한 건당 십오만 원
 J 는 건물 사이를 누비며 오늘의 건수를 채우고 있다`,
-            en: `Tenth year of the killing plague
+            en: `Tenth year of the pandemic
 Yeouido gone feral
 only delivery bikes move through the streets
 High hazard pay
@@ -301,7 +301,7 @@ J weaves between the buildings, filling today's quota`,
             type: 'text',
             ko: `이 씨발련아 대답안해?
 여자친구에게 간간이 문자를 보내면서`,
-            en: `you fucking bitch you not gonna answer?
+            en: `you fucking cunt you not gonna answer?
 texting the girlfriend now and then`,
           },
           {
@@ -459,7 +459,7 @@ J was quite sure he'd be good at that`,
 고작 인간인데…`,
             en: `It's just like the game you cling to every night
 no way you lose
-they're only human…`,
+you're only human…`,
           },
           {
             type: 'text',
@@ -470,13 +470,13 @@ J 의 뛰어난 전략과 암약으로 온 은하계의 영웅들과 싸워 이�
 마지막 주먹질
 퍽 퍽퍽!
 모든 괴물들을 쓰러뜨렸다! 하 하하!`,
-            en: `Earth's team was nothing but humans, but
+            en: `Team Earth was nothing but humans, but
 speedrun!
 With J's brilliant strategy and scheming he fights the heroes of the whole galaxy and wins
 that's our hero
 the last punches
-thwack thwack thwack!
-He's downed every monster! ha ha ha!`,
+thwack thwack-thwack!
+He's downed every monster! ha haha!`,
           },
         ],
       },
@@ -495,10 +495,11 @@ He's downed every monster! ha ha ha!`,
             type: 'text',
             ko: `이제 마지막 전투를 앞둔 J,
 저 멀리 푸른 점을 보면서 빨리 돌아가고 싶다고 소원한다`,
-            en: `Now, J on the eve of the final battle
+            en: `Now, J on the final battle
 looks at the pale blue dot far away and wishes he could hurry home`,
           },
-          { type: 'text', ko: `아니 아니
+          {
+            type: 'text', ko: `아니 아니
 다시`, en: `no no
 again` },
           {
@@ -507,10 +508,10 @@ again` },
 절대군주와 싸워 이겨 우주의 지배자가 되고 말 거라고 자신한다
 절대 절대
 지구로는 돌아가지 않겠다고 다짐한다`,
-            en: `J on the eve of the final battle
+            en: `J on the final battle
 swears he'll beat the Absolute Lord and become ruler of the universe
 never, never
-vows he will not go back to earth`,
+vows he never go back to earth`,
           },
           {
             type: 'text',
@@ -518,7 +519,7 @@ vows he will not go back to earth`,
 왜냐하면 주인공으로도 만들어줬고
 여태까지 큰 무리 없이 게임에서 승리하도록 해줬고`,
             en: `why?
-because it made you the hero
+because I made you the hero
 and let you win the game without much trouble all this way`,
           },
         ],
@@ -548,14 +549,14 @@ and let you win the game without much trouble all this way`,
 재밌잖아 게임이
 요즘 게임은 다 그래`,
             en: `win and you inherit the power to bend the whole universe, get it?
-they're only human
-gave me? what did you ever give me you bitch
-quit writing only this kind of crap
-that attitude won't do, you're the hero
+you're only human
+You let me win? what did you ever give me you bitch
+Quit writing only this kind of crap
+That attitude won't do, you're the hero
 don't come back to earth
 better to fight A and win
-kill the lonely lord for me
-take away a grief big enough to destroy a universe
+kill the lonely lord
+take away a grief big enough to destroy a whole universe
 then you just rule the whole thing, right
 it's fun, isn't it, the game
 games are all like this these days`,
@@ -567,9 +568,9 @@ games are all like this these days`,
 경찰에 신고하면 쳐죽인다고 했지
 다시 게임 시작`,
             en: `thwack thwack thwack!
-quit your bullshit and take some responsibility you crazy bitch
-I told you I'd beat you to death if you called the cops
-restart the game`,
+Quit your bullshit and take some responsibility you crazy cunt
+I told you I'd beat you to death if you call the cop
+Restart the game`,
           },
         ],
       },
@@ -583,7 +584,8 @@ restart the game`,
     pages: [
       {
         segments: [
-          { type: 'text', ko: `책임감을 가지고
+          {
+            type: 'text', ko: `책임감을 가지고
 시작`, en: `with responsibility
 start` },
           {
@@ -594,7 +596,7 @@ start` },
 그냥
 지구 밖에 있어주면 안 될까`,
             en: `J finally chokes the life out of A! The last words spilling from the Absolute Lord A's mouth were
-hang on
+Hang on
 I can't do it
 just
 couldn't you stay outside of earth`,
@@ -611,7 +613,7 @@ couldn't you stay outside of earth`,
 poem no, game
 at least inside it
 just begin
-you bitch
+you cunt
 breathe`,
           },
         ],

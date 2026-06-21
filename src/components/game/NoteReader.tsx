@@ -63,19 +63,23 @@ function NoteText({ ko, en }: { ko: string; en?: string }) {
   )
 }
 
-function TextSegment({ ko, en, preserveSpacing, size, align, tight }: {
+function TextSegment({ ko, en, preserveSpacing, size, align, tight, compact }: {
   ko: string
   en?: string
   preserveSpacing?: boolean
   size?: 'normal' | 'small'
   align?: 'left' | 'center'
   tight?: boolean
+  compact?: boolean
 }) {
+  // CH.3 시 조각(compact): 글씨 0.8배 + 줄간격 1.9 고정
+  const baseFont = size === 'small' ? 10 : 14
+  const baseLine = tight ? 1.2 : (size === 'small' ? 1.5 : 1.7)
   return (
     <div style={{
       fontFamily: '"Unifont", monospace',
-      fontSize: size === 'small' ? 10 : 14,
-      lineHeight: tight ? 1.2 : (size === 'small' ? 1.5 : 1.7),
+      fontSize: compact ? baseFont * 0.8 : baseFont,
+      lineHeight: compact ? 1.9 : baseLine,
       letterSpacing: 0.5,
       whiteSpace: preserveSpacing ? 'pre' : 'pre-wrap',
       wordBreak: 'keep-all',
@@ -90,7 +94,7 @@ function TextSegment({ ko, en, preserveSpacing, size, align, tight }: {
   )
 }
 
-function SegmentRenderer({ segment }: { segment: PageSegment }) {
+function SegmentRenderer({ segment, compact }: { segment: PageSegment; compact?: boolean }) {
   if (segment.type === 'text') {
     return (
       <TextSegment
@@ -100,6 +104,7 @@ function SegmentRenderer({ segment }: { segment: PageSegment }) {
         size={segment.size}
         align={segment.align}
         tight={segment.tight}
+        compact={compact}
       />
     )
   }
@@ -118,6 +123,7 @@ function SegmentRenderer({ segment }: { segment: PageSegment }) {
           maxHeight: 420,
           objectFit: 'contain',
           margin: '4px auto',
+          opacity: 0.8, // CH.2 시 조각 드로잉 — 살짝 투명
         }}
       />
     )
@@ -236,6 +242,9 @@ export function NoteReader() {
   const pageData = note.pages[page]
   const multi = totalPages > 1
   const titleEn = note.titleEn
+  // 제목 — 시의 첫 조각만 (ckshp1·battle1·maengjeom1). 뒷 조각(끝번호 2+)은 제목 없음.
+  // CH.2 단일 노트는 id에 끝번호 없어 항상 표시.
+  const showTitle = (note.id.match(/(\d+)$/)?.[1] ?? '1') === '1'
 
   return (
     <div
@@ -393,10 +402,12 @@ export function NoteReader() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          // 제목 없는(마지막) 조각은 텍스트를 위로 안 땡기고 세로 중앙
+          justifyContent: showTitle ? 'flex-start' : 'center',
           gap: 10,
         }}>
-        {/* 제목 — 첫 페이지에만 */}
-        {page === 0 && (
+        {/* 제목 — 마지막 조각 제외 */}
+        {page === 0 && showTitle && (
           <div style={{
             fontFamily: '"Unifont", monospace',
             fontSize: 20,
@@ -420,14 +431,14 @@ export function NoteReader() {
           margin: '0 auto',
         }}>
           {pageData.segments.map((seg, i) => (
-            <SegmentRenderer key={i} segment={seg} />
+            <SegmentRenderer key={i} segment={seg} compact={note?.compact} />
           ))}
         </div>
 
         {/* 시의 마지막 장이 아니면 — 다음 조각이 더 있음을 알리는 표시 */}
         {note.continues && (
           <div style={{
-            marginTop: 'auto',
+            marginTop: showTitle ? 'auto' : 18, // 제목 없는(중앙정렬) 조각은 auto로 텍스트를 밀지 않음
             paddingTop: 18,
             width: '100%',
             textAlign: 'right',

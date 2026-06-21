@@ -10,6 +10,7 @@ import { useRef, useState, useEffect, useMemo, useCallback, Component, Suspense,
 import { useFrame, useThree } from '@react-three/fiber'
 import { Text, useGLTF, useAnimations } from '@react-three/drei'
 import * as THREE from 'three'
+import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { useGameStore } from '@/store/useGameStore'
 import { cellToWorld } from '@/utils/mazeGenerator'
 import type { WallAABB } from '@/components/game/PlayerController'
@@ -63,10 +64,16 @@ const UNIFONT_URL = `${import.meta.env.BASE_URL}assets/fonts/unifont-16.0.02.otf
 
 const GHOST_IDLE_URL = `${import.meta.env.BASE_URL}assets/characters_biped/Whispering_Tide_biped/Meshy_AI_Whispering_Tide_biped_Animation_Idle_4_withSkin.glb`
 const GHOST_MIRROR_URL = `${import.meta.env.BASE_URL}assets/characters_biped/Whispering_Tide_biped/Meshy_AI_Whispering_Tide_biped_Animation_Mirror_Viewing_withSkin.glb`
+// 흰약 finale lean 고스트용 — 미사용이던 Confused_Scratch 루프
+const GHOST_SCRATCH_URL = `${import.meta.env.BASE_URL}assets/characters_biped/Whispering_Tide_biped/Meshy_AI_Whispering_Tide_biped_Animation_Confused_Scratch_withSkin.glb`
 useGLTF.preload(GHOST_IDLE_URL)
 useGLTF.preload(GHOST_MIRROR_URL)
+useGLTF.preload(GHOST_SCRATCH_URL)
 
 const DRUG_EFFECTS = new Set(['desaturate', 'blur', 'darken', 'anxiolytic', 'whiteflash'])
+// 흰약(whiteflash, 마지막) 스폰 시 NPC를 시착실 옆면 벽(거울 아님) 바깥에 기대 세움
+const GHOST_LEAN_GAP = 0.3   // 옆벽 바깥으로 띄우는 간격
+const GHOST_LEAN_TILT = 0.12 // 벽 쪽으로 기우는 각(rad). 방향 어색하면 부호 반전
 
 // Ghost bbox 근사 (scale 2 모델 기준)
 const GHOST_HALF_WIDTH = 0.5
@@ -86,6 +93,8 @@ interface ItaewonLayerProps {
   playerPos: { x: number; z: number }
   /** 벽 occlusion 체크용 (없으면 occlusion 무시) */
   wallAABBs?: WallAABB[]
+  /** 시착실 부스 — 흰약 finale 스폰 시 옆벽에 NPC 기대 세움 */
+  fittingRoom?: { x: number; z: number; halfW: number }
 }
 
 function SpecialGhostEmployee({
@@ -93,11 +102,13 @@ function SpecialGhostEmployee({
   showText,
   textOpacity,
   cellSize,
+  lean,
 }: {
   position: [number, number, number]
   showText: boolean
   textOpacity: number
   cellSize: number
+  lean?: { rotY: number; rotZ: number } | null
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const materialsRef = useRef<THREE.MeshStandardMaterial[]>([])
@@ -106,6 +117,12 @@ function SpecialGhostEmployee({
   const { camera } = useThree()
   const idleGltf = useGLTF(GHOST_IDLE_URL)
   const mirrorGltf = useGLTF(GHOST_MIRROR_URL)
+  const scratchGltf = useGLTF(GHOST_SCRATCH_URL)
+
+  // per-instance 클론(스켈레톤 포함) — useGLTF 공유 캐시 scene을 <primitive>로 직접 붙이면
+  // 스폰마다(key 변경) 리마운트 시 같은 객체가 그래프에서 떨어져 안 보임 → 클론으로 격리.
+  // (Ch3Scene 우주 모델과 동일 패턴)
+  const model = useMemo(() => skeletonClone(idleGltf.scene), [idleGltf.scene])
 
   const animations = useMemo(() => {
     const idleClips = idleGltf.animations.map((c) => {
@@ -118,8 +135,13 @@ function SpecialGhostEmployee({
       clone.name = 'mirror'
       return clone
     })
-    return [...idleClips, ...mirrorClips]
-  }, [idleGltf.animations, mirrorGltf.animations])
+    const scratchClips = scratchGltf.animations.map((c) => {
+      const clone = c.clone()
+      clone.name = 'scratch'
+      return clone
+    })
+    return [...idleClips, ...mirrorClips, ...scratchClips]
+  }, [idleGltf.animations, mirrorGltf.animations, scratchGltf.animations])
 
   const { actions } = useAnimations(animations, groupRef)
 
@@ -128,7 +150,7 @@ function SpecialGhostEmployee({
   // ch.2 스타일 — alpha/transmission 강제 reset, useFrame이 transparent 토글
   useEffect(() => {
     const mats: THREE.MeshStandardMaterial[] = []
-    idleGltf.scene.traverse((child) => {
+    model.traverse((child) => {
       const mesh = child as THREE.Mesh
       if (!mesh.isMesh || !mesh.material) return
       const m = mesh.material as THREE.MeshStandardMaterial & {
@@ -149,17 +171,18 @@ function SpecialGhostEmployee({
       mats.push(m)
     })
     materialsRef.current = mats
-  }, [idleGltf.scene])
+  }, [model])
 
-  // 평상시 idle
+  // 평상시 idle — finale lean 고스트는 Confused_Scratch 루프
   useEffect(() => {
-    const idle = actions['idle']
-    if (idle && !idle.isRunning()) idle.reset().fadeIn(0.3).play()
-  }, [actions])
+    const clip = lean ? actions['scratch'] : actions['idle']
+    if (clip && !clip.isRunning()) clip.reset().fadeIn(0.3).play()
+  }, [actions, lean])
 
   // 대사 시 mirror 모션 1회(80% 속도, 느리게) → 모션 끝나면 투명 페이드아웃
+  // finale lean 고스트(흰약)는 예외 — 페이드아웃 없이 계속 서 있게(scratch 루프 유지)
   useEffect(() => {
-    if (!showText) return
+    if (!showText || lean) return
     const idle = actions['idle']
     const mirror = actions['mirror']
     if (!idle || !mirror) return
@@ -172,7 +195,7 @@ function SpecialGhostEmployee({
     // 모션 끝나면(클립 길이 / 0.8 + 여유) 투명 페이드아웃 — 타이머가 mixer 'finished'보다 확실
     const dur = mirror.getClip().duration || 3 // 클립 길이 비정상 시 3s 기본 (즉시 페이드 방지)
     setTimeout(() => { fadeOutRef.current = true }, (dur / 0.8) * 1000 + 300)
-  }, [showText, actions])
+  }, [showText, actions, lean])
 
   useFrame((_, delta) => {
     if (!groupRef.current) return
@@ -181,7 +204,11 @@ function SpecialGhostEmployee({
     const dz = camera.position.z - gp.z
     const distSq = dx * dx + dz * dz
 
-    if (distSq > 0.01) {
+    if (lean) {
+      // 흰약 finale — 시착실 옆벽에 기댐: 카메라 추적 대신 고정 회전 + 살짝 기울임
+      groupRef.current.rotation.y = lean.rotY
+      groupRef.current.rotation.z = lean.rotZ
+    } else if (distSq > 0.01) {
       groupRef.current.rotation.y = Math.atan2(dx, dz)
     }
 
@@ -205,7 +232,7 @@ function SpecialGhostEmployee({
 
   return (
     <group ref={groupRef} position={position}>
-      <primitive object={idleGltf.scene} scale={2} />
+      <primitive object={model} scale={2} />
       {showText && (
         <Text
           position={[0, 3.6, 0]}
@@ -226,7 +253,7 @@ function SpecialGhostEmployee({
   )
 }
 
-export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, playerPos: _playerPos, wallAABBs }: ItaewonLayerProps) {
+export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, playerPos: _playerPos, wallAABBs, fittingRoom }: ItaewonLayerProps) {
   const { camera } = useThree()
   const activeEffect = useGameStore((s) => s.activeEffect)
   const markGhostEncounter = useGameStore((s) => s.markGhostEncounter)
@@ -235,18 +262,35 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   const [ghostPos, setGhostPos] = useState<[number, number, number] | null>(null)
   // NPC 등장 시 그 자리에 뜨는 수집형 시 조각 — 스폰 순서(약 순서)대로 ckshp/맹점 매핑
   const [npcFragId, setNpcFragId] = useState<string | null>(null)
+  // 흰약 finale일 때만 set — 시착실 옆벽 기댐 회전(없으면 일반 카메라 추적)
+  const [ghostLean, setGhostLean] = useState<{ rotY: number; rotZ: number } | null>(null)
   const spawnCountRef = useRef(0)
   const wasInViewRef = useRef(false)
   const prevGhostCellRef = useRef<{ gx: number; gy: number } | null>(null)
   const isFirstSpawnRef = useRef(true)
   const playerPosRef = useRef(_playerPos)
+  const fittingRoomRef = useRef(fittingRoom)
 
   useEffect(() => {
     playerPosRef.current = _playerPos
+    fittingRoomRef.current = fittingRoom
   })
 
   // 스폰 로직 — 시야 270도 안 + 벽에 안 가려진(clear LOS) cell 선택 후 ghostPos 세팅
   const spawnGhost = useCallback(() => {
+    // 흰약(whiteflash) finale — LOS 스캔 대신 시착실 옆면 벽(거울 아님) 바깥에 기대 세움
+    const FR = fittingRoomRef.current
+    if (useGameStore.getState().activeEffect === 'whiteflash' && FR) {
+      setGhostPos([FR.x - FR.halfW - GHOST_LEAN_GAP, 0, FR.z]) // 좌측 옆벽 바깥
+      setGhostLean({ rotY: 0, rotZ: GHOST_LEAN_TILT })          // +z(남) 바라보며 벽 쪽으로 기댐
+      setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])
+      spawnCountRef.current += 1
+      prevGhostCellRef.current = null
+      isFirstSpawnRef.current = false
+      wasInViewRef.current = false
+      return
+    }
+    setGhostLean(null)
     const pp = playerPosRef.current
     const pCellX = Math.round(pp.x / cellSize)
     const pCellY = Math.round(pp.z / cellSize)
@@ -309,14 +353,38 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
       }
     }
 
-    if (candidates.length === 0) {
-      console.warn('[ItaewonLayer] spawn failed — no clear-LOS cell at min distance', { isFirst, pCellX, pCellY })
-      return
+    // 폴백 — 맵 재생성(약 픽업 시) 후 새 벽 배치로 엄격 제약(전방+clear LOS) 후보가 0이면
+    // 제약을 완화(전방·LOS 무시)해 최소거리 in-bounds 셀이라도 스폰. 안 그러면 유령·쪽지 둘 다 안 뜸.
+    let pickFrom = candidates
+    if (pickFrom.length === 0) {
+      const relaxed: { gx: number; gy: number; dist: number; inView: boolean }[] = []
+      for (let oy = -MAX_R; oy <= MAX_R; oy++) {
+        for (let ox = -MAX_R; ox <= MAX_R; ox++) {
+          if (Math.max(Math.abs(ox), Math.abs(oy)) < MIN_CHEB) continue
+          const cx = pCellX + ox
+          const cy = pCellY + oy
+          if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
+          if (prev && prev.gx === cx && prev.gy === cy) continue
+          const tw = cellToWorld(cx, cy, cellSize)
+          const dxg = tw.x - camX
+          const dzg = tw.z - camZ
+          const len = Math.hypot(dxg, dzg)
+          if (len < 0.001) continue
+          const dot = (fwdX * dxg + fwdZ * dzg) / len
+          relaxed.push({ gx: cx, gy: cy, dist: Math.hypot(ox, oy), inView: dot >= inViewCos })
+        }
+      }
+      if (relaxed.length === 0) {
+        console.warn('[ItaewonLayer] spawn failed — no in-bounds cell even relaxed', { isFirst, pCellX, pCellY })
+        return
+      }
+      console.warn('[ItaewonLayer] spawn fallback (relaxed FOV/LOS)', { count: relaxed.length, pCellX, pCellY })
+      pickFrom = relaxed
     }
 
     // 모두 MIN_CHEB 이상이라 가깝게 안 뜸. 화면 안 우선, 없으면 (먼) 나머지
-    const inView = candidates.filter((c) => c.inView)
-    const usable = inView.length ? inView : candidates
+    const inView = pickFrom.filter((c) => c.inView)
+    const usable = inView.length ? inView : pickFrom
 
     // 거리 정렬 후 — 첫 스폰은 먼 절반(드라마틱), 이후는 가까운 절반에서 random
     usable.sort((a, b) => a.dist - b.dist)
@@ -418,6 +486,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
               showText={showText}
               textOpacity={textOpacity}
               cellSize={cellSize}
+              lean={ghostLean}
             />
           </Suspense>
         </GhostBoundary>

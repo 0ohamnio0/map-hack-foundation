@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { DEFAULT_TUNING, type RetroPCTuning } from './retroPCTuning'
 
 const MODEL_URL = `${import.meta.env.BASE_URL}assets/ch5/retro_pc.glb`
+
+// 전원버튼(Compaq 로고) 클릭 영역 — Tower 메쉬 bbox 정규화 좌표 [min,max]. 화면 보고 미세조정.
+const POWER_BTN_X: [number, number] = [0.35, 0.70] // 가로(좌→우)
+const POWER_BTN_Y: [number, number] = [0.44, 0.58] // 세로(아래→위)
 
 type Props = {
   /** html2canvas dataURL — replaces the baked Windows 98 screen with the blog snapshot */
@@ -12,6 +16,8 @@ type Props = {
   tuning?: RetroPCTuning
   /** 본체 클릭 = 전원 끄기 (셧다운 후 엔딩에서만 전달). 지정 시 본체 위 커서가 pointer로 바뀐다 */
   onPowerOff?: () => void
+  /** 전원 off — 스크린 메쉬의 CRT 셰이더·이미지를 완전히 끄고 플레인 블랙으로 (룸·본체는 유지) */
+  screenOff?: boolean
 }
 
 const BODY_VERTEX = /* glsl */ `
@@ -165,7 +171,7 @@ const CRT_FRAGMENT = /* glsl */ `
   }
 `
 
-export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNING, onPowerOff }) => {
+export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNING, onPowerOff, screenOff = false }) => {
   const { scene: rawScene, materials } = useGLTF(MODEL_URL)
   // Clone so each mount gets fresh meshes — useGLTF caches the scene at module
   // level, and we swap materials per-mesh. Without cloning, the second mount
@@ -224,6 +230,11 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNIN
 
   // Track all per-mesh material clones so we can broadcast tuning changes
   const clonedMatsRef = useRef<THREE.ShaderMaterial[]>([])
+  // 전원 off 시 Screen 메쉬를 셰이더 대신 플레인 블랙으로 교체하기 위한 참조/머티리얼
+  const screenMeshRef = useRef<THREE.Mesh | null>(null)
+  const blackScreenMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#000000', toneMapped: false }), [])
+  // 전원버튼 영역 판정용 — Tower 메쉬 월드 bbox
+  const towerBoxRef = useRef<THREE.Box3 | null>(null)
 
   const screenTexture = useMemo(() => {
     if (!screenDataUrl) return null
@@ -277,11 +288,24 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNIN
           Math.max(1e-4, vMax - vMin),
         )
       }
-      mesh.material = crtMaterial
+      screenMeshRef.current = mesh
+      mesh.material = screenOff ? blackScreenMat : crtMaterial
     })
+    // 전원버튼 영역 판정용 Tower 월드 bbox
+    const tower = scene.getObjectByName('Tower')
+    if (tower) {
+      tower.updateWorldMatrix(true, true)
+      towerBoxRef.current = new THREE.Box3().setFromObject(tower)
+    }
     appliedRef.current = true
     void materials
-  }, [scene, crtMaterial, bodyMaterial, materials])
+  }, [scene, crtMaterial, bodyMaterial, materials, screenOff, blackScreenMat])
+
+  // 전원 on/off 토글 시 Screen 메쉬 머티리얼 스왑 (셰이더 ↔ 플레인 블랙)
+  useEffect(() => {
+    const m = screenMeshRef.current
+    if (m) m.material = screenOff ? blackScreenMat : crtMaterial
+  }, [screenOff, crtMaterial, blackScreenMat])
 
   useEffect(() => {
     crtMaterial.uniforms.uMap.value = screenTexture
@@ -317,11 +341,24 @@ export const RetroPC: React.FC<Props> = ({ screenDataUrl, tuning = DEFAULT_TUNIN
     crtMaterial.uniforms.uTime.value += dt
   })
 
+  // 클릭/호버가 Tower 앞면의 전원버튼(Compaq 로고) 영역인지 — bbox 정규화 좌표로 판정
+  const hitPowerButton = (e: ThreeEvent<MouseEvent>): boolean => {
+    const box = towerBoxRef.current
+    if (!box) return false
+    let o: THREE.Object3D | null = e.object
+    let onTower = false
+    while (o) { if (o.name === 'Tower') { onTower = true; break } o = o.parent }
+    if (!onTower) return false
+    const nx = (e.point.x - box.min.x) / Math.max(1e-4, box.max.x - box.min.x)
+    const ny = (e.point.y - box.min.y) / Math.max(1e-4, box.max.y - box.min.y)
+    return nx >= POWER_BTN_X[0] && nx <= POWER_BTN_X[1] && ny >= POWER_BTN_Y[0] && ny <= POWER_BTN_Y[1]
+  }
+
   return (
     <primitive
       object={scene}
-      onClick={onPowerOff ? (e: { stopPropagation: () => void }) => { e.stopPropagation(); onPowerOff(); } : undefined}
-      onPointerOver={onPowerOff ? () => { document.body.style.cursor = 'pointer'; } : undefined}
+      onClick={onPowerOff ? (e: ThreeEvent<MouseEvent>) => { if (hitPowerButton(e)) { e.stopPropagation(); onPowerOff(); } } : undefined}
+      onPointerMove={onPowerOff ? (e: ThreeEvent<PointerEvent>) => { document.body.style.cursor = hitPowerButton(e as unknown as ThreeEvent<MouseEvent>) ? 'pointer' : ''; } : undefined}
       onPointerOut={onPowerOff ? () => { document.body.style.cursor = ''; } : undefined}
     />
   )

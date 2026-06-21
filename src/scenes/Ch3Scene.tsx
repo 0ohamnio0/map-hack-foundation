@@ -132,6 +132,7 @@ const MAX_WALLS = 512;
 const WALL_TEX_FILES = ['mart_walls/wall_1.webp', 'mart_walls/wall_2.webp', 'mart_walls/wall_3.webp', 'mart_walls/wall_4.webp'];
 const WALL_TEX_W = (3168 / 1344) * WALL_HEIGHT;  // 텍스처 1장이 벽높이(4)에서 차지하는 가로 월드폭 ≈ 9.43
 const WALL_PIXELIZE = 0.2;                        // 환경 픽셀라이즈 강도 (클수록 거침). npc/cart는 미적용
+const BOUND_PAIR = [1, 3];                        // 빈 네모 경계벽에 CELL 단위로 번갈아 깔 두 텍스처 (wall_2, wall_4)
 
 const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
   // 좁은 벽(길이 CELL_SIZE) 4장 + 긴 경계벽(길이 MAZE×CELL) 4장 — 길이별 repeatX가 달라 분리
@@ -146,14 +147,27 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
     const dummy = new THREE.Object3D();
     const nc = [0, 0, 0, 0], bc = [0, 0, 0, 0];
     maze.wallPositions.forEach((w) => {
-      dummy.position.set(w.x, WALL_HEIGHT / 2, w.z);
-      dummy.scale.set(w.scaleX, WALL_HEIGHT, w.scaleZ);
-      dummy.updateMatrix();
-      // 인접 벽(같은 run에서 x 또는 z가 CELL씩 변화)끼리 인덱스가 달라짐 → 같은 이미지 옆에 안 옴
-      const idx = (((Math.round(w.x / CELL_SIZE) + Math.round(w.z / CELL_SIZE)) % 4) + 4) % 4;
       if (Math.max(w.scaleX, w.scaleZ) > 20) {
-        const m = boundRefs[idx].current; if (m) m.setMatrixAt(bc[idx]++, dummy.matrix);
+        // 긴 경계벽 — CELL 단위로 쪼개 두 텍스처(BOUND_PAIR)를 번갈아 (ㄱ/ㄴ 일괄 대신 교차)
+        const longX = w.scaleX >= w.scaleZ;
+        const length = longX ? w.scaleX : w.scaleZ;
+        const segN = Math.max(1, Math.round(length / CELL_SIZE));
+        const segLen = length / segN;
+        const startC = (longX ? w.x : w.z) - length / 2 + segLen / 2;
+        for (let s = 0; s < segN; s++) {
+          const c = startC + s * segLen;
+          dummy.position.set(longX ? c : w.x, WALL_HEIGHT / 2, longX ? w.z : c);
+          dummy.scale.set(longX ? segLen : w.scaleX, WALL_HEIGHT, longX ? w.scaleZ : segLen);
+          dummy.updateMatrix();
+          const idx = BOUND_PAIR[s % 2];
+          const m = narrowRefs[idx].current; if (m) m.setMatrixAt(nc[idx]++, dummy.matrix);
+        }
       } else {
+        dummy.position.set(w.x, WALL_HEIGHT / 2, w.z);
+        dummy.scale.set(w.scaleX, WALL_HEIGHT, w.scaleZ);
+        dummy.updateMatrix();
+        // 인접 벽(같은 run에서 x 또는 z가 CELL씩 변화)끼리 인덱스가 달라짐 → 같은 이미지 옆에 안 옴
+        const idx = (((Math.round(w.x / CELL_SIZE) + Math.round(w.z / CELL_SIZE)) % 4) + 4) % 4;
         const m = narrowRefs[idx].current; if (m) m.setMatrixAt(nc[idx]++, dummy.matrix);
       }
     });
@@ -913,26 +927,41 @@ const GALLERY_WALL = MAZE_SIZE * CELL_SIZE; // 70 — 경계 벽 좌표
 const FRAG_Y = 1.7;         // finale 벽 조각 중심 높이 (시점 ~1.8)
 const WALL_INSET = 0.3;     // 벽면에서 안쪽으로 띄움
 // 9조각 배치 — 시계방향(N 좌→우, E 상→하, S 우→좌, W) = 시 읽는 순서. rotY: 플레인 법선이 실내(중앙)를 향하도록.
+// 좌표를 플레이어 셀 중심(cellC = col*CELL_SIZE + CELL_SIZE/2)에 정렬 → 정면 접근 가능(열 안 맞던 문제 해결).
+const cellC = (i: number) => i * CELL_SIZE + CELL_SIZE / 2; // 3.5, 10.5, 17.5 … 66.5
+// 4면벽 골고루(3·2·2·2) + 각 벽 길이 따라 퍼뜨림 → 다 모으려면 N→E→S→W 한 바퀴.
+// 북쪽 중앙(열 5)은 시착실 부스가 붙어 있어 피함. 좌표는 플레이어 셀 중심 열에 정렬.
 const POSTER_PLACEMENTS: { x: number; z: number; rotY: number }[] = [
-  { x: 15, z: WALL_INSET, rotY: 0 },                       // 1 — North
-  { x: 35, z: WALL_INSET, rotY: 0 },                       // 2 — North
-  { x: 55, z: WALL_INSET, rotY: 0 },                       // 3 — North
-  { x: GALLERY_WALL - WALL_INSET, z: 23.3, rotY: -Math.PI / 2 }, // 4 — East
-  { x: GALLERY_WALL - WALL_INSET, z: 46.7, rotY: -Math.PI / 2 }, // 5 — East
-  { x: 55, z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },  // 6 — South
-  { x: 35, z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },  // 7 — South
-  { x: 15, z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },  // 8 — South
-  { x: WALL_INSET, z: 35, rotY: Math.PI / 2 },             // 9 — West
+  { x: cellC(1), z: WALL_INSET, rotY: 0 },                       // 1 — North (열 1)
+  { x: cellC(4), z: WALL_INSET, rotY: 0 },                       // 2 — North (열 4)
+  { x: cellC(8), z: WALL_INSET, rotY: 0 },                       // 3 — North (열 8)
+  { x: GALLERY_WALL - WALL_INSET, z: cellC(3), rotY: -Math.PI / 2 }, // 4 — East (행 3)
+  { x: GALLERY_WALL - WALL_INSET, z: cellC(7), rotY: -Math.PI / 2 }, // 5 — East (행 7)
+  { x: cellC(8), z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },  // 6 — South (열 8)
+  { x: cellC(2), z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },  // 7 — South (열 2)
+  { x: WALL_INSET, z: cellC(6), rotY: Math.PI / 2 },             // 8 — West (행 6)
+  { x: WALL_INSET, z: cellC(2), rotY: Math.PI / 2 },             // 9 — West (행 2)
 ];
 
 // finale 빈 네모 벽 갤러리 — 전략적 행성 전투 9조각 (id battle1..9, ch3Fragments 레지스트리 index 5~13)
-const PoemGallery: React.FC = () => (
-  <Suspense fallback={null}>
-    {POSTER_PLACEMENTS.map((p, i) => (
-      <PoemFragment key={i} id={BATTLE_FRAGMENT_IDS[i]} paperIdx={5 + i} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} />
-    ))}
-  </Suspense>
-);
+const PoemGallery: React.FC = () => {
+  // 조각 id를 벽 위치에 랜덤 배정 (순서대로 붙이지 않음) — 마운트 1회 고정
+  const shuffledIds = useMemo(() => {
+    const a = [...BATTLE_FRAGMENT_IDS];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }, []);
+  return (
+    <Suspense fallback={null}>
+      {POSTER_PLACEMENTS.map((p, i) => (
+        <PoemFragment key={i} id={shuffledIds[i]} paperIdx={5 + i} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} tint="#c4a5ff" />
+      ))}
+    </Suspense>
+  );
+};
 
 const Ch3Inner: React.FC<{
   maze: MazeData;
@@ -1082,6 +1111,7 @@ const Ch3Inner: React.FC<{
         mazeSize={MAZE_SIZE}
         playerPos={posState}
         wallAABBs={wallAABBs}
+        fittingRoom={{ x: fittingRoomWorld.x, z: fittingRoomWorld.z, halfW: FITTING_W / 2 }}
       />
 
       <PlayerController
@@ -1169,12 +1199,14 @@ export const Ch3Scene: React.FC = () => {
   // 약 5개 전부 수집 → 출구 안내 (마지막 약 알림 직후 표시)
   // Minimap markers: 시착실 — 전부 수집 후엔 초록 출구, 그 전엔 엘베(magenta, 사용 전까지) + 약 위치(수집 전, 흰약은 첫 4개 모은 뒤 노출).
   const allCollected = collectedSet.size === MEDICINES.length;
+  // 빈 네모에서 전투(전략적 행성 전투) 9조각을 전부 모아야 출구 개방 + 미니맵 시착실 표시
+  const allBattleCollected = allCollected && BATTLE_FRAGMENT_IDS.every(id => visitedEvents.has(`note_${id}`));
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
     const markers: MinimapMarker[] = [];
     const fr = findFittingCorner(maze, CELL_SIZE).pos;
     if (allCollected) {
-      // 빈 네모 — 가운데 시착실이 CH4 출구
-      markers.push({ x: fr.x, z: fr.z, color: '#0f0', radius: 4.5, glow: true });
+      // 빈 네모 — 가운데 시착실이 CH4 출구. 단, 전투 9조각 다 모은 뒤에만 표시.
+      if (allBattleCollected) markers.push({ x: fr.x, z: fr.z, color: '#0f0', radius: 4.5, glow: true });
     } else if (!elevatorVisited) {
       markers.push({ x: fr.x, z: fr.z, color: '#c040ff', radius: 3.5, glow: true });
     }
@@ -1190,7 +1222,7 @@ export const Ch3Scene: React.FC = () => {
       markers.push({ x: wp.x, z: wp.z, color: med.color, radius: 2 });
     });
     return markers;
-  }, [collectedSet, maze, elevatorVisited, allCollected]);
+  }, [collectedSet, maze, elevatorVisited, allCollected, allBattleCollected]);
 
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
@@ -1216,7 +1248,8 @@ export const Ch3Scene: React.FC = () => {
   }, []);
 
   // E 키 — 시착실 진입 확정. 전부 복용 후엔 CH4 출구, 그 전엔 엘베 컷신(중간 detour, 1회). 시 조각 오버레이 중엔 비활성.
-  const showExitPrompt = atFittingRoom && allCollected && !cutscenePhase && activeNoteId === null;
+  // 전투 9조각 다 모으기 전엔 출구 '[E] 나가기' 자체를 숨김 → 못 나감
+  const showExitPrompt = atFittingRoom && allCollected && allBattleCollected && !cutscenePhase && activeNoteId === null;
   const showElevatorPrompt = atFittingRoom && !allCollected && !elevatorVisited && !cutscenePhase && activeNoteId === null;
   useEffect(() => {
     if (!showElevatorPrompt && !showExitPrompt) return;
@@ -1268,41 +1301,53 @@ export const Ch3Scene: React.FC = () => {
       {/* 시 조각 본문 오버레이 — CH.2와 동일한 NoteReader(종이·폰트·한영 Q토글). store.activeNoteId로 구동 */}
       <NoteReader />
 
-      {/* 시 조각 수집 슬롯 — 좌하단. 플레이 중엔 NPC(ckshp/맹점) 5칸(첫 수집 후), finale엔 전략적 행성 전투 9칸.
-          정렬 순서로 번호 표시 · 수집된 것만 점등 · 클릭 재열람. */}
+      {/* 시 조각 수집 슬롯. NPC(ckshp/맹점) 5칸은 좌하단 가로(첫 수집 후, 흰약 먹어도 유지),
+          전략적 행성 전투 9칸은 finale 진입 시 왼쪽 세로로 추가. 수집된 것만 점등 · 클릭 재열람. */}
       {!cutscenePhase && (() => {
-        const ids = allCollected ? BATTLE_FRAGMENT_IDS : NPC_FRAGMENT_IDS;
-        const anyGot = ids.some(id => visitedEvents.has(`note_${id}`));
-        if (!allCollected && !anyGot) return null; // 플레이 중엔 첫 NPC 조각 수집 후 표시
+        const BATTLE_TINT = '#c4a5ff'; // 벽 갤러리 조각과 동일한 연보라
+        const slot = (id: string, i: number, tintC: string) => {
+          const got = visitedEvents.has(`note_${id}`);
+          return (
+            <div
+              key={id}
+              onClick={() => { if (got) openNote(id); }}
+              style={{
+                width: 26, height: 34,
+                border: `1px solid ${got ? tintC : 'rgba(255,255,255,0.18)'}`,
+                background: 'rgba(0,0,0,0.55)',
+                boxShadow: got ? `0 0 8px ${tintC}66` : 'none',
+                opacity: got ? 1 : 0.4,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: got ? tintC : 'rgba(243,238,221,0.5)',
+                fontFamily: '"Unifont", monospace', fontSize: 11,
+                cursor: got ? 'pointer' : 'default', pointerEvents: 'auto',
+              }}
+            >
+              {i + 1}
+            </div>
+          );
+        };
+        const npcGot = NPC_FRAGMENT_IDS.some(id => visitedEvents.has(`note_${id}`));
+        const z = activeNoteId !== null ? 2100 : 1500;
         return (
-          <div style={{
-            position: 'fixed', left: 24, bottom: 24,
-            zIndex: activeNoteId !== null ? 2100 : 1500,
-            display: 'flex', gap: 6, pointerEvents: 'none', userSelect: 'none',
-          }}>
-            {ids.map((id, i) => {
-              const got = visitedEvents.has(`note_${id}`);
-              return (
-                <div
-                  key={id}
-                  onClick={() => { if (got) openNote(id); }}
-                  style={{
-                    width: 26, height: 34,
-                    border: `1px solid ${got ? FRAG_TINT : 'rgba(255,255,255,0.18)'}`,
-                    background: 'rgba(0,0,0,0.55)',
-                    boxShadow: got ? `0 0 8px ${FRAG_TINT}66` : 'none',
-                    opacity: got ? 1 : 0.4,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: got ? FRAG_TINT : 'rgba(243,238,221,0.5)',
-                    fontFamily: '"Unifont", monospace', fontSize: 11,
-                    cursor: got ? 'pointer' : 'default', pointerEvents: 'auto',
-                  }}
-                >
-                  {i + 1}
-                </div>
-              );
-            })}
-          </div>
+          <>
+            {npcGot && (
+              <div style={{
+                position: 'fixed', left: 24, bottom: 24, zIndex: z,
+                display: 'flex', gap: 6, pointerEvents: 'none', userSelect: 'none',
+              }}>
+                {NPC_FRAGMENT_IDS.map((id, i) => slot(id, i, FRAG_TINT))}
+              </div>
+            )}
+            {allCollected && (
+              <div style={{
+                position: 'fixed', left: 24, top: '50%', transform: 'translateY(-50%)', zIndex: z,
+                display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none', userSelect: 'none',
+              }}>
+                {BATTLE_FRAGMENT_IDS.map((id, i) => slot(id, i, BATTLE_TINT))}
+              </div>
+            )}
+          </>
         );
       })()}
 
@@ -1376,9 +1421,9 @@ export const Ch3Scene: React.FC = () => {
         const cartWidthPct = 67.11 / aspect;          // 카트 화면 폭(%)
         const cartLeftPct = (100 - cartWidthPct) / 2;  // 가로 중앙 정렬
         // 카트 세로: 화면 55%~100% (하단 45%). 바구니 내부는 그 13%~50% 구간.
-        const basketLeft = cartLeftPct + cartWidthPct * 0.22;
+        const basketLeft = cartLeftPct + cartWidthPct * 0.22 + 1.5; // x +방향(오른쪽) 살짝
         const basketWidth = cartWidthPct * 0.56;
-        const basketTop = 55 + 45 * 0.13;
+        const basketTop = 55 + 45 * 0.13 - 2.5; // y 살짝 위로
         const basketHeight = 45 * (0.50 - 0.13);
         return (
           <div style={{
