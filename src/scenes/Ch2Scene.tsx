@@ -127,6 +127,15 @@ const MAILBOX = { x: 5 * SCALE_X, z: -85 * SCALE_Z, radius: 6 };
 // 출구 문 위치(빌딩 면 z=-90*SCALE_Z+0.1, x=0) 기준 반경 — 카메라가 캐릭터
 // 뒤로 ~3유닛 떨어지므로 반경을 넉넉히
 const DOOR = { x: 0, z: -90 * SCALE_Z + 0.1, radius: 7 };
+// '인터넷 / 70 90 생음악' 출입구 — 아주 가까이(벽에 부딪힐 만큼) 가면 evil laugh 랜덤 재생.
+// target은 base [x,z] (SCALE 적용 전). 좌표는 dev HUD로 확정 (문 앞 플레이어 위치).
+const INTERNET_DOOR = { x: -4.2 * SCALE_X, z: -39.0 * SCALE_Z, radius: 4 };
+const EVIL_LAUGH_COOLDOWN = 2.6;  // 초 — 벽에 계속 붙어있으면 이 간격으로 반복
+// VLALL 사운드 존 — 근접 시 vlall_1 재생 (진입 + 머물면 쿨다운 반복)
+const VLALL_ZONE = { x: -5.1 * SCALE_X, z: -63.8 * SCALE_Z, radius: 4 };
+const VLALL_COOLDOWN = 2.6;
+// dev HUD가 읽는 플레이어 base 좌표 (TriggerWatcher가 매 프레임 기록)
+const devPlayerPos = { x: 0, z: 0 };
 const POSTAL_VIDEO = `${BASE}assets/video/letter.mp4`;
 const AIRPORT_VIDEO = `${BASE}assets/video/airport.mp4`;
 
@@ -152,6 +161,9 @@ const NOTE_POSITIONS = CH2_NOTES.map(n => ({
 
 const AIRPORT_DURATION = 5200;
 const AIRPORT_FADE = 220;
+// 공항 환각 픽셀라이즈 — CH.3 마트벽(WALL_PIXELIZE)과 동일한 블록 픽셀 룩.
+// 가로 블록 수(작을수록 더 거침). backing canvas를 이 폭으로 그린 뒤 pixelated 업스케일.
+const AIRPORT_PIX_COLS = 200;
 
 // Keyboard map for ecctrl
 const keyboardMap = [
@@ -186,6 +198,7 @@ const FlickerLight: React.FC = () => {
 const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ active, onDone }) => {
   const [phase, setPhase] = useState<'in' | 'show' | 'out' | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // 공항 환각 영상 — active 동안 처음부터 재생, 끝나면 정지
   useEffect(() => {
@@ -204,6 +217,36 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [active, onDone]);
 
+  // 픽셀라이즈 — 비디오를 작은 backing canvas에 nearest-neighbor로 그린 뒤
+  // CSS image-rendering: pixelated 업스케일. CH.3 마트벽 UV-snap과 동일한 블록 룩.
+  useEffect(() => {
+    if (!phase) return;
+    const v = videoRef.current;
+    const c = canvasRef.current;
+    if (!v || !c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    let stop = false;
+    let raf = 0;
+    const draw = () => {
+      if (stop) return;
+      const vw = v.videoWidth, vh = v.videoHeight;
+      if (vw && vh) {
+        const cols = AIRPORT_PIX_COLS;
+        const rows = Math.max(1, Math.round(cols * window.innerHeight / window.innerWidth));
+        if (c.width !== cols || c.height !== rows) { c.width = cols; c.height = rows; }
+        ctx.imageSmoothingEnabled = false;
+        // 뷰포트 비율에 맞춘 cover 크롭 (기존 objectFit: cover와 동일)
+        const scale = Math.max(cols / vw, rows / vh);
+        const sw = cols / scale, sh = rows / scale;
+        ctx.drawImage(v, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, cols, rows);
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => { stop = true; cancelAnimationFrame(raf); };
+  }, [phase]);
+
   if (!phase) return null;
 
   const opacity = phase === 'out' ? 0 : 1;
@@ -217,7 +260,7 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
       pointerEvents: 'none',
       background: 'transparent',
     }}>
-      {/* 공항 환각 = 영상 자체. overlay 블렌드로 투명하게 겹침 + 사운드 재생 */}
+      {/* 비디오는 픽셀라이즈 소스로만 사용 — 화면엔 canvas를 띄움 (재생/사운드는 유지) */}
       <video
         ref={videoRef}
         src={AIRPORT_VIDEO}
@@ -225,9 +268,18 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
         loop
         autoPlay
         style={{
-          // 전체화면 fill — 뷰포트 전체를 덮음 (cover, 레터박스 없음, 비율 유지하며 크롭)
+          position: 'absolute', width: 2, height: 2, top: 0, left: 0,
+          opacity: 0, pointerEvents: 'none',
+        }}
+      />
+      {/* 공항 환각 = 픽셀라이즈된 영상. overlay 블렌드로 투명하게 겹침 */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          // 전체화면 fill — backing이 뷰포트 비율이라 그대로 늘림. pixelated = 블록 픽셀
           position: 'absolute', inset: 0,
-          width: '100%', height: '100%', objectFit: 'cover',
+          width: '100%', height: '100%',
+          imageRendering: 'pixelated',
           mixBlendMode: 'screen',
           opacity: 0.2,
           pointerEvents: 'none',
@@ -327,6 +379,27 @@ const CctvGlitch: React.FC<{ flickerKey: number }> = ({ flickerKey }) => {
         }
       `}</style>
     </div>
+  );
+};
+
+// ---------- Peek Pillarbox (건물 틈으로 훔쳐보기 페이크) ----------
+// peek 컷 동안 화면 양옆에 검은 세로 블랙바 — 가운데 좁은 세로 슬릿만 보임.
+// 안쪽 가장자리는 살짝 그라데이션으로 흐려 하드 사각형 티 안 나게.
+const PeekBars: React.FC<{ active: boolean }> = ({ active }) => {
+  if (!active) return null;
+  const bar = (side: 'left' | 'right'): React.CSSProperties => ({
+    position: 'fixed', top: 0, bottom: 0, [side]: 0, width: '31vw',
+    background: '#000',
+    boxShadow: side === 'left'
+      ? '8px 0 18px 2px rgba(0,0,0,0.9)'
+      : '-8px 0 18px 2px rgba(0,0,0,0.9)',
+    zIndex: 1700, pointerEvents: 'none',
+  });
+  return (
+    <>
+      <div style={bar('left')} />
+      <div style={bar('right')} />
+    </>
   );
 };
 
@@ -527,13 +600,41 @@ const TriggerWatcher: React.FC<{
   disabled: boolean;
 }> = ({ onAirportTrigger, onExitZoneChange, onMailboxZoneChange, disabled }) => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
+  const { play } = useSoundManager();
   const inExitRef = useRef(false);
   const inMailboxRef = useRef(false);
+  const inDoorRef = useRef(false);
+  const lastLaughRef = useRef(-Infinity);
+  const inVlallRef = useRef(false);
+  const lastVlallRef = useRef(-Infinity);
 
-  useFrame(({ camera }) => {
+  useFrame(({ camera, clock }) => {
+    // dev HUD용 좌표는 항상 기록 (disabled여도)
+    devPlayerPos.x = camera.position.x / SCALE_X;
+    devPlayerPos.z = camera.position.z / SCALE_Z;
     if (disabled) return;
     const px = camera.position.x;
     const pz = camera.position.z;
+
+    // '인터넷' 출입구 — 근접 시 evil laugh 랜덤 재생. 진입 즉시 1회 + 머무르면 쿨다운 간격 반복
+    const idx = px - INTERNET_DOOR.x;
+    const idz = pz - INTERNET_DOOR.z;
+    const inDoor = Math.sqrt(idx * idx + idz * idz) < INTERNET_DOOR.radius;
+    if (inDoor && (!inDoorRef.current || clock.elapsedTime - lastLaughRef.current > EVIL_LAUGH_COOLDOWN)) {
+      play(`evil_laugh_${1 + Math.floor(Math.random() * 5)}`);
+      lastLaughRef.current = clock.elapsedTime;
+    }
+    inDoorRef.current = inDoor;
+
+    // VLALL 사운드 존 — 근접 시 vlall_1 재생. 진입 즉시 1회 + 머무르면 쿨다운 간격 반복
+    const vdx = px - VLALL_ZONE.x;
+    const vdz = pz - VLALL_ZONE.z;
+    const inVlall = Math.sqrt(vdx * vdx + vdz * vdz) < VLALL_ZONE.radius;
+    if (inVlall && (!inVlallRef.current || clock.elapsedTime - lastVlallRef.current > VLALL_COOLDOWN)) {
+      play('vlall_1');
+      lastVlallRef.current = clock.elapsedTime;
+    }
+    inVlallRef.current = inVlall;
 
     // Airport hallucination — auto fire (one-shot via triggerEvent)
     const dx = px - AIRPORT_TRIGGER.x;
@@ -977,7 +1078,10 @@ const Ch2StackSign: React.FC = () => {
 type PinnedSign = {
   id: string; url: string; target: [number, number];
   face: 'front' | 'left' | 'right'; hFrac: number; aspectWH: number;
-  yMode: 'ground' | 'top' | 'mid';
+  yMode: 'ground' | 'top' | 'mid' | 'floor';  // floor = 이미지 하단이 바닥(y=0)에 정확히 닿음
+  yFrac?: number;  // 지정 시 y = 빌딩높이 × yFrac (yMode 무시) — 미세 높이 조정용
+  align?: 'left' | 'right';  // 벽(빌딩 면) 좌/우 끝에 plane 가장자리를 flush 정렬
+  xFrac?: number;  // 가로 미세 이동 (면 폭 대비 비율, + = 플레이어 시점 오른쪽)
 };
 const PINNED_SIGNS: PinnedSign[] = [
   // SCR-ttfj — Aihub#7 벤치([-6,-38])가 바라보는 길 건너 건물 정면 (입구형: 지면 정렬)
@@ -994,6 +1098,13 @@ const PINNED_SIGNS: PinnedSign[] = [
   { id: 'img0822', url: `${BASE}assets/tex/props/IMG_0822.webp`, target: IMG0822_TARGET, face: 'front', hFrac: 0.5, aspectWH: 1500 / 986, yMode: 'mid' },
   // 1778130927141 유리 현관문 — 자동배치서 겹쳐 PINNED 이관. target 임시값, dev 클릭 로그로 sign 없는 건물 확정 예정
   { id: 'door-1778', url: `${BASE}assets/tex/signs/1778130927141_drxo7cvrpnl.webp`, target: [7, -60], face: 'front', hFrac: 0.85, aspectWH: 810 / 1080, yMode: 'ground' },
+  // Desktop/pics 사진 6장 — S자 경로 전체 빈 벽면에 분산. target은 빈 facade 근사값, dev 클릭 로그로 미세조정 가능
+  { id: 'pic-0728', url: `${BASE}assets/tex/pics/IMG_0728.webp`, target: [7, -10],  face: 'front', hFrac: 0.4,  aspectWH: 4304 / 3024, yMode: 'mid' },   // V1 동측, 초입
+  { id: 'pic-0841', url: `${BASE}assets/tex/pics/IMG_0841.webp`, target: [10, -40], face: 'front', hFrac: 0.04, aspectWH: 1996 / 1398, yMode: 'mid' },   // H1 내벽(wall8) — 길 향함 (1/10 축소)
+  { id: 'pic-0843', url: `${BASE}assets/tex/pics/IMG_0843.webp`, target: [27, -48], face: 'front', hFrac: 0.071, aspectWH: 3024 / 4032, yMode: 'mid', yFrac: 0.167 },   // V2 동측 외벽 (1/7 축소, 높이 1/3)
+  { id: 'pic-0849', url: `${BASE}assets/tex/pics/IMG_0849.webp`, target: [28, -38], face: 'front', hFrac: 0.5,  aspectWH: 3024 / 3855, yMode: 'floor' }, // 돌벽 building-257, 바닥 닿음
+  { id: 'pic-0844', url: `${BASE}assets/tex/pics/IMG_0844.webp`, target: [-9, -5],  face: 'front', hFrac: 0.44, aspectWH: 3388 / 5138, yMode: 'mid' },   // 돌벽 building-258, V1 입구 서측 (0.8배)
+  { id: 'pic-0852', url: `${BASE}assets/tex/pics/IMG_0852.webp`, target: [6, -16.2], face: 'front', hFrac: 0.64, aspectWH: 6098 / 3201, yMode: 'floor', align: 'left' }, // V1 동측(wall1) 길 향함, 바닥 닿음, 벽 왼쪽 끝 정렬 (파노라마, 2배)
 ];
 const PinnedSignMesh: React.FC<{ p: PinnedSign }> = ({ p }) => {
   const tex = useLoader(THREE.TextureLoader, p.url);
@@ -1013,9 +1124,15 @@ const PinnedSignMesh: React.FC<{ p: PinnedSign }> = ({ p }) => {
   const half = Math.abs(nx) > 0.5 ? b.w / 2 : b.d / 2;
   const planeH = b.h * p.hFrac;
   const planeW = planeH * p.aspectWH;
-  const y = p.yMode === 'ground' ? planeH / 2 - 1.5 : p.yMode === 'top' ? b.h - planeH / 2 - 0.3 : b.h / 2;
-  const x = b.cx + nx * (half + 0.06);
-  const z = b.cz + nz * (half + 0.06);
+  const y = p.yFrac != null ? b.h * p.yFrac : p.yMode === 'floor' ? planeH / 2 : p.yMode === 'ground' ? planeH / 2 - 1.5 : p.yMode === 'top' ? b.h - planeH / 2 - 0.3 : b.h / 2;
+  // 벽 따라 가로 이동 — 면 노멀(nx,nz)에 수직인 수평 tangent. +방향 = 플레이어 시점 오른쪽.
+  const frontWidth = Math.abs(nx) > 0.5 ? b.d : b.w;
+  const tx = -nz, tz = nx;
+  let shift = (p.xFrac ?? 0) * frontWidth;
+  if (p.align === 'right') shift += (frontWidth - planeW) / 2;
+  else if (p.align === 'left') shift -= (frontWidth - planeW) / 2;
+  const x = b.cx + nx * (half + 0.06) + tx * shift;
+  const z = b.cz + nz * (half + 0.06) + tz * shift;
   return (
     <mesh position={[x, y, z]} rotation={[0, Math.atan2(nx, nz), 0]} material={mat} castShadow
       onPointerDown={(e) => { e.stopPropagation(); console.log(`[Pinned ${p.id}] bldg=[${(b.cx / SCALE_X).toFixed(1)}, ${(b.cz / SCALE_Z).toFixed(1)}] mesh=[${x.toFixed(1)},${y.toFixed(1)},${z.toFixed(1)}]`); }}>
@@ -1600,6 +1717,20 @@ const DevButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
   >{label}</button>
 );
 
+// dev 좌표 readout — 매 100ms devPlayerPos를 읽어 표시. base [x,z] (사인 target과 동일 좌표계)
+const DevPosReadout: React.FC = () => {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick(t => t + 1), 100);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div style={{ color: '#8f8', fontSize: 11, fontFamily: '"Unifont", monospace' }}>
+      pos [{devPlayerPos.x.toFixed(1)}, {devPlayerPos.z.toFixed(1)}]
+    </div>
+  );
+};
+
 // ---------- Main export ----------
 
 export const Ch2Scene: React.FC = () => {
@@ -1649,9 +1780,9 @@ export const Ch2Scene: React.FC = () => {
   const startAirport = useCallback(() => setAirportActive(true),  []);
   const endAirport   = useCallback(() => setAirportActive(false), []);
 
-  // 카메라 컷 — 진입/복귀 모두 글리치 깜빡으로 하드컷 마스킹
-  const startCut = useCallback((id: string) => { setActiveCut(id);   setGlitchKey(k => k + 1); }, []);
-  const endCut   = useCallback(() => { setActiveCut(null); setGlitchKey(k => k + 1); }, []);
+  // 카메라 컷 — cctv 컷만 글리치 깜빡으로 하드컷 마스킹. peek은 글리치 없이 부드럽게.
+  const startCut = useCallback((id: string) => { setActiveCut(id); if (id === 'cctv') setGlitchKey(k => k + 1); }, []);
+  const endCut   = useCallback(() => { setActiveCut(cur => { if (cur === 'cctv') setGlitchKey(k => k + 1); return null; }); }, []);
 
   const freezeControls = airportActive || activeNoteId !== null || postalActive;
 
@@ -1726,6 +1857,7 @@ export const Ch2Scene: React.FC = () => {
 
       <AirportCutscene active={airportActive} onDone={endAirport} />
       <CctvGlitch flickerKey={glitchKey} />
+      <PeekBars active={activeCut === 'peek'} />
       <PostalCutscene active={postalActive} onEnded={onPostalEnded} />
       <NoteReader />
 
@@ -1861,6 +1993,7 @@ export const Ch2Scene: React.FC = () => {
       {devMode && !airportActive && (
         <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 9999, background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '10px 14px', fontFamily: '"Unifont", monospace', fontSize: 11, color: '#ccc', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180 }}>
           <div style={{ color: '#ff0', fontSize: 10, letterSpacing: 2, marginBottom: 2 }}>DEV MODE</div>
+          <DevPosReadout />
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label="Airport Cutscene" onClick={() => { if (!airportActive) startAirport(); }} />
           <DevButton label="CCTV Cut (20발자국)" onClick={() => { if (!activeCut) startCut('cctv'); }} />

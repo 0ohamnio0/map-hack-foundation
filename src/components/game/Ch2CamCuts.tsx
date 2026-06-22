@@ -42,6 +42,8 @@ export interface CamCutPreset {
   lookLerp: number                                   // 캐릭터 추적 pan 속도
   distance: number                                   // 복귀까지 걸을 거리(월드 m)
   slabs: CamSlab[]
+  handheld?: boolean                                 // true면 카메라에 미세 손떨림(핸드헬드) 부여
+  pillarbox?: boolean                                // true면 화면 양옆 블랙바(틈으로 훔쳐보기 페이크) — DOM은 Ch2Scene에서 렌더
 }
 
 // 한 발자국 ≈ 0.8m
@@ -62,20 +64,19 @@ export const CAM_CUTS: CamCutPreset[] = [
       { pos: w(12.5, 5, -32), size: [0.8, 9, 5], rotY: 0, color: '#26262a' },
     ],
   },
-  // ② PEEK — 미로 후반 V3 출구 골목, 벽 틈새로 훔쳐보는 낮은 시점
+  // ② PEEK — V3 출구 골목, 건물 틈에서 측면으로 몰래 보는 아이레벨 시점.
+  //    동측 벽 가까이(x≈+6) 캐릭터 눈높이(y≈1.7)에 고정 → 수평 측면 응시(올려보지 않음).
+  //    틈 느낌은 3D slab 대신 화면 양옆 pillarbox 블랙바(Ch2Scene)로 페이크 + 핸드헬드 흔들림.
   {
     id: 'peek',
-    trigger: { x: 0 * SCALE_X, z: -74 * SCALE_Z, radius: 4 * SCALE_X },
-    camPos: w(3, 1.4, -78), // 월드 (6.75, 1.4, -187.2) — 캐릭터 경로(x=0)에 더 바짝
-    lookYOff: 0.7,
-    lookLerp: 1.0, // 느긋한 관음 pan
+    trigger: { x: 0 * SCALE_X, z: -78 * SCALE_Z, radius: 4 * SCALE_X },
+    camPos: w(6.2, 1.7, -82), // 동측, 캐릭터 아이레벨 — 측면 응시
+    lookYOff: 0.9,            // 시선 ~수평 (눈높이). 캐릭터 캡슐 중심 기준 살짝 위
+    lookLerp: 1.2,            // 느긋한 관음 pan
     distance: STEP_LEN * 15,
-    slabs: [
-      // 렌즈 앞 ~1.5m 어두운 벽 두 장 — 더 가깝게 붙여 크게 looming, 좁은 세로 틈으로 훔쳐봄.
-      // 카메라→캐릭터 시선(월드 dir≈(-0.58,-0.82)) 바로 앞에 좌우로 벌려 배치(월드 좌표).
-      { pos: new THREE.Vector3(5.15, 2.0, -187.9), size: [0.4, 6, 1.0], rotY: -2.53, color: '#1a1a1f' },
-      { pos: new THREE.Vector3(6.63, 2.0, -188.9), size: [0.4, 6, 1.0], rotY: -2.53, color: '#1a1a1f' },
-    ],
+    slabs: [],
+    handheld: true,
+    pillarbox: true,
   },
 ]
 
@@ -97,7 +98,7 @@ export const Ch2CamCuts: React.FC<Props> = ({ targetRef, activeId, enabled, onSt
   const endedRef = useRef(false)
   const tmpLook = useRef(new THREE.Vector3())
 
-  useFrame(({ camera }, delta) => {
+  useFrame(({ camera, clock }, delta) => {
     const rb = targetRef.current?.group
     if (!rb) return
     const t = rb.translation()
@@ -126,9 +127,18 @@ export const Ch2CamCuts: React.FC<Props> = ({ targetRef, activeId, enabled, onSt
         }
 
         camera.position.copy(preset.camPos) // 위치 고정
+        // 핸드헬드 — 위치에 미세 떨림(레이어드 사인). 손에 든 카메라처럼 천천히 흔들림.
+        if (preset.handheld) {
+          const t = clock.elapsedTime
+          camera.position.x += Math.sin(t * 1.7) * 0.06 + Math.sin(t * 3.9) * 0.028
+          camera.position.y += Math.cos(t * 1.3) * 0.052 + Math.sin(t * 4.7) * 0.024
+          camera.position.z += Math.sin(t * 2.1 + 1.0) * 0.06
+        }
         tmpLook.current.set(px, py + preset.lookYOff, pz)
         lookTarget.current.lerp(tmpLook.current, 1 - Math.exp(-preset.lookLerp * delta))
         camera.lookAt(lookTarget.current)
+        // 핸드헬드 — 시선에 미세 roll 추가
+        if (preset.handheld) camera.rotateZ(Math.sin(clock.elapsedTime * 0.9) * 0.008)
 
         if (!justEntered && prevPos.current) {
           traveled.current += Math.hypot(px - prevPos.current.x, pz - prevPos.current.z)

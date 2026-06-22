@@ -26,11 +26,15 @@ export type SignMeta = {
   xFrac?: number;
   /** true면 정면 배치 시 하단을 빌딩 바닥에 정렬(지면 부착) */
   ground?: boolean;
+  /** 개별 크기 배율 (1 = 기본). 정면 자동 크기에 곱함 */
+  scale?: number;
+  /** true면 정면 배치를 강제로 최상단(옥상) 정렬 */
+  topAlign?: boolean;
 };
 
 export const SIGN_META: SignMeta[] = [
   { file: '1776676180242_adt9hb0tx5k.webp', w: 949, h: 1080, category: 'square', forceMount: 'front', xFrac: -0.32, ground: true },
-  { file: '1776729463932_73ycytf6x83.webp', w: 1080, h: 810, category: 'square' },
+  { file: '1776729463932_73ycytf6x83.webp', w: 1080, h: 810, category: 'square', scale: 1.3, topAlign: true }, // 효성 스즈끼 — 1.3배 + 최상단 정렬
   { file: '1776781721572_tutvpw0yz8.webp', w: 1080, h: 870, category: 'square', disabled: true }, // 셔터문 — 미배치(인덱스 보존)
   { file: '1776843179758_wnktbdxnstg.webp', w: 564, h: 564, category: 'square' },
   { file: '1776932608987_alatxeoo5uj.webp', w: 811, h: 1080, category: 'vertical', disabled: true }, // PINNED로 이관(Ch2Scene) — 미배치(인덱스 보존)

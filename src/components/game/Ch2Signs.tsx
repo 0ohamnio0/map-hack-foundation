@@ -74,8 +74,8 @@ function planSignsForBuilding(b: SignBuilding, key: string, mount: Mount, signId
       }]
     }
 
-    // 70% 옥상 바로 아래 / 30% 1F 점포 입구 위
-    const isUpper = lcg(s + 31) < 0.7
+    // 70% 옥상 바로 아래 / 30% 1F 점포 입구 위 (topAlign이면 강제 최상단)
+    const isUpper = meta.topAlign ? true : lcg(s + 31) < 0.7
 
     const widthFrac = (0.45 + lcg(s + 41) * 0.3) * SIGN_SCALE
     let planeW = frontWidth * widthFrac
@@ -85,9 +85,12 @@ function planSignsForBuilding(b: SignBuilding, key: string, mount: Mount, signId
       planeH = maxH
       planeW = planeH * ratio
     }
+    // 개별 크기 배율 (meta.scale) — 클램프 후 적용해 "보이는 크기"의 N배
+    const sc = meta.scale ?? 1
+    if (sc !== 1) { planeW *= sc; planeH *= sc }
 
     let y = isUpper
-      ? b.h - planeH / 2 - 0.3
+      ? b.h - planeH / 2 - (meta.topAlign ? 0.2 : 0.3)
       : 5.0 + lcg(s + 37) * 1.0
     if (meta.ground) y = planeH / 2 + 0.2 // 하단을 빌딩 바닥에 정렬
 
