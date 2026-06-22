@@ -40,6 +40,8 @@ const NOTE_BACKDROP: Record<string, string> = {
   'jeju-fire': `${BASE}poems/jeju-fire.webm`,
   bichae:      `${BASE}poems/bichae.webm`,
   'hell-salad':`${BASE}poems/hell-salad.webm`,
+  termination: `${BASE}poems/termination.webm`,
+  highstreamer:`${BASE}poems/highstreamer.webm`,
 }
 
 function NoteText({ ko, en }: { ko: string; en?: string }) {
