@@ -72,6 +72,13 @@ export function playChapterMusic(chapter: Chapter) {
   }
 }
 
+// 메인 챕터 BGM 정지 (복원 없음) — 빈 네모 finale 등에서 bgm만 끄고 sfx는 유지할 때
+export function stopChapterMusic() {
+  if (currentTrack) fadeOutAndStop(currentTrack);
+  currentTrack = null;
+  currentSrc = null;
+}
+
 // 엘베 진입 시: 챕터 BGM 페이드아웃 + 저장만 (음악은 시작 안 함 — 엘베 안에선 엘베 SFX만)
 export function suspendChapterMusic() {
   chapterTrackBeforeElevator = currentTrack;

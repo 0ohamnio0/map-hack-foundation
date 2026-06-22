@@ -33,6 +33,14 @@ CH3_FRAGMENTS.forEach((n, i) => {
   NOTE_PAPER[n.id] = `${BASE}assets/tex/paper/paper-0${(i % 8) + 1}.webp`
 })
 
+// 시별 종이 색 — 종이 텍스처 위 multiply 오버레이로 "그 색 종이"처럼 보이게.
+//  ckshp/맹점 → 형광 연두, 전략적 행성 전투(battle) → 연보라
+const paperTint = (id: string): string | null => {
+  if (id.startsWith('ckshp') || id.startsWith('maengjeom')) return '#c4ff2e' // 형광 연두
+  if (id.startsWith('battle')) return '#c9b8ff'                              // 연보라
+  return null
+}
+
 // 노트별 시 조각 드로잉 배경 (밝기=알파 키잉한 VP9 알파 WebM) — 한 번 그려진 뒤 마지막 프레임에 정지
 const NOTE_BACKDROP: Record<string, string> = {
   theta:       `${BASE}poems/blackdog.webm`,
@@ -224,7 +232,8 @@ export function NoteReader() {
 
   // 개발용 튜닝 (P 토글) — 텍스트 스케일 배율 + X/Y 오프셋
   const dev = useDevMode()
-  const [scaleMul, setScaleMul] = useState(1)
+  // 텍스트 정렬 — scaleMul 공통. 오프셋은 제목 유무에 따라 baseOffX/Y로 분기, 슬라이더는 추가 미세조정(delta).
+  const [scaleMul, setScaleMul] = useState(1.05)
   const [offX, setOffX] = useState(0)
   const [offY, setOffY] = useState(0)
   useEffect(() => {
@@ -246,6 +255,10 @@ export function NoteReader() {
   // 제목 — 시의 첫 조각만 (ckshp1·battle1·maengjeom1). 뒷 조각(끝번호 2+)은 제목 없음.
   // CH.2 단일 노트는 id에 끝번호 없어 항상 표시.
   const showTitle = (note.id.match(/(\d+)$/)?.[1] ?? '1') === '1'
+  // 텍스트 종이 정렬 베이스 오프셋 (dev 튜닝 확정값) — 제목 보이는 장은 아래로(+81), 제목 없는 장은 위로(-147)
+  const titleShown = page === 0 && showTitle
+  const baseOffX = titleShown ? -17 : -3
+  const baseOffY = titleShown ? 81 : -147
 
   return (
     <div
@@ -399,11 +412,22 @@ export function NoteReader() {
           // 세로 패딩 축소(스크롤 방지용 세로 공간 확보) — 가로 40은 유지해 줄바꿈 불변
           padding: '28px 40px',
           zoom: scale * scaleMul,
-          transform: (offX || offY) ? `translate(${offX}px, ${offY}px)` : undefined,
+          transform: `translate(${baseOffX + offX}px, ${baseOffY + offY}px)`,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          // 제목 없는(마지막) 조각은 텍스트를 위로 안 땡기고 세로 중앙
+          justifyContent: 'flex-start',
+          gap: 10,
+        }}>
+        {/* 본문 영역 — flex:1로 종이 안쪽 공간을 채우고, 제목 없으면 텍스트를 세로 중앙 정렬.
+            (footer의 margin-top:auto가 중앙정렬을 깨던 문제 → 본문을 별도 래퍼로 분리) */}
+        <div style={{
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
           justifyContent: showTitle ? 'flex-start' : 'center',
           gap: 10,
         }}>
@@ -453,6 +477,7 @@ export function NoteReader() {
             계속... →
           </div>
         )}
+        </div>
 
         {/* 페이지 풋터 — 종이 안쪽 검정, 다중 페이지일 때만 (발견성) */}
         {multi && (
@@ -496,6 +521,17 @@ export function NoteReader() {
             }} />
           )
         })()}
+        {/* 시별 색 종이 — 텍스처 위 multiply 색 오버레이 (종이 자체가 색깔 종이처럼). 어두운 본문 글자는 유지 */}
+        {activeNoteId && paperTint(activeNoteId) && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: paperTint(activeNoteId)!,
+            mixBlendMode: 'multiply',
+            pointerEvents: 'none',
+            opacity: 0.6,
+          }} />
+        )}
       </div>
       </div>
 
@@ -517,9 +553,9 @@ export function NoteReader() {
           onPointerDown={e => e.stopPropagation()}
           style={{
             position: 'fixed',
-            top: 16,
-            right: 16,
-            zIndex: 2100,
+            top: 88,
+            left: 16,
+            zIndex: 10000,
             width: 230,
             padding: 12,
             background: 'rgba(20,20,20,0.92)',
@@ -564,7 +600,7 @@ export function NoteReader() {
           </label>
 
           <button
-            onClick={() => { setScaleMul(1); setOffX(0); setOffY(0) }}
+            onClick={() => { setScaleMul(1.05); setOffX(0); setOffY(0) }}
             style={{
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.15)',

@@ -72,7 +72,7 @@ useGLTF.preload(GHOST_SCRATCH_URL)
 
 const DRUG_EFFECTS = new Set(['desaturate', 'blur', 'darken', 'anxiolytic', 'whiteflash'])
 // 흰약(whiteflash, 마지막) 스폰 시 NPC를 시착실 옆면 벽(거울 아님) 바깥에 기대 세움
-const GHOST_LEAN_GAP = 0.3   // 옆벽 바깥으로 띄우는 간격
+const GHOST_LEAN_GAP = 1.1   // 옆벽 바깥으로 띄우는 간격 (부스 겹침 방지 — 한 발자국 앞으로)
 const GHOST_LEAN_TILT = 0.12 // 벽 쪽으로 기우는 각(rad). 방향 어색하면 부호 반전
 
 // Ghost bbox 근사 (scale 2 모델 기준)
@@ -80,6 +80,9 @@ const GHOST_HALF_WIDTH = 0.5
 const GHOST_HALF_DEPTH = 0.5
 const GHOST_MIN_Y = 0
 const GHOST_MAX_Y = 3.4
+// 발견 근접 폴백 — 플레이어가 유령에 이만큼 가까우면 화면에 안 들어와도(안 바라봐도) 발견.
+// frustum 판정만으론 옆을 지나치면 놓쳐 쪽지 수집이 막히던 문제 대응.
+const GHOST_PROXIMITY = 6
 
 const _frustum = new THREE.Frustum()
 const _frustumMatrix = new THREE.Matrix4()
@@ -95,6 +98,8 @@ interface ItaewonLayerProps {
   wallAABBs?: WallAABB[]
   /** 시착실 부스 — 흰약 finale 스폰 시 옆벽에 NPC 기대 세움 */
   fittingRoom?: { x: number; z: number; halfW: number }
+  /** 빈 네모(전부 수집) 상태 — true가 되면 유령을 시착실 옆벽에 기대 스폰 (whiteflash 이펙트와 독립) */
+  emptySquare?: boolean
 }
 
 function SpecialGhostEmployee({
@@ -253,7 +258,7 @@ function SpecialGhostEmployee({
   )
 }
 
-export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, playerPos: _playerPos, wallAABBs, fittingRoom }: ItaewonLayerProps) {
+export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, playerPos: _playerPos, wallAABBs, fittingRoom, emptySquare }: ItaewonLayerProps) {
   const { camera } = useThree()
   const activeEffect = useGameStore((s) => s.activeEffect)
   const markGhostEncounter = useGameStore((s) => s.markGhostEncounter)
@@ -270,24 +275,28 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   const isFirstSpawnRef = useRef(true)
   const playerPosRef = useRef(_playerPos)
   const fittingRoomRef = useRef(fittingRoom)
+  const emptySquareRef = useRef(!!emptySquare)
+  const leanedRef = useRef(false) // 빈 네모 lean 스폰 1회만 (중복 방지)
 
   useEffect(() => {
     playerPosRef.current = _playerPos
     fittingRoomRef.current = fittingRoom
+    emptySquareRef.current = !!emptySquare
   })
 
   // 스폰 로직 — 시야 270도 안 + 벽에 안 가려진(clear LOS) cell 선택 후 ghostPos 세팅
   const spawnGhost = useCallback(() => {
-    // 흰약(whiteflash) finale — LOS 스캔 대신 시착실 옆면 벽(거울 아님) 바깥에 기대 세움
+    // finale — 흰약(whiteflash) 또는 빈 네모(emptySquare) 시 시착실 옆벽 바깥에 기대 세움
     const FR = fittingRoomRef.current
-    if (useGameStore.getState().activeEffect === 'whiteflash' && FR) {
-      setGhostPos([FR.x - FR.halfW - GHOST_LEAN_GAP, 0, FR.z]) // 좌측 옆벽 바깥
-      setGhostLean({ rotY: 0, rotZ: GHOST_LEAN_TILT })          // +z(남) 바라보며 벽 쪽으로 기댐
+    if ((useGameStore.getState().activeEffect === 'whiteflash' || emptySquareRef.current) && FR) {
+      setGhostPos([FR.x - FR.halfW - GHOST_LEAN_GAP, 0, FR.z]) // 좌측 옆벽 바깥 (부스가 셀 중심이라 z=정면 정렬됨)
+      setGhostLean({ rotY: -Math.PI / 2, rotZ: GHOST_LEAN_TILT }) // 90° 돌려 옆벽과 평행 — 등을 벽(동/+x)에 대고 기댐
       setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])
       spawnCountRef.current += 1
       prevGhostCellRef.current = null
       isFirstSpawnRef.current = false
       wasInViewRef.current = false
+      leanedRef.current = true
       return
     }
     setGhostLean(null)
@@ -410,6 +419,11 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     spawnGhost()
   }, [activeEffect, spawnGhost])
 
+  // 빈 네모(전부 수집) — whiteflash 이펙트 없이도 lean 유령 스폰 (dev 점프 포함). 1회만.
+  useEffect(() => {
+    if (emptySquare && !leanedRef.current) spawnGhost()
+  }, [emptySquare, spawnGhost])
+
   // 디버그: ?sketch=1 → 약 없이도 마운트 후 ghost 상시 노출
   useEffect(() => {
     if (!SKETCH_DEBUG) return
@@ -440,12 +454,18 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
       }
     }
 
-    if (visible < 4) return
+    // 발견 = (A) bbox 4+ corner가 화면 안  또는  (B) 플레이어가 유령 바로 근처(안 바라봐도)
+    const inView = visible >= 4
+    const pp = playerPosRef.current
+    const nearGhost = Math.hypot(pp.x - cx, pp.z - cz) < GHOST_PROXIMITY
+    if (!inView && !nearGhost) return
 
-    // Wall occlusion check — camera → ghost (XZ plane line) 어떤 wall AABB와 intersect → 가려짐
+    // Wall occlusion check — 시야 발견은 camera 기준, 근접 발견은 player 기준 (벽 너머 오발견 방지)
     if (wallAABBs && wallAABBs.length > 0) {
+      const ox = inView ? camera.position.x : pp.x
+      const oz = inView ? camera.position.z : pp.z
       const occluded = wallAABBs.some((w) =>
-        lineIntersectsAABB(camera.position.x, camera.position.z, cx, cz, w.minX, w.maxX, w.minZ, w.maxZ)
+        lineIntersectsAABB(ox, oz, cx, cz, w.minX, w.maxX, w.minZ, w.maxZ)
       )
       if (occluded) return
     }

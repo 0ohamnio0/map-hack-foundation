@@ -20,7 +20,7 @@ import { ItaewonLayer } from '@/components/game/ItaewonLayer';
 import { NoteReader } from '@/components/game/NoteReader';
 import { PoemFragment, FRAG_TINT } from '@/components/game/PoemFragment';
 import { BATTLE_FRAGMENT_IDS, NPC_FRAGMENT_IDS } from '@/data/ch3Fragments';
-import { suspendChapterMusic, startElevatorMusic, endElevatorMusic } from '@/lib/chapterMusic';
+import { suspendChapterMusic, startElevatorMusic, endElevatorMusic, stopChapterMusic } from '@/lib/chapterMusic';
 
 const MAZE_SIZE = 10;
 const CELL_SIZE = 7;
@@ -129,26 +129,47 @@ const MAX_WALLS = 512;
 
 // 벽 텍스처 — mart_walls/wall_1~4 (각 3168×1344, 2.357:1). 높이고정·폭 늘림없이(repeatX=길이/텍폭).
 // 인접 벽끼리 다른 이미지가 오도록 위치 기반 인덱스로 4장 분산.
-const WALL_TEX_FILES = ['mart_walls/wall_1.webp', 'mart_walls/wall_2.webp', 'mart_walls/wall_3.webp', 'mart_walls/wall_4.webp'];
+const WALL_TEX_FILES = ['mart_walls/wall_1.webp', 'mart_walls/wall_2.webp', 'mart_walls/wall_3.webp', 'mart_walls/wall_4.webp', 'mart_walls/other_mart.webp'];
 const WALL_TEX_W = (3168 / 1344) * WALL_HEIGHT;  // 텍스처 1장이 벽높이(4)에서 차지하는 가로 월드폭 ≈ 9.43
 const WALL_PIXELIZE = 0.2;                        // 환경 픽셀라이즈 강도 (클수록 거침). npc/cart는 미적용
-const BOUND_PAIR = [1, 3];                        // 빈 네모 경계벽에 CELL 단위로 번갈아 깔 두 텍스처 (wall_2, wall_4)
+const BOUND_PAIR = [1, 3];                        // (비-빈네모) 경계벽에 CELL 단위로 번갈아 깔 두 텍스처 (wall_2, wall_4)
+// 빈 네모(마지막 단계) 전용 — 경계벽 전부를 이 빈 진열대로 채움. 자체 종횡비(1500×779)로 repeat 계산.
+const EMPTY_TEX_FILE = 'mart_walls/empty_mart.webp';
+const EMPTY_TEX_W = (1500 / 779) * WALL_HEIGHT;   // ≈ 7.70
 
-const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
-  // 좁은 벽(길이 CELL_SIZE) 4장 + 긴 경계벽(길이 MAZE×CELL) 4장 — 길이별 repeatX가 달라 분리
-  const narrowRefs = useMemo(() => Array.from({ length: 4 }, () => React.createRef<THREE.InstancedMesh>()), []);
-  const boundRefs = useMemo(() => Array.from({ length: 4 }, () => React.createRef<THREE.InstancedMesh>()), []);
+const MazeWalls: React.FC<{ maze: MazeData; emptySquare: boolean }> = ({ maze, emptySquare }) => {
+  const N = WALL_TEX_FILES.length;
+  // 좁은 벽(길이 CELL_SIZE) 텍스처 N장 + 빈 네모 전용 1장
+  const narrowRefs = useMemo(() => Array.from({ length: N }, () => React.createRef<THREE.InstancedMesh>()), [N]);
+  const emptyRef = useRef<THREE.InstancedMesh>(null);
   const narrowMats = useMemo(() => WALL_TEX_FILES.map((f) =>
     makeSnapMaterialWithTexture(f, { repeatX: CELL_SIZE / WALL_TEX_W, repeatY: 1, emissive: 0.6, pixelize: WALL_PIXELIZE, pixelAspect: WALL_TEX_W / WALL_HEIGHT })), []);
-  const boundMats = useMemo(() => WALL_TEX_FILES.map((f) =>
-    makeSnapMaterialWithTexture(f, { repeatX: (MAZE_SIZE * CELL_SIZE) / WALL_TEX_W, repeatY: 1, emissive: 0.6, pixelize: WALL_PIXELIZE, pixelAspect: WALL_TEX_W / WALL_HEIGHT })), []);
+  const emptyMat = useMemo(() => makeSnapMaterialWithTexture(EMPTY_TEX_FILE,
+    { repeatX: CELL_SIZE / EMPTY_TEX_W, repeatY: 1, emissive: 0.6, pixelize: WALL_PIXELIZE, pixelAspect: EMPTY_TEX_W / WALL_HEIGHT }), []);
 
   useEffect(() => {
     const dummy = new THREE.Object3D();
-    const nc = [0, 0, 0, 0], bc = [0, 0, 0, 0];
+    const nc = new Array(N).fill(0);
+    let ec = 0;
     maze.wallPositions.forEach((w) => {
-      if (Math.max(w.scaleX, w.scaleZ) > 20) {
-        // 긴 경계벽 — CELL 단위로 쪼개 두 텍스처(BOUND_PAIR)를 번갈아 (ㄱ/ㄴ 일괄 대신 교차)
+      const isLong = Math.max(w.scaleX, w.scaleZ) > 20;
+      if (emptySquare) {
+        // 빈 네모 — 긴 경계벽 + 짧은 가장자리벽(바닥행 south·우측열 east) 전부 CELL 단위 empty_mart로
+        const longX = w.scaleX >= w.scaleZ;
+        const length = longX ? w.scaleX : w.scaleZ;
+        const thin = longX ? w.scaleZ : w.scaleX;
+        const segN = Math.max(1, Math.round(length / CELL_SIZE));
+        const segLen = length / segN;
+        const startC = (longX ? w.x : w.z) - length / 2 + segLen / 2;
+        for (let s = 0; s < segN; s++) {
+          const c = startC + s * segLen;
+          dummy.position.set(longX ? c : w.x, WALL_HEIGHT / 2, longX ? w.z : c);
+          dummy.scale.set(longX ? segLen : thin, WALL_HEIGHT, longX ? thin : segLen);
+          dummy.updateMatrix();
+          if (emptyRef.current) emptyRef.current.setMatrixAt(ec++, dummy.matrix);
+        }
+      } else if (isLong) {
+        // 긴 경계벽 — CELL 단위로 쪼개 BOUND_PAIR(wall_2/4) 교차
         const longX = w.scaleX >= w.scaleZ;
         const length = longX ? w.scaleX : w.scaleZ;
         const segN = Math.max(1, Math.round(length / CELL_SIZE));
@@ -167,13 +188,13 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
         dummy.scale.set(w.scaleX, WALL_HEIGHT, w.scaleZ);
         dummy.updateMatrix();
         // 인접 벽(같은 run에서 x 또는 z가 CELL씩 변화)끼리 인덱스가 달라짐 → 같은 이미지 옆에 안 옴
-        const idx = (((Math.round(w.x / CELL_SIZE) + Math.round(w.z / CELL_SIZE)) % 4) + 4) % 4;
+        const idx = (((Math.round(w.x / CELL_SIZE) + Math.round(w.z / CELL_SIZE)) % N) + N) % N;
         const m = narrowRefs[idx].current; if (m) m.setMatrixAt(nc[idx]++, dummy.matrix);
       }
     });
     narrowRefs.forEach((r, i) => { if (r.current) { r.current.count = nc[i]; r.current.instanceMatrix.needsUpdate = true; } });
-    boundRefs.forEach((r, i) => { if (r.current) { r.current.count = bc[i]; r.current.instanceMatrix.needsUpdate = true; } });
-  }, [maze, narrowRefs, boundRefs]);
+    if (emptyRef.current) { emptyRef.current.count = ec; emptyRef.current.instanceMatrix.needsUpdate = true; }
+  }, [maze, narrowRefs, emptySquare, N]);
 
   return (
     <>
@@ -182,11 +203,9 @@ const MazeWalls: React.FC<{ maze: MazeData }> = ({ maze }) => {
           <boxGeometry args={[1, 1, 1]} />
         </instancedMesh>
       ))}
-      {boundMats.map((m, i) => (
-        <instancedMesh key={`b${i}`} ref={boundRefs[i]} args={[undefined, undefined, MAX_WALLS]} material={m} frustumCulled={false}>
-          <boxGeometry args={[1, 1, 1]} />
-        </instancedMesh>
-      ))}
+      <instancedMesh ref={emptyRef} args={[undefined, undefined, MAX_WALLS]} material={emptyMat} frustumCulled={false}>
+        <boxGeometry args={[1, 1, 1]} />
+      </instancedMesh>
     </>
   );
 };
@@ -341,11 +360,10 @@ type FittingPlacement = { pos: { x: number; z: number }; nx: number; nz: number 
 function findFittingCorner(maze: MazeData, cellSize: number): FittingPlacement {
   const cx0 = Math.floor(maze.width / 2);
   const cy0 = Math.floor(maze.height / 2);
-  const offset = cellSize / 2 - FITTING_D / 2 - 0.4; // 부스 반깊이 + 북벽에서 0.4 띄움
   const nx = -1, nz = -1; // nz=-1 → 거울이 +z(남, 진입 방향)을 향함. nx는 부스 박스 좌우 구성용
   const cw = cellToWorld(cx0, cy0, cellSize);
-  // x = 셀 중심(그리드 정렬), z만 북쪽 코너로 — 플레이어가 같은 열에서 거울을 정면으로 본다.
-  return { pos: { x: cw.x, z: cw.z + nz * offset }, nx, nz };
+  // 부스를 셀 중심(그리드 정렬)에 둠 — 유령이 옆벽에 기대면서 정면 접근 가능. 거울은 양면이라 안에서도 보임.
+  return { pos: { x: cw.x, z: cw.z }, nx, nz };
 }
 
 // 시착실 거울 영상 — pingpong 루프 31종. 진입 시 랜덤 시작 + 종료 시 다음 영상으로 순차 전환.
@@ -399,7 +417,7 @@ const MirrorScreen: React.FC<{
 };
 
 /** Fitting room booth — 두 벽(side+back)을 미로 코너에 붙이고 안쪽으로 개방, 거울은 back에 */
-const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz: number }> = ({ worldPos, nx, nz }) => {
+const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz: number; revealed: boolean }> = ({ worldPos, nx, nz, revealed }) => {
   const W = FITTING_W, D = FITTING_D, T = 0.15, H = FITTING_H, Hh = H / 2;
   const Wh = W / 2, Dh = D / 2;
   const FITTING_Y = -0.5; // 부스 전체 Y 하강 (바닥 아래는 가려짐)
@@ -421,6 +439,10 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz
     m.side = THREE.DoubleSide;
     return m;
   }, []);
+  // E.R 로고 데칼 — 뒷 벽(nz 면) 바깥(북쪽) 아래쪽. 빈 네모(revealed)일 때만 드러남.
+  const ER_W = W * 0.85, ER_H = ER_W * (996 / 1321);
+  const erMat = useMemo(() => makeSnapMaterialWithTexture('er_logo.webp',
+    { emissive: 0.7, pixelize: WALL_PIXELIZE, pixelAspect: ER_W / ER_H }), []);
   return (
     <group position={[worldPos.x, FITTING_Y, worldPos.z]}>
       {/* 4면 닫힌 박스 — flush 2면(코너 벽에 붙음) + outer 2면 + 천장. 벽=커튼 텍스처 */}
@@ -456,6 +478,12 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz
       <mesh position={[0, mirrorY, -nz * (Dh + 0.12)]} rotation={[0, nz < 0 ? 0 : Math.PI, 0]} material={frameMat}>
         <planeGeometry args={[FRAME_W, FRAME_H]} />
       </mesh>
+      {/* E.R 로고 데칼 — 뒷 벽(nz 면) 바깥 중앙. 빈 네모 전엔 미로벽에 가려 안 보이다 드러남 */}
+      {revealed && (
+        <mesh position={[0, Hh, nz * (Dh + 0.09)]} rotation={[0, nz < 0 ? Math.PI : 0, 0]} material={erMat}>
+          <planeGeometry args={[ER_W, ER_H]} />
+        </mesh>
+      )}
     </group>
   );
 };
@@ -970,7 +998,8 @@ const Ch3Inner: React.FC<{
   onDrugPickup?: (index: number, pickupCount: number) => void;
   onCollectedChange?: (collected: Set<number>) => void;
   cartMuted?: boolean;
-}> = ({ maze, onPlayerMove, onElevatorZoneChange, onDrugPickup, onCollectedChange, cartMuted }) => {
+  devEmptyTrigger?: number;
+}> = ({ maze, onPlayerMove, onElevatorZoneChange, onDrugPickup, onCollectedChange, cartMuted, devEmptyTrigger }) => {
   const triggerEvent = useGameStore(s => s.triggerEvent);
   const addToCart = useGameStore(s => s.addToCart);
   const setActiveEffect = useGameStore(s => s.setActiveEffect);
@@ -980,6 +1009,16 @@ const Ch3Inner: React.FC<{
   const elevatorVisited = useGameStore(s => s.visitedEvents.has('ch3_elevator'));
   const [collected, setCollected] = useState<Set<number>>(new Set());
   const [posState, setPosState] = useState({ x: 0, z: 0 });
+
+  // dev — 빈 네모로 점프: 전부 수집 처리 + 마지막 픽업 흐름(빈 미로 재생성) 트리거
+  useEffect(() => {
+    if (!devEmptyTrigger) return; // 초기 마운트(0) 무시
+    const all = new Set([0, 1, 2, 3, 4]);
+    setCollected(all);
+    onCollectedChange?.(all);
+    onDrugPickup?.(MEDICINES.length - 1, MEDICINES.length);
+    // lean 유령은 ItaewonLayer가 emptySquare 신호로 직접 스폰 (whiteflash 이펙트 미사용 — 흰 화면 방지)
+  }, [devEmptyTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
   // 흰약 차단 알림 스로틀 — 존 진입당 1회만 (100ms 루프 스팸 방지)
   const whiteBlockedRef = useRef(false);
 
@@ -1077,7 +1116,7 @@ const Ch3Inner: React.FC<{
 
       <MazeFloor />
       <MazeCeiling />
-      <MazeWalls maze={maze} />
+      <MazeWalls maze={maze} emptySquare={collected.size === MEDICINES.length} />
 
       {/* 카트 HUD — 카메라 고정, 메인 씬이라 약 후처리 동일 적용 */}
       <Suspense fallback={null}><CartHud /></Suspense>
@@ -1097,7 +1136,7 @@ const Ch3Inner: React.FC<{
       })}
 
       {/* 시착실 = 엘리베이터 portal at center */}
-      <FittingRoom worldPos={fittingRoomWorld} nx={fitting.nx} nz={fitting.nz} />
+      <FittingRoom worldPos={fittingRoomWorld} nx={fitting.nx} nz={fitting.nz} revealed={collected.size === MEDICINES.length} />
 
       {/* 빈 네모 갤러리 — 흰약 복용(전부 수집) 후 텅 빈 벽에 시 「전략적 행성 전투」 9조각 (수집형) */}
       {collected.size === MEDICINES.length && (
@@ -1112,6 +1151,7 @@ const Ch3Inner: React.FC<{
         playerPos={posState}
         wallAABBs={wallAABBs}
         fittingRoom={{ x: fittingRoomWorld.x, z: fittingRoomWorld.z, halfW: FITTING_W / 2 }}
+        emptySquare={collected.size === MEDICINES.length}
       />
 
       <PlayerController
@@ -1163,16 +1203,18 @@ export const Ch3Scene: React.FC = () => {
   }, []);
   const { play, loop } = useSoundManager();
 
-  // 마트 앰비언스 — 챕터 진입 시 loop, 엘리베이터/우주 cutscene 동안엔 정지
+  const [collectedSet, setCollectedSet] = useState<Set<number>>(new Set());
+  // 마트 앰비언스 — 챕터 진입 시 loop. cutscene 중 또는 빈 네모(전부 수집) 도달 시 정지 (sfx만 남김).
   useEffect(() => {
     if (cutscenePhase) {
       loop('mart_bgm', false);
     } else {
-      loop('mart_bgm', true);
+      loop('mart_bgm', true); // 빈 네모에서도 마트 앰비언스는 유지
     }
+    if (collectedSet.size === MEDICINES.length) stopChapterMusic(); // 빈 네모 — 메인 챕터 bgm(ch3-map)만 정지
     return () => loop('mart_bgm', false);
-  }, [cutscenePhase, loop]);
-  const [collectedSet, setCollectedSet] = useState<Set<number>>(new Set());
+  }, [cutscenePhase, loop, collectedSet]);
+  const [devEmptyTrigger, setDevEmptyTrigger] = useState(0);
   const [atFittingRoom, setAtFittingRoom] = useState(false);
   // 뷰포트 비율 — 카메라 고정 카트 HUD의 화면상 위치 계산용 (글자를 카트 바구니 안에 얹기)
   const [vp, setVp] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
@@ -1279,6 +1321,7 @@ export const Ch3Scene: React.FC = () => {
           onDrugPickup={handleDrugPickup}
           onCollectedChange={setCollectedSet}
           cartMuted={!!cutscenePhase}
+          devEmptyTrigger={devEmptyTrigger}
         />
         <SceneExporter chapter="ch3" />
       </Canvas>
@@ -1470,6 +1513,7 @@ export const Ch3Scene: React.FC = () => {
             pos: {playerPos.x.toFixed(1)}, {playerPos.z.toFixed(1)}
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <DevButton label="→ 빈 네모 (전부 수집)" onClick={() => setDevEmptyTrigger(n => n + 1)} />
           <DevButton label="Elevator Cutscene" onClick={() => { if (!cutscenePhase) startElevatorCutscene(); }} />
           <DevButton label="Skip → CH4" onClick={() => goToChapter('CH4')} />
           <DevButton label="Skip → CH2" onClick={() => goToChapter('CH2')} />
