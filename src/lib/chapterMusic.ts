@@ -72,6 +72,13 @@ export function playChapterMusic(chapter: Chapter) {
   }
 }
 
+// 현재 챕터 BGM의 재생 위치(초) — 영상 등 외부 미디어를 오디오 클럭에 동기할 때 사용.
+export function getChapterMusicSeek(): number | null {
+  if (!currentTrack) return null;
+  const s = currentTrack.seek();
+  return typeof s === 'number' ? s : null;
+}
+
 // 메인 챕터 BGM 정지 (복원 없음) — 빈 네모 finale 등에서 bgm만 끄고 sfx는 유지할 때
 export function stopChapterMusic() {
   if (currentTrack) fadeOutAndStop(currentTrack);
