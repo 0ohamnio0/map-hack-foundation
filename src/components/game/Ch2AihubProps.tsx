@@ -59,6 +59,9 @@ const PLACEMENTS: AihubPlacement[] = [
   { id: 'RTB1601220720_0435L_01_normalization', pos: [-6, -68], rotY: Math.PI * 0.5 },  // H2 좌측
   // 도로반사경
   { id: 'RTB1201220926_0336L_02_normalization', pos: [-5.6, -75], y: 14, scale: 3.75, rotY: -Math.PI * 0.4 },  // 도로 거울 — 전주 표면 부착, CCTV(y18) 아래
+  // ── CCTV 컷 복제 클러스터 — 북측 건물 뒤(z=-25) 열린 공간. 건물(최대 ~28m) 위로 솟게 전주 크게(scale 34) ──
+  { id: 'RTF3601220720_0428L_01_normalization', pos: [9, -25], rotY: 0, scale: 34 },  // 전주 — 건물 위로 솟도록 키움
+  { id: 'RTB1201220926_0336L_02_normalization', pos: [9.4, -25], y: 21, scale: 3.75, rotY: -Math.PI * 0.4 },  // 도로 거울 — 전주 표면 부착, CCTV(y28) 아래
 ]
 
 // ---------- 텍스처 풀 (swap용) ----------
@@ -223,11 +226,15 @@ const AihubProp: React.FC<AihubPropProps> = ({ p, index, pools }) => {
   )
 }
 
-// 거대 전주 [-6, -75] scale=25 상단 사이드에 CCTV mount. 캐릭터(=카메라) 추적 yaw 회전.
+// 거대 전주 상단 사이드에 CCTV mount. 캐릭터(=카메라) 추적 yaw 회전.
+// ① V3 좌측 거대 전주 [-6,-75] y18  ② CCTV 컷 복제 [9,-25] y8 (컷 눈높이)
 const POLE_CCTV_ID = 'RTF3301220722_0012L_02_normalization'
-const POLE_CCTV_POS: [number, number, number] = [-6 * SCALE_X + 0.8, 18, -75 * SCALE_Z]
+const POLE_CCTV_POSITIONS: [number, number, number][] = [
+  [-6 * SCALE_X + 0.8, 18, -75 * SCALE_Z],
+  [9 * SCALE_X + 0.8, 28, -25 * SCALE_Z],  // 큰 전주(scale 34) 꼭대기 — 건물 위로 솟게
+]
 
-const PoleCCTV: React.FC = () => {
+const PoleCCTV: React.FC<{ pos: [number, number, number] }> = ({ pos }) => {
   const obj = useLoader(OBJLoader, `${AIHUB}/${POLE_CCTV_ID}.obj`)
   const baseTex = useLoader(THREE.TextureLoader, `${AIHUB}/${POLE_CCTV_ID}.webp`)
   const groupRef = useRef<THREE.Group>(null)
@@ -256,7 +263,7 @@ const PoleCCTV: React.FC = () => {
   })
 
   return (
-    <group ref={groupRef} position={POLE_CCTV_POS} scale={2.5}>
+    <group ref={groupRef} position={pos} scale={2.5}>
       <primitive object={cloned} />
     </group>
   )
@@ -269,7 +276,7 @@ export const Ch2AihubProps: React.FC = () => {
       {PLACEMENTS.map((p, i) => (
         <AihubProp key={`${p.id}-${i}`} p={p} index={i} pools={pools} />
       ))}
-      <PoleCCTV />
+      {POLE_CCTV_POSITIONS.map((p, i) => <PoleCCTV key={i} pos={p} />)}
     </group>
   )
 }

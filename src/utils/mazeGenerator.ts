@@ -33,6 +33,8 @@ export interface MazeOptions {
   removalRatio?: number;
   /** 중앙 셀에 ㄱ자 코너(북+서 벽) 강제 — 시착실 고정용. 끊긴 영역은 자동 재연결. */
   forceCenterCorner?: boolean;
+  /** 이 셀의 4면 벽을 열어둠 — 약 픽업 후 재생성 시 플레이어가 벽을 마주보지 않게(어느 방향이든 통로). */
+  openAround?: { x: number; y: number };
 }
 
 type Dir = 'north' | 'south' | 'east' | 'west';
@@ -208,6 +210,19 @@ export function generateMaze(
       (x === ccx && y === ccy - 1 && dir === 'south') ||
       (x === ccx - 1 && y === ccy && dir === 'east');
     ensureConnected(cells, width, height, protect);
+  }
+
+  // 플레이어 칸 4면 개방 — 약 픽업 후 재생성에서 정면이 벽이 되어 "유령 안 보임"으로 보이던 문제 차단.
+  // (forceCenterCorner/ensureConnected 이후 — 벽을 열기만 하므로 연결성 깨짐 없음)
+  if (options.openAround) {
+    const { x: ax, y: ay } = options.openAround;
+    if (ax >= 0 && ax < width && ay >= 0 && ay < height) {
+      const c = cells[ay][ax];
+      if (ay > 0)          { c.walls.north = false; cells[ay - 1][ax].walls.south = false; }
+      if (ay < height - 1) { c.walls.south = false; cells[ay + 1][ax].walls.north = false; }
+      if (ax > 0)          { c.walls.west  = false; cells[ay][ax - 1].walls.east  = false; }
+      if (ax < width - 1)  { c.walls.east  = false; cells[ay][ax + 1].walls.west  = false; }
+    }
   }
 
   // Convert to wall positions for 3D rendering
