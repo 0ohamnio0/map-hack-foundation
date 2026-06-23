@@ -1,7 +1,7 @@
 /**
  * INTRO Scene — CH.1 인트로 프리뷰 영상이 메인.
  * 영상은 muted, BGM은 chapterMusic의 ch1.mp3 (CH.1과 같은 트랙으로 이어짐).
- * canplay 시점에 BGM·영상을 동시에 트리거해 sync 유지.
+ * 영상의 실제 재생 시작('playing') 시점에 BGM을 트리거해 sync 유지.
  * Auto-transitions to CH.1 when the video ends.
  * Title fades in 5s before the video ends.
  */
@@ -39,19 +39,24 @@ export const IntroScene: React.FC = () => {
     const v = videoRef.current
     if (!v) return
     startedRef.current = true
-    // canplay 직후가 아닌, 한 호흡 쉬고 BGM·영상 동시 시작
+    // canplay 직후가 아닌, 한 호흡 쉬고 영상 시작.
+    // BGM은 영상이 실제로 첫 프레임을 띄우고 재생을 시작하는 'playing' 순간에 맞춰 진입.
+    // (canplay 직후 BGM·영상을 동시 호출하면 영상 디코드 지연만큼 영상이 BGM보다 늦게 보임)
     holdTimerRef.current = window.setTimeout(() => {
       const vv = videoRef.current
       if (!vv) return
       setReady(true)
-      playChapterMusic('INTRO')
+      const onPlaying = () => {
+        playChapterMusic('INTRO')
+        const remainingMs = (vv.duration - vv.currentTime) * 1000
+        const delay = Math.max(0, remainingMs - TITLE_LEAD_BEFORE_END_MS)
+        titleTimerRef.current = window.setTimeout(() => {
+          setTitleVisible(true)
+          play('dog_bark')
+        }, delay)
+      }
+      vv.addEventListener('playing', onPlaying, { once: true })
       vv.play().catch((err) => console.warn('[Intro] video play failed', err))
-      const remainingMs = (vv.duration - vv.currentTime) * 1000
-      const delay = Math.max(0, remainingMs - TITLE_LEAD_BEFORE_END_MS)
-      titleTimerRef.current = window.setTimeout(() => {
-        setTitleVisible(true)
-        play('dog_bark')
-      }, delay)
     }, INTRO_HOLD_BEFORE_PLAY_MS)
   }
 
