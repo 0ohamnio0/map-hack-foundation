@@ -11,12 +11,21 @@ import { useDevMode } from '@/hooks/useDevMode'
 import { useSoundManager } from '@/hooks/useSoundManager'
 import { useScrambleTransition } from '@/hooks/useGlitchText'
 import { CH2_NOTES, type PageSegment } from '@/data/ch2Notes'
-import { CH3_FRAGMENTS } from '@/data/ch3Fragments'
+import { CH3_FRAGMENTS, NPC_FRAGMENT_IDS, BATTLE_FRAGMENT_IDS } from '@/data/ch3Fragments'
 
 const BASE = import.meta.env.BASE_URL
 
 // CH.2 쪽지 + CH.3 시 조각 — 같은 PoemNote 구조라 하나의 레지스트리로 조회(폰트·스타일 통일)
 const ALL_NOTES = [...CH2_NOTES, ...CH3_FRAGMENTS]
+
+// Tab+방향키 순차 열람용 — 수집 UI 배열 순서가 곧 열람 순서. 가로 배열 그룹은 ←/→, 세로(battle)는 ↑/↓.
+const CH2_IDS = CH2_NOTES.map(n => n.id)
+function poemGroup(id: string): { ids: readonly string[]; vertical: boolean } | null {
+  if (CH2_IDS.includes(id)) return { ids: CH2_IDS, vertical: false }
+  if ((NPC_FRAGMENT_IDS as readonly string[]).includes(id)) return { ids: NPC_FRAGMENT_IDS, vertical: false }
+  if ((BATTLE_FRAGMENT_IDS as readonly string[]).includes(id)) return { ids: BATTLE_FRAGMENT_IDS, vertical: true }
+  return null
+}
 
 // 노트별 종이 텍스처 매핑 (Note.tsx와 일치)
 const NOTE_PAPER: Record<string, string> = {
@@ -50,6 +59,21 @@ const NOTE_BACKDROP: Record<string, string> = {
   'hell-salad':`${BASE}poems/hell-salad.webm`,
   termination: `${BASE}poems/termination.webm`,
   highstreamer:`${BASE}poems/highstreamer.webm`,
+}
+
+// 드로잉 진하기 정규화 — 소스 webm마다 알파/밝기가 달라 노트별 보정 (?debug=1 슬라이더로 맞춘 확정값).
+// 드로잉 획은 "밝기=알파" 키잉이라 대체로 밝은 색 → 흰 종이서 contrast↑는 더 하얘짐(역효과).
+// brightness↓는 밝은 획을 어둡게 깔아 흰 종이 위에 드러내는 별도 레버 (termination처럼 너무 연한 것에 사용).
+const DEFAULT_BACKDROP_FX = { opacity: 0.7, contrast: 1.5, brightness: 1.0, scaleX: 1.0, offsetX: 0, zIndex: 10 }
+// zIndex: 기본 10(종이 위에 드로잉 오버레이). 0이면 종이 뒤로 깔림(텍스트가 드로잉 위).
+const NOTE_BACKDROP_FX: Record<string, { opacity: number; contrast: number; brightness: number; scaleX?: number; offsetX?: number; zIndex?: number }> = {
+  theta:        { opacity: 0.75, contrast: 2.6,  brightness: 1.0 },
+  entropy:      { opacity: 0.65, contrast: 2.6,  brightness: 1.0 },
+  'jeju-fire':  { opacity: 0.75, contrast: 2.2,  brightness: 1.0 },
+  bichae:       { opacity: 0.75, contrast: 2.05, brightness: 1.0 },
+  'hell-salad': { opacity: 0.6,  contrast: 3.0,  brightness: 1.0 },
+  termination:  { opacity: 1.0,  contrast: 1.3,  brightness: 5.0, scaleX: 1.1, offsetX: -12, zIndex: 0 },  // brightness↑ + 좌우 늘림 + 왼쪽 + 종이 뒤로
+  highstreamer: { opacity: 1.0,  contrast: 3.0,  brightness: 1.7 },
 }
 
 function NoteText({ ko, en }: { ko: string; en?: string }) {
@@ -168,11 +192,14 @@ export function NoteReader() {
   const activeNoteId = useGameStore(s => s.activeNoteId)
   const visitedEvents = useGameStore(s => s.visitedEvents)
   const closeNote = useGameStore(s => s.closeNote)
+  const openNote = useGameStore(s => s.openNote)
   const noteLanguage = useGameStore(s => s.noteLanguage)
   const setNoteLanguage = useGameStore(s => s.setNoteLanguage)
   const toggleNoteLanguage = useGameStore(s => s.toggleNoteLanguage)
   const { play } = useSoundManager()
   const [page, setPage] = useState(0)
+  // Tab 눌림 상태 — Tab+방향키 chord(시 간 이동) vs 방향키 단독(페이지 이동) 구분
+  const tabHeld = useRef(false)
 
   const note = activeNoteId === null ? null : ALL_NOTES.find(n => n.id === activeNoteId) ?? null
   // 미니 카드(CH.3 조각)면 종이·디자인폭 축소
@@ -191,6 +218,21 @@ export function NoteReader() {
     }
   }, [activeNoteId, play, setNoteLanguage])
 
+  // Tab 눌림 추적 — note 변경(시 간 이동)과 무관하게 물리 키 상태 유지. Tab 기본 포커스 이동은 차단.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.code === 'Tab') { e.preventDefault(); tabHeld.current = true } }
+    const up = (e: KeyboardEvent) => { if (e.code === 'Tab') tabHeld.current = false }
+    const blur = () => { tabHeld.current = false }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    window.addEventListener('blur', blur)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', blur)
+    }
+  }, [])
+
   useEffect(() => {
     if (note === null) return
     const handler = (e: KeyboardEvent) => {
@@ -203,6 +245,23 @@ export function NoteReader() {
         e.preventDefault()
         toggleNoteLanguage()
         return
+      }
+      // Tab+방향키 — 같은 그룹에서 수집한 시 순차 이동 (가로 그룹 ←/→, battle ↑/↓). 방향키 단독은 아래 페이지 이동.
+      if (tabHeld.current && activeNoteId) {
+        const grp = poemGroup(activeNoteId)
+        if (grp) {
+          const dir = grp.vertical
+            ? (e.code === 'ArrowUp' ? -1 : e.code === 'ArrowDown' ? 1 : 0)
+            : (e.code === 'ArrowLeft' ? -1 : e.code === 'ArrowRight' ? 1 : 0)
+          if (dir !== 0) {
+            e.preventDefault()
+            const collected = grp.ids.filter(id => visitedEvents.has(`note_${id}`))
+            const cur = collected.indexOf(activeNoteId)
+            const nextIdx = cur + dir
+            if (cur !== -1 && nextIdx >= 0 && nextIdx < collected.length) openNote(collected[nextIdx])
+            return
+          }
+        }
       }
       if (totalPages > 1) {
         if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
@@ -224,7 +283,7 @@ export function NoteReader() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [note, totalPages, closeNote, play, toggleNoteLanguage])
+  }, [note, totalPages, closeNote, play, toggleNoteLanguage, openNote, visitedEvents, activeNoteId])
 
   // 종이 실제 폭을 측정해 zoom 배율 산출 (배율만 JS, 스크롤 높이는 zoom이 처리)
   const paperRef = useRef<HTMLDivElement>(null)
@@ -236,6 +295,20 @@ export function NoteReader() {
   const [scaleMul, setScaleMul] = useState(1.05)
   const [offX, setOffX] = useState(0)
   const [offY, setOffY] = useState(0)
+  // 드로잉 배경 진하기 — 노트별 FX(NOTE_BACKDROP_FX)에서 시드, dev 슬라이더로 라이브 조절. 비-dev는 시드값 그대로 적용.
+  const noteFx = (activeNoteId && NOTE_BACKDROP_FX[activeNoteId]) || DEFAULT_BACKDROP_FX
+  const [bdOpacity, setBdOpacity] = useState(noteFx.opacity)
+  const [bdContrast, setBdContrast] = useState(noteFx.contrast)
+  const [bdBrightness, setBdBrightness] = useState(noteFx.brightness)
+  const [bdScaleX, setBdScaleX] = useState(noteFx.scaleX ?? 1)
+  const [bdOffsetX, setBdOffsetX] = useState(noteFx.offsetX ?? 0)
+  useEffect(() => {
+    setBdOpacity(noteFx.opacity)
+    setBdContrast(noteFx.contrast)
+    setBdBrightness(noteFx.brightness)
+    setBdScaleX(noteFx.scaleX ?? 1)
+    setBdOffsetX(noteFx.offsetX ?? 0)
+  }, [activeNoteId])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = paperRef.current
     if (!el) return
@@ -255,10 +328,15 @@ export function NoteReader() {
   // 제목 — 시의 첫 조각만 (ckshp1·battle1·maengjeom1). 뒷 조각(끝번호 2+)은 제목 없음.
   // CH.2 단일 노트는 id에 끝번호 없어 항상 표시.
   const showTitle = (note.id.match(/(\d+)$/)?.[1] ?? '1') === '1'
-  // 텍스트 종이 정렬 베이스 오프셋 (dev 튜닝 확정값) — 제목 보이는 장은 아래로(+81), 제목 없는 장은 위로(-147)
+  // 텍스트 종이 정렬 베이스 오프셋 (dev 튜닝 확정값) — CH.3 compact 조각과 CH.2 풀노트는
+  // 종이 크기·디자인폭이 달라 오프셋을 공유하면 어긋난다. note.compact로 분기.
   const titleShown = page === 0 && showTitle
-  const baseOffX = titleShown ? -17 : -3
-  const baseOffY = titleShown ? 81 : -147
+  const baseOffX = note.compact
+    ? (titleShown ? -17 : -3)
+    : (titleShown ? -5 : 9)
+  const baseOffY = note.compact
+    ? (titleShown ? 81 : -147)
+    : (titleShown ? 25 : 53)
 
   return (
     <div
@@ -301,9 +379,11 @@ export function NoteReader() {
             height: '100%',
             objectFit: 'cover',
             objectPosition: 'center center',
-            transform: 'translateY(0%)',
-            zIndex: 10,
+            transform: `translateX(${bdOffsetX}px) scaleX(${bdScaleX})`,
+            zIndex: noteFx.zIndex ?? 10,
             pointerEvents: 'none',
+            opacity: bdOpacity,
+            filter: `contrast(${bdContrast}) brightness(${bdBrightness})`,
           }}
         />
         )
@@ -599,8 +679,51 @@ export function NoteReader() {
             />
           </label>
 
+          {activeNoteId && NOTE_BACKDROP[activeNoteId] && (
+            <>
+              <div style={{ color: '#888', fontSize: 10, marginTop: 4 }}>
+                드로잉 ({activeNoteId}) — theta 연하기 기준으로 맞춤
+              </div>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span>드로잉 opacity — {bdOpacity.toFixed(2)}</span>
+                <input
+                  type="range" min={0} max={1} step={0.05} value={bdOpacity}
+                  onChange={e => setBdOpacity(Number(e.target.value))}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span>드로잉 contrast — {bdContrast.toFixed(2)}</span>
+                <input
+                  type="range" min={0.5} max={3} step={0.05} value={bdContrast}
+                  onChange={e => setBdContrast(Number(e.target.value))}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span>드로잉 brightness — {bdBrightness.toFixed(2)}</span>
+                <input
+                  type="range" min={0.2} max={10} step={0.1} value={bdBrightness}
+                  onChange={e => setBdBrightness(Number(e.target.value))}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span>드로잉 가로 스케일 — {bdScaleX.toFixed(2)}</span>
+                <input
+                  type="range" min={0.8} max={1.5} step={0.01} value={bdScaleX}
+                  onChange={e => setBdScaleX(Number(e.target.value))}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span>드로잉 X 이동 — {bdOffsetX}px</span>
+                <input
+                  type="range" min={-100} max={100} step={1} value={bdOffsetX}
+                  onChange={e => setBdOffsetX(Number(e.target.value))}
+                />
+              </label>
+            </>
+          )}
+
           <button
-            onClick={() => { setScaleMul(1.05); setOffX(0); setOffY(0) }}
+            onClick={() => { setScaleMul(1.05); setOffX(0); setOffY(0); setBdOpacity(noteFx.opacity); setBdContrast(noteFx.contrast); setBdBrightness(noteFx.brightness); setBdScaleX(noteFx.scaleX ?? 1); setBdOffsetX(noteFx.offsetX ?? 0) }}
             style={{
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.15)',

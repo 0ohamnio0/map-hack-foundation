@@ -1984,6 +1984,15 @@ export const Ch2Scene: React.FC = () => {
               </svg>
             );
           })}
+          {/* Tab+방향키로 시 순차 열람 가능함을 알리는 힌트 (⇥ tab) */}
+          {collectedNotes > 0 && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 4, opacity: 0.5, pointerEvents: 'none' }}>
+              <svg viewBox="0 0 22 16" width="16" height="12" aria-hidden>
+                <path d="M3 8 L15 8 M11 4 L15 8 L11 12 M19 3 L19 13" fill="none" stroke="#f3eedd" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span style={{ fontFamily: '"Unifont", monospace', fontSize: 10, letterSpacing: 1, color: '#f3eedd' }}>tab</span>
+            </span>
+          )}
         </div>
       )}
 
