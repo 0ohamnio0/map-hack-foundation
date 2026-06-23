@@ -269,6 +269,10 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   const [npcFragId, setNpcFragId] = useState<string | null>(null)
   // 흰약 finale일 때만 set — 시착실 옆벽 기댐 회전(없으면 일반 카메라 추적)
   const [ghostLean, setGhostLean] = useState<{ rotY: number; rotZ: number } | null>(null)
+  // 빈 네모 피날레 2단계 — 'front'(눈 앞 idle) → 마지막 조각 읽으면 'lean'(시착실 옆벽 기댐, 계속 머묾)
+  const [finalePhase, setFinalePhase] = useState<'front' | 'lean' | null>(null)
+  const finalePhaseRef = useRef<'front' | 'lean' | null>(null)
+  const finaleFragRef = useRef<string | null>(null) // 피날레 마지막 조각 id (읽음 감지용)
   const spawnCountRef = useRef(0)
   const wasInViewRef = useRef(false)
   const prevGhostCellRef = useRef<{ gx: number; gy: number } | null>(null)
@@ -276,7 +280,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   const playerPosRef = useRef(_playerPos)
   const fittingRoomRef = useRef(fittingRoom)
   const emptySquareRef = useRef(!!emptySquare)
-  const leanedRef = useRef(false) // 빈 네모 lean 스폰 1회만 (중복 방지)
+  const leanedRef = useRef(false) // 빈 네모 피날레 1회만 (중복 방지)
 
   useEffect(() => {
     playerPosRef.current = _playerPos
@@ -286,17 +290,32 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
 
   // 스폰 로직 — 시야 270도 안 + 벽에 안 가려진(clear LOS) cell 선택 후 ghostPos 세팅
   const spawnGhost = useCallback(() => {
-    // finale — 흰약(whiteflash) 또는 빈 네모(emptySquare) 시 시착실 옆벽 바깥에 기대 세움
+    // finale — 빈 네모(전부 수집/whiteflash) 첫 도착: NPC+마지막 조각을 플레이어 "눈 앞"에 idle 스폰(PHASE A).
+    // 그 조각을 읽으면(아래 PHASE B effect) NPC가 시착실 옆벽으로 이동해 계속 기댐.
     const FR = fittingRoomRef.current
-    if ((useGameStore.getState().activeEffect === 'whiteflash' || emptySquareRef.current) && FR) {
-      setGhostPos([FR.x - FR.halfW - GHOST_LEAN_GAP, 0, FR.z]) // 좌측 옆벽 바깥 (부스가 셀 중심이라 z=정면 정렬됨)
-      setGhostLean({ rotY: -Math.PI / 2, rotZ: GHOST_LEAN_TILT }) // 90° 돌려 옆벽과 평행 — 등을 벽(동/+x)에 대고 기댐
-      setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])
+    const isFinaleCtx = useGameStore.getState().activeEffect === 'whiteflash' || emptySquareRef.current
+    if (isFinaleCtx) {
+      if (leanedRef.current || !FR) return // 이미 피날레 처리됨 → normal 스폰으로 빠지지 않게 중단
+      const fwd = new THREE.Vector3()
+      camera.getWorldDirection(fwd)
+      const fl = Math.hypot(fwd.x, fwd.z) || 1
+      const ahead = 2.4 * cellSize
+      const wmax = mazeSize * cellSize
+      const clampW = (v: number) => Math.max(cellSize * 0.5, Math.min(wmax - cellSize * 0.5, v))
+      const fx = clampW(camera.position.x + (fwd.x / fl) * ahead)
+      const fz = clampW(camera.position.z + (fwd.z / fl) * ahead)
+      const fragId = NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)]
+      finaleFragRef.current = fragId
+      setNpcFragId(fragId)
+      setGhostPos([fx, 0, fz]) // 눈 앞 — lean 없이 idle, 카메라 향함
+      setGhostLean(null)
       spawnCountRef.current += 1
       prevGhostCellRef.current = null
       isFirstSpawnRef.current = false
       wasInViewRef.current = false
       leanedRef.current = true
+      finalePhaseRef.current = 'front'
+      setFinalePhase('front')
       return
     }
     setGhostLean(null)
@@ -362,48 +381,43 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
       }
     }
 
-    // 폴백 — 맵 재생성(약 픽업 시) 후 새 벽 배치로 엄격 제약(전방+clear LOS) 후보가 0이면
-    // 제약을 완화(전방·LOS 무시)해 최소거리 in-bounds 셀이라도 스폰. 안 그러면 유령·쪽지 둘 다 안 뜸.
-    let pickFrom = candidates
-    if (pickFrom.length === 0) {
-      const relaxed: { gx: number; gy: number; dist: number; inView: boolean }[] = []
-      for (let oy = -MAX_R; oy <= MAX_R; oy++) {
-        for (let ox = -MAX_R; ox <= MAX_R; ox++) {
-          if (Math.max(Math.abs(ox), Math.abs(oy)) < MIN_CHEB) continue
-          const cx = pCellX + ox
-          const cy = pCellY + oy
-          if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
-          if (prev && prev.gx === cx && prev.gy === cy) continue
-          const tw = cellToWorld(cx, cy, cellSize)
-          const dxg = tw.x - camX
-          const dzg = tw.z - camZ
-          const len = Math.hypot(dxg, dzg)
-          if (len < 0.001) continue
-          const dot = (fwdX * dxg + fwdZ * dzg) / len
-          relaxed.push({ gx: cx, gy: cy, dist: Math.hypot(ox, oy), inView: dot >= inViewCos })
-        }
+    // in-bounds 전체(LOS·FOV 무시) 셋 — 화면 안 후보가 없을 때(카메라가 벽을 봄) "가장 가까운" 셀에
+    // 스폰하기 위함. 과거: 벽 보면 clear-LOS 전방 후보가 0 → 옆/먼 셀만 남아 유령이 화면 밖 먼 곳에 떠서 "안 등장".
+    const nearAny: { gx: number; gy: number; dist: number }[] = []
+    for (let oy = -MAX_R; oy <= MAX_R; oy++) {
+      for (let ox = -MAX_R; ox <= MAX_R; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) < MIN_CHEB) continue
+        const cx = pCellX + ox
+        const cy = pCellY + oy
+        if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
+        if (prev && prev.gx === cx && prev.gy === cy) continue
+        nearAny.push({ gx: cx, gy: cy, dist: Math.hypot(ox, oy) })
       }
-      if (relaxed.length === 0) {
-        console.warn('[ItaewonLayer] spawn failed — no in-bounds cell even relaxed', { isFirst, pCellX, pCellY })
-        return
-      }
-      console.warn('[ItaewonLayer] spawn fallback (relaxed FOV/LOS)', { count: relaxed.length, pCellX, pCellY })
-      pickFrom = relaxed
     }
 
-    // 모두 MIN_CHEB 이상이라 가깝게 안 뜸. 화면 안 우선, 없으면 (먼) 나머지
-    const inView = pickFrom.filter((c) => c.inView)
-    const usable = inView.length ? inView : pickFrom
-
-    // 거리 정렬 후 — 첫 스폰은 먼 절반(드라마틱), 이후는 가까운 절반에서 random
-    usable.sort((a, b) => a.dist - b.dist)
-    const pool = isFirst
-      ? usable.slice(Math.floor(usable.length / 2))
-      : usable.slice(0, Math.max(1, Math.ceil(usable.length / 2)))
-    const target = pool[Math.floor(Math.random() * pool.length)]
+    // 선택 — (1) clear-LOS + 화면 안 후보가 있으면 그중 가까운 절반 random (약 먹자마자 시야에 등장)
+    //        (2) 없으면(카메라가 벽 봄) LOS 무시하고 가장 가까운 in-bounds 셀 (한 칸 돌면 보이고 근접 발견)
+    const inViewCands = candidates.filter((c) => c.inView)
+    let target: { gx: number; gy: number } | undefined
+    let how: string
+    if (inViewCands.length) {
+      inViewCands.sort((a, b) => a.dist - b.dist)
+      const pool = inViewCands.slice(0, Math.max(1, Math.ceil(inViewCands.length / 2)))
+      target = pool[Math.floor(Math.random() * pool.length)]
+      how = 'inview-near'
+    } else {
+      const fallback = nearAny.length ? nearAny : candidates
+      fallback.sort((a, b) => a.dist - b.dist)
+      target = fallback[0]
+      how = nearAny.length ? 'nearest-any' : 'candidates-only'
+    }
+    if (!target) {
+      console.warn('[ItaewonLayer] spawn failed — no in-bounds cell', { pCellX, pCellY })
+      return
+    }
 
     const world = cellToWorld(target.gx, target.gy, cellSize)
-    console.log('[ItaewonLayer] ghost spawn', { gx: target.gx, gy: target.gy, world, pCellX, pCellY, isFirst, candidates: candidates.length })
+    console.log('[ItaewonLayer] ghost spawn', { gx: target.gx, gy: target.gy, world, pCellX, pCellY, isFirst, how, candidates: candidates.length, inView: inViewCands.length })
     setGhostPos([world.x, 0, world.z])
     // 이 스폰에 대응하는 시 조각(약 순서) — ckshp1..3, maengjeom1..2
     setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])
@@ -419,10 +433,26 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     spawnGhost()
   }, [activeEffect, spawnGhost])
 
-  // 빈 네모(전부 수집) — whiteflash 이펙트 없이도 lean 유령 스폰 (dev 점프 포함). 1회만.
+  // 빈 네모(전부 수집) — whiteflash 이펙트 없이도 피날레 유령 스폰 (dev 점프 포함). 1회만.
   useEffect(() => {
     if (emptySquare && !leanedRef.current) spawnGhost()
   }, [emptySquare, spawnGhost])
+
+  // PHASE B — 빈 네모 첫 조각(눈 앞)을 읽으면(visitedEvents) NPC를 시착실 옆벽으로 이동시켜 계속 기댐.
+  const finaleFragRead = useGameStore((s) => {
+    const fid = finaleFragRef.current
+    return !!fid && s.visitedEvents.has(`note_${fid}`)
+  })
+  useEffect(() => {
+    if (finalePhase !== 'front' || !finaleFragRead) return
+    const FR = fittingRoomRef.current
+    if (!FR) return
+    setGhostPos([FR.x - FR.halfW - GHOST_LEAN_GAP, 0, FR.z]) // 좌측 옆벽 바깥 (부스 셀 중심이라 z 정면 정렬)
+    setGhostLean({ rotY: -Math.PI / 2, rotZ: GHOST_LEAN_TILT }) // 90° 돌려 옆벽 평행 — 등을 벽에 대고 기댐
+    finalePhaseRef.current = 'lean'
+    setFinalePhase('lean')
+    markGhostEncounter() // 흰약 효과(스케치) 깔끔히 종료 — 안 그러면 store가 encounter 폴링을 계속함
+  }, [finalePhase, finaleFragRead, markGhostEncounter])
 
   // 디버그: ?sketch=1 → 약 없이도 마운트 후 ghost 상시 노출
   useEffect(() => {
@@ -434,6 +464,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
   // 매 프레임 — ghost bbox 8 corner 중 4+개가 frustum 안 → 1회 트리거 (cycle 진행 중 X)
   useFrame(() => {
     if (!ghostPos || showText || wasInViewRef.current) return
+    if (finalePhaseRef.current) return // 피날레 고스트는 "take it all you want" 대사·페이드 없음 (그냥 서 있음)
 
     _frustumMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
     _frustum.setFromProjectionMatrix(_frustumMatrix)

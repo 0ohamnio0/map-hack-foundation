@@ -995,7 +995,7 @@ const Ch3Inner: React.FC<{
   maze: MazeData;
   onPlayerMove?: (pos: { x: number; z: number }) => void;
   onElevatorZoneChange?: (inZone: boolean) => void;
-  onDrugPickup?: (index: number, pickupCount: number) => void;
+  onDrugPickup?: (index: number, pickupCount: number, playerCell?: { x: number; y: number }) => void;
   onCollectedChange?: (collected: Set<number>) => void;
   cartMuted?: boolean;
   devEmptyTrigger?: number;
@@ -1017,7 +1017,9 @@ const Ch3Inner: React.FC<{
     setCollected(all);
     onCollectedChange?.(all);
     onDrugPickup?.(MEDICINES.length - 1, MEDICINES.length);
-    // lean 유령은 ItaewonLayer가 emptySquare 신호로 직접 스폰 (whiteflash 이펙트 미사용 — 흰 화면 방지)
+    // 유령은 ItaewonLayer가 emptySquare 신호로 직접 스폰. + 흰약 효과(라인 드로잉 스케치)도 발동 — dev 점프에서도 빈 네모 풀 연출 확인용.
+    const white = MEDICINES[MEDICINES.length - 1];
+    setActiveEffect(white.effect, white.duration);
   }, [devEmptyTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
   // 흰약 차단 알림 스로틀 — 존 진입당 1회만 (100ms 루프 스팸 방지)
   const whiteBlockedRef = useRef(false);
@@ -1084,7 +1086,10 @@ const Ch3Inner: React.FC<{
             setNotification(med.name);
             triggerEvent(`ch3_med_${i}`);
             setTimeout(() => setNotification(null), 2000);
-            onDrugPickup?.(i, collected.size + 1);
+            // 플레이어가 선 실제 셀(floor) — 재생성 맵에서 이 칸 4면을 열어 벽 마주봄 방지
+            const pgx = Math.max(0, Math.min(MAZE_SIZE - 1, Math.floor(px / CELL_SIZE)));
+            const pgy = Math.max(0, Math.min(MAZE_SIZE - 1, Math.floor(pz / CELL_SIZE)));
+            onDrugPickup?.(i, collected.size + 1, { x: pgx, y: pgy });
           }
         }
       });
@@ -1177,13 +1182,14 @@ export const Ch3Scene: React.FC = () => {
   );
   // 흰약 순간 플래시(반짝) — isFinal 픽업 시 0.65s 흰 오버레이
   const [whiteFlash, setWhiteFlash] = useState(false);
-  const handleDrugPickup = useCallback((_drugIndex: number, pickupCount: number) => {
+  const handleDrugPickup = useCallback((_drugIndex: number, pickupCount: number, playerCell?: { x: number; y: number }) => {
     // 픽업 순서대로 미로가 단순화 — 마지막(흰약) 픽업이면 내벽 0 = 빈 네모(시착실만 남음).
     const removalRatio = MAZE_REMOVAL_RAMP[Math.min(pickupCount - 1, MAZE_REMOVAL_RAMP.length - 1)];
     const isFinal = pickupCount >= MEDICINES.length;
     const newSeed = Math.floor(Math.random() * 0xFFFFFFFF);
     // isFinal엔 forceCenterCorner off — 중앙 코너벽까지 빼야 진짜 벽 하나 없는 정사각형. 시착실 부스는 자체 벽이라 그대로 남음.
-    const buildMaze = () => setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, forceCenterCorner: !isFinal, removalRatio }, CELL_SIZE));
+    // openAround: 약 먹은 직후 플레이어가 벽을 마주보지 않게 그 칸 4면 개방 (유령이 화면 안에 뜨도록)
+    const buildMaze = () => setMaze(generateMaze(MAZE_SIZE, MAZE_SIZE, { seed: newSeed, forceCenterCorner: !isFinal, removalRatio, openAround: playerCell }, CELL_SIZE));
     if (isFinal) {
       // 시퀀스: 반짝(흰 플래시) → 정점(~0.25s)에 빈 네모로 교체(플래시가 가림) → 빈 맵 위 라인 드로잉(ChapterEffects whiteflash)
       setWhiteFlash(true);
@@ -1380,6 +1386,13 @@ export const Ch3Scene: React.FC = () => {
                 display: 'flex', gap: 6, pointerEvents: 'none', userSelect: 'none',
               }}>
                 {NPC_FRAGMENT_IDS.map((id, i) => slot(id, i, FRAG_TINT))}
+                {/* Tab+←/→ 순차 열람 힌트 (⇥ tab) */}
+                <span style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 2, opacity: 0.5, alignSelf: 'center' }}>
+                  <svg viewBox="0 0 22 16" width="15" height="11" aria-hidden>
+                    <path d="M3 8 L15 8 M11 4 L15 8 L11 12 M19 3 L19 13" fill="none" stroke="#f3eedd" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span style={{ fontFamily: '"Unifont", monospace', fontSize: 10, letterSpacing: 1, color: '#f3eedd' }}>tab</span>
+                </span>
               </div>
             )}
             {allCollected && (
@@ -1388,6 +1401,13 @@ export const Ch3Scene: React.FC = () => {
                 display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none', userSelect: 'none',
               }}>
                 {BATTLE_FRAGMENT_IDS.map((id, i) => slot(id, i, BATTLE_TINT))}
+                {/* Tab+↑/↓ 순차 열람 힌트 (세로 배열, ⇣ tab) */}
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, marginTop: 2, opacity: 0.5, alignSelf: 'center' }}>
+                  <svg viewBox="0 0 16 22" width="11" height="15" aria-hidden>
+                    <path d="M8 3 L8 15 M4 11 L8 15 L12 11 M3 19 L13 19" fill="none" stroke="#f3eedd" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span style={{ fontFamily: '"Unifont", monospace', fontSize: 10, letterSpacing: 1, color: '#f3eedd' }}>tab</span>
+                </span>
               </div>
             )}
           </>
