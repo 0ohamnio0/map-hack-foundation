@@ -23,6 +23,7 @@ const SOUND_MAP: Record<string, string | null> = {
   evil_laugh_4: 'ch2/evil_laugh_4.mp3',
   evil_laugh_5: 'ch2/evil_laugh_5.mp3',
   vlall_1: 'ch2/vlall_00001.mp3',
+  airport_hallucination: 'ch2/airport_hallucination.mp3',
   gulp_red: 'ch3/gulp_red.mp3',
   gulp_blue: 'ch3/gulp_blue.mp3',
   gulp_yellow: 'ch3/gulp_yellow.mp3',

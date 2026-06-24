@@ -199,14 +199,17 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
   const [phase, setPhase] = useState<'in' | 'show' | 'out' | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { play } = useSoundManager();
 
-  // 공항 환각 영상 — active 동안 처음부터 재생, 끝나면 정지
+  // 공항 환각 영상 — active 동안 처음부터 재생, 끝나면 정지.
+  // 사운드는 영상(muted)이 아니라 SoundManager SFX로 분리 재생 → 컷신 비주얼이 5.2s에 끝나도
+  // 환각음은 Howler가 본래 길이(~7.85s) 끝까지 꼬리로 재생된다.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (active) { v.currentTime = 0; v.play().catch(() => {}); }
+    if (active) { v.currentTime = 0; v.play().catch(() => {}); play('airport_hallucination'); }
     else { v.pause(); }
-  }, [active]);
+  }, [active, play]);
 
   useEffect(() => {
     if (!active) { setPhase(null); return; }
@@ -267,6 +270,7 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
         playsInline
         loop
         autoPlay
+        muted
         style={{
           position: 'absolute', width: 2, height: 2, top: 0, left: 0,
           opacity: 0, pointerEvents: 'none',
