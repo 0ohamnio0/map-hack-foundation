@@ -1306,10 +1306,12 @@ export const Ch3Scene: React.FC = () => {
       e.preventDefault();
       if (showExitPrompt) {
         triggerEvent('ch3_exit');
+        play('elevator_door'); // 시착실 문 소리 + 공통 transition
         play('transition');
         goToChapter('CH4');
       } else if (showElevatorPrompt) {
         triggerEvent('ch3_elevator');
+        play('elevator_door'); // 시착실 진입 문 소리
         startElevatorCutscene();
       }
     };
