@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore, type Chapter } from '@/store/useGameStore';
 import { StartScreen } from '@/components/game/StartScreen';
 import { MobileBlock } from '@/components/game/MobileBlock';
@@ -70,6 +70,20 @@ export const Game: React.FC = () => {
   const introAudioActive = useGameStore(s => s.introAudioActive);
   const prevChapterRef = useRef<Chapter>(chapter);
   const isMobileDevice = useIsMobileDevice();
+  const [webglLost, setWebglLost] = useState(false);
+
+  // WebGL 컨텍스트 손실 감지 — R3F 씬(CH.1~3)이 검은 화면으로 영구 프리즈되는 대신 안내 표시.
+  // webglcontextlost는 버블 안 하지만 캡처 단계(3번째 인자 true)로 모든 Canvas를 전역 포착.
+  useEffect(() => {
+    const onLost = (e: Event) => { e.preventDefault(); setWebglLost(true); };
+    const onRestored = () => setWebglLost(false);
+    document.addEventListener('webglcontextlost', onLost, true);
+    document.addEventListener('webglcontextrestored', onRestored, true);
+    return () => {
+      document.removeEventListener('webglcontextlost', onLost, true);
+      document.removeEventListener('webglcontextrestored', onRestored, true);
+    };
+  }, []);
 
   useEffect(() => {
     // START는 user gesture 전이라 BGM 트리거를 StartScreen 1차 클릭에 위임.
@@ -145,6 +159,33 @@ export const Game: React.FC = () => {
       <FadeOverlay />
       <EffectOverlay />
       {SKETCH_DEBUG && <SketchDebugPanel />}
+      {webglLost && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999, background: '#000',
+          color: '#f3eedd', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 18,
+          fontFamily: '"Unifont", monospace', textAlign: 'center', padding: 24,
+        }}>
+          <div style={{ fontSize: 15, letterSpacing: 2, lineHeight: 1.9 }}>
+            그래픽(WebGL) 컨텍스트가 손실되었습니다.<br />
+            브라우저 하드웨어 가속을 켠 뒤 새로고침해 주세요.<br />
+            <span style={{ opacity: 0.6, fontSize: 12 }}>
+              Chrome 설정 → 시스템 → "사용 가능한 경우 하드웨어 가속 사용" ON → 재시작
+            </span>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              fontFamily: '"Unifont", monospace', fontSize: 13, letterSpacing: 2,
+              color: '#f3eedd', background: 'transparent',
+              border: '1px solid rgba(243,238,221,0.5)', borderRadius: 2,
+              padding: '8px 20px', cursor: 'pointer',
+            }}
+          >
+            새로고침 / Reload
+          </button>
+        </div>
+      )}
     </>
   );
 };

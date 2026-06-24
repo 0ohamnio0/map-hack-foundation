@@ -77,10 +77,12 @@ export const IntroMedia: React.FC = () => {
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: isIntro ? 100 : -1,
-        background: isIntro ? '#000' : 'transparent',
+        zIndex: 100,
+        background: '#000',
         overflow: 'hidden',
-        opacity: isIntro ? 1 : 0,
+        // CH.1 진입 후엔 display:none — 1080p 영상 합성을 멈춰 R3F WebGL과의 GPU/VRAM 경합 제거
+        // (display:none에서도 오디오는 계속 재생되어 CH.1 BGM 캐리 유지. 사파리는 이미 차단).
+        display: isIntro ? 'block' : 'none',
         pointerEvents: 'none',
       }}
     >
