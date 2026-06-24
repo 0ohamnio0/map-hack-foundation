@@ -24,6 +24,9 @@ interface GameState {
   chapterReady: boolean;
   /** 엔딩 크레딧 도달(완주) 여부 — true면 debug=1 없이도 상단 챕터 네비 노출 */
   gameCompleted: boolean;
+  /** 인트로 영상의 baked 오디오가 CH.1 BGM으로 캐리 중인지 — true면 Game이 CH.1에서 ch1.mp3 중복 재생 안 함 */
+  introAudioActive: boolean;
+  setIntroAudioActive: (v: boolean) => void;
   goToChapter: (chapter: Chapter) => void;
   /** 엔딩 크레딧 진입 시 호출 → 챕터 선택 네비 해금 */
   markGameCompleted: () => void;
@@ -60,6 +63,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   isTransitioning: false,
   chapterReady: true,
   gameCompleted: false,
+  introAudioActive: false,
+  setIntroAudioActive: (v: boolean) => set({ introAudioActive: v }),
   leftMovement: 0,
   rightMovement: 0,
   cartItems: [],

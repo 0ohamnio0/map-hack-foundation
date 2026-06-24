@@ -4,7 +4,7 @@ import { StartScreen } from '@/components/game/StartScreen';
 import { MobileBlock } from '@/components/game/MobileBlock';
 import { FadeOverlay } from '@/components/game/FadeOverlay';
 import { EffectOverlay } from '@/components/game/EffectOverlay';
-import { IntroScene } from '@/scenes/IntroScene';
+import { IntroMedia } from '@/components/game/IntroMedia';
 import { Ch1Scene } from '@/scenes/Ch1Scene';
 import { Ch2Scene } from '@/scenes/Ch2Scene';
 import { Ch3Scene } from '@/scenes/Ch3Scene';
@@ -67,13 +67,16 @@ export const Game: React.FC = () => {
   const chapter = useGameStore(s => s.chapter);
   const resetChapterState = useGameStore(s => s.resetChapterState);
   const gameCompleted = useGameStore(s => s.gameCompleted);
+  const introAudioActive = useGameStore(s => s.introAudioActive);
   const prevChapterRef = useRef<Chapter>(chapter);
   const isMobileDevice = useIsMobileDevice();
 
   useEffect(() => {
-    // START는 user gesture 전이라 BGM 트리거를 StartScreen 1차 클릭에 위임
-    // INTRO는 영상 canplay 시점에 IntroScene이 BGM·영상 동시 트리거 (sync)
+    // START는 user gesture 전이라 BGM 트리거를 StartScreen 1차 클릭에 위임.
+    // INTRO는 IntroMedia가 영상 자체 baked 오디오로 음악을 담당(별도 BGM 없음).
     if (chapter === 'START' || chapter === 'INTRO') return;
+    // CH.1은 인트로 영상 오디오(ch1.mp3 baked)가 그대로 이어지는 동안 ch1.mp3 중복 재생 금지.
+    if (chapter === 'CH1' && useGameStore.getState().introAudioActive) return;
     playChapterMusic(chapter);
   }, [chapter]);
 
@@ -111,7 +114,8 @@ export const Game: React.FC = () => {
   const renderScene = () => {
     switch (chapter) {
       case 'START': return <StartScreen />;
-      case 'INTRO': return <IntroScene />;
+      // INTRO 비주얼은 영속 레이어의 IntroMedia가 담당 (씬 스위치 바깥 — CH.1 전환에도 오디오 유지)
+      case 'INTRO': return null;
       case 'CH1': return <Ch1Scene />;
       case 'CH2': return <Ch2Scene />;
       case 'CH3': return <Ch3Scene />;
@@ -129,9 +133,14 @@ export const Game: React.FC = () => {
     }
   };
 
+  // 인트로 영상은 INTRO 동안, 그리고 CH.1에서 오디오가 캐리되는 동안 영속 마운트.
+  // 씬 스위치 바깥에 두어 INTRO→CH.1 전환에도 언마운트되지 않고 오디오가 끊김 없이 이어진다.
+  const showIntroMedia = chapter === 'INTRO' || (chapter === 'CH1' && introAudioActive);
+
   return (
     <>
       {renderScene()}
+      {showIntroMedia && <IntroMedia />}
       {(DEBUG_HUD || gameCompleted) && <ChapterHUD chapter={chapter} />}
       <FadeOverlay />
       <EffectOverlay />
