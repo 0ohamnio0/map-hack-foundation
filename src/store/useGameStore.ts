@@ -95,7 +95,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   markGameCompleted: () => set({ gameCompleted: true }),
 
   resetChapterState: (chapter: Chapter) => {
-    const { visitedEvents } = get();
+    const { visitedEvents, letterSent } = get();
     const filterPrefixes = (prefixes: string[]) => {
       const next = new Set<string>();
       visitedEvents.forEach((id) => {
@@ -109,7 +109,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         return;
       case 'CH2':
         set({
-          visitedEvents: filterPrefixes(['note_', 'ch2_']),
+          // 편지를 보냈으면 쪽지(note_) 소멸, 안 보냈으면 보존 → CH.3으로 들고 가 계속 재열람.
+          visitedEvents: filterPrefixes(letterSent ? ['note_', 'ch2_'] : ['ch2_']),
           activeNoteId: null,
           letterSent: false,
         });

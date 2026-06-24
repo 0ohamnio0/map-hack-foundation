@@ -20,6 +20,7 @@ import { ItaewonLayer } from '@/components/game/ItaewonLayer';
 import { NoteReader } from '@/components/game/NoteReader';
 import { PoemFragment, FRAG_TINT } from '@/components/game/PoemFragment';
 import { BATTLE_FRAGMENT_IDS, NPC_FRAGMENT_IDS } from '@/data/ch3Fragments';
+import { CH2_NOTES } from '@/data/ch2Notes';
 import { suspendChapterMusic, startElevatorMusic, endElevatorMusic, stopChapterMusic } from '@/lib/chapterMusic';
 
 const MAZE_SIZE = 10;
@@ -1380,8 +1381,19 @@ export const Ch3Scene: React.FC = () => {
         };
         const npcGot = NPC_FRAGMENT_IDS.some(id => visitedEvents.has(`note_${id}`));
         const z = activeNoteId !== null ? 2100 : 1500;
+        // CH.2에서 우체통에 안 넣고 들고 온 쪽지 — CH.3 좌하단에 계속 표시, 클릭 재열람.
+        const CH2_TINT = '#f3d9a6'; // 따뜻한 양피지색
+        const carriedCh2 = CH2_NOTES.filter(n => visitedEvents.has(`note_${n.id}`));
         return (
           <>
+            {carriedCh2.length > 0 && (
+              <div style={{
+                position: 'fixed', left: 24, bottom: 24, zIndex: z,
+                display: 'flex', gap: 6, pointerEvents: 'none', userSelect: 'none',
+              }}>
+                {carriedCh2.map((n, i) => slot(n.id, i, CH2_TINT))}
+              </div>
+            )}
             {npcGot && (
               <div style={{
                 position: 'fixed', right: 24, bottom: 24, zIndex: z,
