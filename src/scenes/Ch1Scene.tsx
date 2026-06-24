@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
+import { PerspectiveCamera } from '@react-three/drei'
 import { EffectComposer, Noise } from '@react-three/postprocessing'
+import { r3f } from '@/lib/r3fTunnel'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 import { LightShadowRainbow } from '@/components/effects/LightShadowRainbow'
@@ -263,30 +265,19 @@ export const Ch1Scene: React.FC = () => {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 100, background: '#000', cursor: 'pointer',
+      position: 'fixed', inset: 0, zIndex: 100, cursor: 'pointer',
       overflow: 'hidden',
     }}>
-      {/* Canvas fills the viewport directly. User adjust (offset/scale from the
-          dev panel) is applied on the wrapper around the Canvas. */}
+      {/* 3D는 Game의 영속 Canvas로 터널링. 카메라는 이 챕터 전용 makeDefault.
+          (dev offset/scale transform은 prod 기본값에선 무영향이라 단일 캔버스 전환 시 생략) */}
+      <r3f.In>
+        <PerspectiveCamera makeDefault {...CAMERA_PROP} />
+        <Scene progress={progress} tuning={tuning} />
+      </r3f.In>
       <div style={{
-        width: '100%',
-        height: '100%',
-        position: 'relative',
-        transform: `translate(${tuning.sceneOffsetX}px, ${tuning.sceneOffsetY}px) scale(${tuning.sceneScale})`,
-        transformOrigin: 'center center',
-      }}>
-        <Canvas
-          shadows
-          dpr={[1, 1.5]}
-          camera={CAMERA_PROP}
-        >
-          <Scene progress={progress} tuning={tuning} />
-        </Canvas>
-        <div style={{
-          position: 'absolute', inset: 0, background: '#ffffff',
-          opacity: whiteOut, pointerEvents: 'none',
-        }} />
-      </div>
+        position: 'absolute', inset: 0, background: '#ffffff',
+        opacity: whiteOut, pointerEvents: 'none',
+      }} />
       {/* Hint sits outside the user-adjust wrapper so it stays at full viewport
           scale (sceneScale > 1 would otherwise crop it). */}
       {progress === 0 && (

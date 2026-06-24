@@ -4,7 +4,8 @@ import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { useGLTF, useAnimations } from '@react-three/drei';
+import { useGLTF, useAnimations, PerspectiveCamera } from '@react-three/drei';
+import { r3f } from '@/lib/r3fTunnel';
 import { Suspense } from 'react';
 import { PlayerController, type WallAABB } from '@/components/game/PlayerController';
 import { SceneExporter } from '@/components/dev/SceneExporter';
@@ -1323,7 +1324,10 @@ export const Ch3Scene: React.FC = () => {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-      <Canvas camera={{ fov: 75, position: [startWorld.x, 1.8, startWorld.z] }} style={{ background: '#0a0a0a' }}>
+      {/* 3D는 Game의 영속 Canvas로 터널링. 카메라는 PlayerController가 잡는 makeDefault.
+          (엘베 cutscene 오버레이 Canvas·StarNest는 transient라 별도 유지) */}
+      <r3f.In>
+        <PerspectiveCamera makeDefault fov={75} position={[startWorld.x, 1.8, startWorld.z]} near={0.1} far={1000} />
         <Ch3Inner
           maze={maze}
           onPlayerMove={setPlayerPos}
@@ -1334,7 +1338,7 @@ export const Ch3Scene: React.FC = () => {
           devEmptyTrigger={devEmptyTrigger}
         />
         <SceneExporter chapter="ch3" />
-      </Canvas>
+      </r3f.In>
 
       {/* Elevator cutscene overlay */}
       <ElevatorCutscene phase={cutscenePhase} />
@@ -1354,8 +1358,8 @@ export const Ch3Scene: React.FC = () => {
       {/* 시 조각 본문 오버레이 — CH.2와 동일한 NoteReader(종이·폰트·한영 Q토글). store.activeNoteId로 구동 */}
       <NoteReader />
 
-      {/* 시 조각 수집 슬롯. NPC(ckshp/맹점) 5칸은 좌하단 가로(첫 수집 후, 흰약 먹어도 유지),
-          전략적 행성 전투 9칸은 finale 진입 시 왼쪽 세로로 추가. 수집된 것만 점등 · 클릭 재열람. */}
+      {/* 시 조각 수집 슬롯. NPC(ckshp/맹점) 5칸은 우측 세로 중앙(첫 수집 후, 흰약 먹어도 유지),
+          전략적 행성 전투 9칸은 finale 진입 시 좌측 세로 중앙에 추가 — 좌우대칭. 수집된 것만 점등 · 클릭 재열람. */}
       {!cutscenePhase && (() => {
         const BATTLE_TINT = '#c4a5ff'; // 벽 갤러리 조각과 동일한 연보라
         const slot = (id: string, i: number, tintC: string) => {
@@ -1427,14 +1431,14 @@ export const Ch3Scene: React.FC = () => {
             )}
             {npcGot && (
               <div style={{
-                position: 'fixed', right: 24, bottom: 24, zIndex: z,
-                display: 'flex', gap: 6, pointerEvents: 'none', userSelect: 'none',
+                position: 'fixed', right: 24, top: '50%', transform: 'translateY(-50%)', zIndex: z,
+                display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none', userSelect: 'none',
               }}>
                 {NPC_FRAGMENT_IDS.map((id, i) => slot(id, i, FRAG_TINT))}
-                {/* Tab+←/→ 순차 열람 힌트 (⇥ tab) */}
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 2, opacity: 0.5, alignSelf: 'center' }}>
-                  <svg viewBox="0 0 22 16" width="15" height="11" aria-hidden>
-                    <path d="M3 8 L15 8 M11 4 L15 8 L11 12 M19 3 L19 13" fill="none" stroke="#f3eedd" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                {/* Tab+↑/↓ 순차 열람 힌트 (세로 배열, ⇣ tab) */}
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, marginTop: 2, opacity: 0.5, alignSelf: 'center' }}>
+                  <svg viewBox="0 0 16 22" width="11" height="15" aria-hidden>
+                    <path d="M8 3 L8 15 M4 11 L8 15 L12 11 M3 19 L13 19" fill="none" stroke="#f3eedd" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   <span style={{ fontFamily: '"Unifont", monospace', fontSize: 10, letterSpacing: 1, color: '#f3eedd' }}>tab</span>
                 </span>
