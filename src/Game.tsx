@@ -15,6 +15,8 @@ import { Ch5Screen } from '@/screens/Ch5Screen';
 import { playChapterMusic } from '@/lib/chapterMusic';
 import { SketchDebugPanel } from '@/components/effects/SketchDebugPanel';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
+import { useWebGLAvailable } from '@/hooks/useWebGLAvailable';
+import { WebGLBlock } from '@/components/game/WebGLBlock';
 
 const SKETCH_DEBUG = typeof window !== 'undefined'
   && new URLSearchParams(window.location.search).get('sketch') === '1';
@@ -72,6 +74,7 @@ export const Game: React.FC = () => {
   const introAudioActive = useGameStore(s => s.introAudioActive);
   const prevChapterRef = useRef<Chapter>(chapter);
   const isMobileDevice = useIsMobileDevice();
+  const webglAvailable = useWebGLAvailable();
   const [webglLost, setWebglLost] = useState(false);
 
   // WebGL 컨텍스트 손실 감지 — R3F 씬(CH.1~3)이 검은 화면으로 영구 프리즈되는 대신 안내 표시.
@@ -126,6 +129,9 @@ export const Game: React.FC = () => {
 
   // 모바일/태블릿은 게임(R3F 캔버스)을 마운트하기 전에 차단.
   if (isMobileDevice) return <MobileBlock />;
+  // WebGL 생성 불가 환경(GPU 블록리스트·하드웨어가속 off 등)은 Canvas 마운트 전에 막고
+  // 왜 검은 화면인지 안내. 정상 환경에선 절대 안 보임(사전 감지 통과).
+  if (!webglAvailable) return <WebGLBlock reason="unavailable" />;
 
   const renderScene = () => {
     switch (chapter) {
@@ -177,33 +183,7 @@ export const Game: React.FC = () => {
       <FadeOverlay />
       <EffectOverlay />
       {SKETCH_DEBUG && <SketchDebugPanel />}
-      {webglLost && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999, background: '#000',
-          color: '#f3eedd', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 18,
-          fontFamily: '"Unifont", monospace', textAlign: 'center', padding: 24,
-        }}>
-          <div style={{ fontSize: 15, letterSpacing: 2, lineHeight: 1.9 }}>
-            그래픽(WebGL) 컨텍스트가 손실되었습니다.<br />
-            브라우저 하드웨어 가속을 켠 뒤 새로고침해 주세요.<br />
-            <span style={{ opacity: 0.6, fontSize: 12 }}>
-              Chrome 설정 → 시스템 → "사용 가능한 경우 하드웨어 가속 사용" ON → 재시작
-            </span>
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              fontFamily: '"Unifont", monospace', fontSize: 13, letterSpacing: 2,
-              color: '#f3eedd', background: 'transparent',
-              border: '1px solid rgba(243,238,221,0.5)', borderRadius: 2,
-              padding: '8px 20px', cursor: 'pointer',
-            }}
-          >
-            새로고침 / Reload
-          </button>
-        </div>
-      )}
+      {webglLost && <WebGLBlock reason="lost" />}
     </>
   );
 };
