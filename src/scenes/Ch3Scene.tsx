@@ -21,6 +21,7 @@ import { NoteReader } from '@/components/game/NoteReader';
 import { PoemFragment, FRAG_TINT } from '@/components/game/PoemFragment';
 import { BATTLE_FRAGMENT_IDS, NPC_FRAGMENT_IDS } from '@/data/ch3Fragments';
 import { CH2_NOTES } from '@/data/ch2Notes';
+import { SPARKLE_COLOR, DEFAULT_SPARKLE } from '@/components/game/Note';
 import { suspendChapterMusic, startElevatorMusic, endElevatorMusic, stopChapterMusic } from '@/lib/chapterMusic';
 
 const MAZE_SIZE = 10;
@@ -1381,17 +1382,47 @@ export const Ch3Scene: React.FC = () => {
         };
         const npcGot = NPC_FRAGMENT_IDS.some(id => visitedEvents.has(`note_${id}`));
         const z = activeNoteId !== null ? 2100 : 1500;
-        // CH.2에서 우체통에 안 넣고 들고 온 쪽지 — CH.3 좌하단에 계속 표시, 클릭 재열람.
-        const CH2_TINT = '#f3d9a6'; // 따뜻한 양피지색
+        // CH.2에서 우체통에 안 넣고 들고 온 쪽지 — CH.3 좌하단에 CH.2와 동일한 봉투 룩으로 계속 표시, 클릭 재열람.
         const carriedCh2 = CH2_NOTES.filter(n => visitedEvents.has(`note_${n.id}`));
         return (
           <>
             {carriedCh2.length > 0 && (
               <div style={{
                 position: 'fixed', left: 24, bottom: 24, zIndex: z,
-                display: 'flex', gap: 6, pointerEvents: 'none', userSelect: 'none',
+                display: 'flex', alignItems: 'center', gap: 10,
+                pointerEvents: 'none', userSelect: 'none',
+                filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.8))',
               }}>
-                {carriedCh2.map((n, i) => slot(n.id, i, CH2_TINT))}
+                {carriedCh2.map((n) => {
+                  const noteColor = SPARKLE_COLOR[n.id] ?? DEFAULT_SPARKLE;
+                  const isActive = n.id === activeNoteId;
+                  return (
+                    <svg
+                      key={n.id}
+                      viewBox="0 0 24 32"
+                      width="18"
+                      height="24"
+                      style={{
+                        cursor: 'pointer',
+                        pointerEvents: 'auto',
+                        transition: 'transform 0.15s ease',
+                        filter: isActive ? 'drop-shadow(0 0 2px rgba(255,255,255,0.95))' : undefined,
+                      }}
+                      onClick={() => openNote(n.id)}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.18)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                    >
+                      <path
+                        d="M3 2 L17 2 L21 6 L21 30 L3 30 Z"
+                        fill={noteColor}
+                        stroke={isActive ? '#ffffff' : noteColor}
+                        strokeWidth={isActive ? 1.6 : 1.5}
+                        strokeLinejoin="round"
+                      />
+                      <path d="M17 2 L17 6 L21 6" fill="none" stroke="#1a1a1a" strokeWidth="1.2" />
+                    </svg>
+                  );
+                })}
               </div>
             )}
             {npcGot && (
