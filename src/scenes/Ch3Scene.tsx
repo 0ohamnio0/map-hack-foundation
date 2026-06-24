@@ -1384,7 +1384,7 @@ export const Ch3Scene: React.FC = () => {
           <>
             {npcGot && (
               <div style={{
-                position: 'fixed', left: 24, bottom: 24, zIndex: z,
+                position: 'fixed', right: 24, bottom: 24, zIndex: z,
                 display: 'flex', gap: 6, pointerEvents: 'none', userSelect: 'none',
               }}>
                 {NPC_FRAGMENT_IDS.map((id, i) => slot(id, i, FRAG_TINT))}

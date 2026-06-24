@@ -1799,8 +1799,8 @@ export const Ch2Scene: React.FC = () => {
   }, [airportActive, activeNoteId, postalActive]);
 
   const allNotesCollected = collectedNotes === totalNotes;
-  // 편지를 보내야만 문 통과 가능 — 7/7 수집은 편지 발송의 선행 조건일 뿐, 발송 전엔 나갈 수 없다.
-  const canEnter = letterSent;
+  // 7/7 수집하면 통과 가능. 편지 발송은 자율(선택) — 발송 여부와 무관하게 나갈 수 있다.
+  const canEnter = allNotesCollected;
   // 우체통 반경에서 아직 편지 안 보냈으면 편지가 문 입장보다 우선
   // (반경 겹침 — 이 상태에선 E가 CH.3 진입 대신 편지 보내기로만)
   const mailboxSendable = atMailbox && allNotesCollected && !letterSent;
@@ -1883,11 +1883,9 @@ export const Ch2Scene: React.FC = () => {
           pointerEvents: 'none',
           userSelect: 'none',
         }}>
-          {letterSent
+          {allNotesCollected
             ? '[E] 들어가기'
-            : allNotesCollected
-              ? '편지를 보내기 전에는 나갈 수 없습니다'
-              : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
+            : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
         </div>
       )}
 
