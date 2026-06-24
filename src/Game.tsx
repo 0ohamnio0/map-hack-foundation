@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Canvas } from '@react-three/fiber';
 import { useGameStore, type Chapter } from '@/store/useGameStore';
+import { r3f } from '@/lib/r3fTunnel';
 import { StartScreen } from '@/components/game/StartScreen';
 import { MobileBlock } from '@/components/game/MobileBlock';
 import { FadeOverlay } from '@/components/game/FadeOverlay';
@@ -151,8 +153,24 @@ export const Game: React.FC = () => {
   // 씬 스위치 바깥에 두어 INTRO→CH.1 전환에도 언마운트되지 않고 오디오가 끊김 없이 이어진다.
   const showIntroMedia = chapter === 'INTRO' || (chapter === 'CH1' && introAudioActive);
 
+  // 단일 영속 WebGL 컨텍스트 — CH.1~3 동안 마운트 유지. 각 씬은 3D 내용을 r3f 터널로
+  // 이 Canvas 안에 넣는다(<r3f.Out/>). 챕터 전환 시 컨텍스트 재생성이 없어 약한/제한된 GPU에서
+  // "컨텍스트 누적→생성 실패" 검은 화면을 줄인다. 씬 HUD는 Canvas 바깥(더 높은 zIndex)에 그대로.
+  const show3DCanvas = chapter === 'CH1' || chapter === 'CH2' || chapter === 'CH3';
+
   return (
     <>
+      {show3DCanvas && (
+        <Canvas
+          style={{ position: 'fixed', inset: 0, zIndex: 0, background: '#000' }}
+          shadows
+          dpr={[1, 1.5]}
+          gl={{ failIfMajorPerformanceCaveat: false, powerPreference: 'high-performance' }}
+          camera={{ fov: 75, position: [0, 1.8, 0], near: 0.1, far: 100 }}
+        >
+          <r3f.Out />
+        </Canvas>
+      )}
       {renderScene()}
       {showIntroMedia && <IntroMedia />}
       {(DEBUG_HUD || gameCompleted) && <ChapterHUD chapter={chapter} />}

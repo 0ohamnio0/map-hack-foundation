@@ -1,7 +1,8 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback, Suspense } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
-import { KeyboardControls, useFBX, useAnimations, useKeyboardControls } from '@react-three/drei';
+import { KeyboardControls, useFBX, useAnimations, useKeyboardControls, PerspectiveCamera } from '@react-three/drei';
+import { r3f } from '@/lib/r3fTunnel';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { SceneExporter } from '@/components/dev/SceneExporter';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
@@ -1846,7 +1847,9 @@ export const Ch2Scene: React.FC = () => {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-      <Canvas camera={{ fov: 75 }} style={{ background: '#0a0a0a' }}>
+      {/* 3D는 Game의 영속 Canvas로 터널링. 카메라는 Ecctrl(FixedCamera)이 잡는 makeDefault. */}
+      <r3f.In>
+        <PerspectiveCamera makeDefault fov={75} near={0.1} far={1000} position={[0, 2, 0]} />
         <Ch2Inner
           airportActive={airportActive}
           onAirportTrigger={startAirport}
@@ -1857,7 +1860,7 @@ export const Ch2Scene: React.FC = () => {
           onCutStart={startCut}
           onCutEnd={endCut}
         />
-      </Canvas>
+      </r3f.In>
 
       <AirportCutscene active={airportActive} onDone={endAirport} />
       <CctvGlitch flickerKey={glitchKey} />
@@ -1933,8 +1936,8 @@ export const Ch2Scene: React.FC = () => {
         </div>
       )}
 
-      {/* 쪽지 수집 슬롯 — 좌하단 HUD */}
-      {!airportActive && (
+      {/* 쪽지 수집 슬롯 — 좌하단 HUD. 편지 발송 후엔 손에서 소멸 → HUD 자체를 숨김(빈 슬롯 잔존 방지) */}
+      {!airportActive && !letterSent && (
         <div style={{
           position: 'fixed',
           left: 24,
