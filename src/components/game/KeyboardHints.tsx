@@ -36,13 +36,14 @@ const ROWS: KeyDef[][] = [
   ],
 ];
 
-const ACTIVE_KEYBOARD = new Set(['Q', 'W', 'A', 'S', 'D', 'E', 'L⇧', 'Space']);
+const ACTIVE_KEYBOARD = new Set(['Q', 'W', 'A', 'S', 'D', 'E', 'L⇧', 'Tab', 'Space']);
 const ACTIVE_ARROWS = new Set(['↑', '←', '↓', '→']);
 
 type AnnotDir = 'up' | 'down' | 'left' | 'right' | 'up-left' | 'up-right';
 type Annot = { id: string; label: string; dir: AnnotDir; dist?: number; elbow?: number };
 
 const ANNOTATIONS: Annot[] = [
+  { id: 'Tab', label: 'CYCLE · 순환', dir: 'left', dist: 40 },
   { id: 'Q', label: 'TOGGLE · 토글', dir: 'up-left', dist: 22, elbow: 90 },
   { id: 'W', label: 'MOVE · 이동', dir: 'up', dist: 50 },
   { id: 'E', label: 'INTERACT · 상호작용', dir: 'up-right', dist: 22, elbow: 110 },
