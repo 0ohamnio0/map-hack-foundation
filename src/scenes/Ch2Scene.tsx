@@ -206,9 +206,13 @@ const AirportCutscene: React.FC<{ active: boolean; onDone: () => void }> = ({ ac
   // 사운드는 영상(muted)이 아니라 SoundManager SFX로 분리 재생 → 컷신 비주얼이 5.2s에 끝나도
   // 환각음은 Howler가 본래 길이(~7.85s) 끝까지 꼬리로 재생된다.
   useEffect(() => {
+    // 환각음(SFX)은 video 엘리먼트 마운트 여부와 무관하게 active 시 재생.
+    // video는 phase 세팅(아래 다른 effect) 후에야 렌더돼 이 effect 첫 실행 땐 videoRef.current가 null —
+    // 과거엔 `if (!v) return`이 play까지 막아 환각음이 안 났다(영상은 autoPlay라 따로 떴음).
+    if (active) play('airport_hallucination');
     const v = videoRef.current;
     if (!v) return;
-    if (active) { v.currentTime = 0; v.play().catch(() => {}); play('airport_hallucination'); }
+    if (active) { v.currentTime = 0; v.play().catch(() => {}); }
     else { v.pause(); }
   }, [active, play]);
 
