@@ -627,7 +627,7 @@ breathe`,
     id: 'galactic1',
     position: [0, 0],
     title: '갤럭틱레버리하트브로큰스토어',
-    titleEn: 'Galactic Lovely Heartbroken Store',
+    titleEn: 'Galactic Revery Heartbroken Store',
     pages: [
       {
         segments: [
@@ -646,7 +646,7 @@ breathe`,
     id: 'galactic2',
     position: [0, 0],
     title: '갤럭틱레버리하트브로큰스토어',
-    titleEn: 'Galactic Lovely Heartbroken Store',
+    titleEn: 'Galactic Revery Heartbroken Store',
     pages: [
       {
         segments: [
@@ -699,7 +699,7 @@ breathe`,
     id: 'galactic3',
     position: [0, 0],
     title: '갤럭틱레버리하트브로큰스토어',
-    titleEn: 'Galactic Lovely Heartbroken Store',
+    titleEn: 'Galactic Revery Heartbroken Store',
     pages: [
       {
         segments: [
@@ -721,9 +721,7 @@ breathe`,
 33. BIID 환자가 다리를 잘라낼 때 쓴 톱
 34. 하를렘에 서식하는 투구벌레의 일기장
 35. 모든 관점 볼텍스
-36. 제5인터내셔널 깃발
-37. 육체적인 킨츠기
-38. 너무 진지한 귀신 추출액`,
+36. 제5인터내셔널 깃발`,
             en: `20. The bank balance from the day I heard Pixies' "Hey" twenty-three times
 21. An Indigo Child's eyeball
 22. MTF non-op genitalia
@@ -740,9 +738,7 @@ breathe`,
 33. The saw a BIID patient used to cut off their own leg
 34. The diary of a rhinoceros beetle living in Harlem
 35. An all-perspectives vortex
-36. A Fifth International flag
-37. Corporeal kintsugi
-38. Extract of an overly earnest ghost`,
+36. A Fifth International flag`,
           },
         ],
       },
@@ -752,13 +748,15 @@ breathe`,
     id: 'galactic4',
     position: [0, 0],
     title: '갤럭틱레버리하트브로큰스토어',
-    titleEn: 'Galactic Lovely Heartbroken Store',
+    titleEn: 'Galactic Revery Heartbroken Store',
     pages: [
       {
         segments: [
           {
             type: 'text',
-            ko: `39. 게르뉴 드래곤의 부러진 척추뼈 엑스레이
+            ko: `37. 육체적인 킨츠기
+38. 너무 진지한 귀신 추출액
+39. 게르뉴 드래곤의 부러진 척추뼈 엑스레이
 40. 탑당구장 와이파이 비밀번호
 41. <디스코 엘리시움> DLC
 42. 백프로파게이션 알고리즘
@@ -777,7 +775,9 @@ breathe`,
 55. 나사들
 56. 내장들
 57. 매주 목요일 10시 이레성폭력상담소 투어권`,
-            en: `39. An X-ray of a Gernew dragon's broken vertebra
+            en: `37. Corporeal kintsugi
+38. Extract of an overly earnest ghost
+39. An X-ray of a Gernew dragon's broken vertebra
 40. The Top Billiards WiFi password
 41. A Disco Elysium DLC
 42. A backpropagation algorithm

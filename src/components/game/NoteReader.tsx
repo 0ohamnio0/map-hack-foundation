@@ -213,16 +213,15 @@ export function NoteReader() {
   const designW = note?.compact ? DESIGN_W_COMPACT : DESIGN_W
   const totalPages = note ? note.pages.length : 0
 
-  // 새 쪽지 열림: 페이지 초기화 + 언어 한글 리셋 + paper SFX
-  // (Q 토글은 그 쪽지 보는 동안만 유지 — 다음 쪽지는 항상 한글로 시작)
+  // 새 쪽지 열림: 페이지 초기화 + paper SFX
+  // (언어는 세션 전역 유지 — Tab+방향키로 시 조각 간 이동해도 설정한 한/영이 풀리지 않음)
   useEffect(() => {
     setPage(0)
     if (activeNoteId !== null) {
-      setNoteLanguage('ko')
       play('paper_flip')
       play(`vowels_${activeNoteId}`)
     }
-  }, [activeNoteId, play, setNoteLanguage])
+  }, [activeNoteId, play])
 
   // Tab 눌림 추적 — note 변경(시 간 이동)과 무관하게 물리 키 상태 유지. Tab 기본 포커스 이동은 차단.
   useEffect(() => {
@@ -344,7 +343,7 @@ export function NoteReader() {
     : (titleShown ? -5 : 9)) + galacticXShift
   // 연두색 조각(ckshp/맹점)은 텍스트를 26px 위로 — 해민 dev 튜닝 확정(Y 오프셋 -26)
   const greenYShift = (note.id.startsWith('ckshp') || note.id.startsWith('maengjeom')) ? -26 : 0
-  const galacticShift = note.id.startsWith('galactic') ? (titleShown ? -47 : -25) : 0 // 첫장(제목) -47, 나머지 -25
+  const galacticShift = note.id.startsWith('galactic') ? (titleShown ? -47 : -11) : 0 // 첫장(제목) -47, 2~4장 -11(=-25+14, 해민 Y오프셋 +14 튜닝)
   const battleShift = (note.id.startsWith('battle') && titleShown) ? -27 : 0 // 전투 첫장만 -27
   const baseOffY = (note.compact
     ? (titleShown ? 81 : -147)
