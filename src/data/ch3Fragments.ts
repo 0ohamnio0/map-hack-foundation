@@ -16,6 +16,8 @@ import type { PoemNote } from './ch2Notes'
 export const NPC_FRAGMENT_IDS = ['ckshp1', 'ckshp2', 'ckshp3', 'maengjeom1', 'maengjeom2'] as const
 // finale 빈 네모 벽 갤러리 순서
 export const BATTLE_FRAGMENT_IDS = ['battle1', 'battle2', 'battle3', 'battle4', 'battle5', 'battle6', 'battle7', 'battle8', 'battle9'] as const
+// 갤럭틱레버리하트브로큰스토어 — finale 빈 네모 우상단, 형광핑크. 상품 리스트 1~57을 PDF 페이지대로 3조각
+export const GALACTIC_FRAGMENT_IDS = ['galactic1', 'galactic2', 'galactic3', 'galactic4'] as const
 
 export const CH3_FRAGMENTS: PoemNote[] = [
   // ───────────────────────── ckshp (NPC 1~3) ─────────────────────────
@@ -620,10 +622,131 @@ breathe`,
       },
     ],
   },
+  // ──────────── 갤럭틱레버리하트브로큰스토어 (finale 빈 네모 벽, 형광핑크) — 4장: 도입(이미지+주석) + 상품 1~57 ────────────
+  {
+    id: 'galactic1',
+    position: [0, 0],
+    title: '갤럭틱레버리하트브로큰스토어',
+    titleEn: 'Galactic Lovely Heartbroken Store',
+    pages: [
+      {
+        segments: [
+          { type: 'image', src: 'assets/tex/poem/galactic_diagram.jpeg', widthPct: 92 },
+          {
+            type: 'text',
+            ko: `은하계의 제일 위층 다락에서 운영하는 이 상점은 오직 고통교환으로만 거래를 한다. 상점에 들어선 고객은 거대한 전개도 형태의 상품 선반을 마주하게 된다. 전개도 상에서 각각의 부품은 상응하는 고통가치를 가진 고객의 물건과 교환 가능하다. 고객이 탁상 위에 고통을 상징하는 물건을 올려 놓고 관련된 이야기를 하면 교환 가능한 품목에 불이 켜지며, 그 후 원하는 품목의 번호를 불러 물건을 꺼내고 자신의 물건을 다시 투입하는 방식으로 거래가 이루어진다. 어떤 품목이 얼마만큼의 가치를 가지고 있는지는 전개도가 판별한다. 그러나 악명높은 우주해적 버글러 비클럭서스의 말에 의하면 수많은 살상피해를 가져온 5098년식 우주선 GPx-39 모델을 가져와도 45번부터는 불이 아예 켜지지 않았다고 한다.`,
+            size: 'small',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'galactic2',
+    position: [0, 0],
+    title: '갤럭틱레버리하트브로큰스토어',
+    titleEn: 'Galactic Lovely Heartbroken Store',
+    pages: [
+      {
+        segments: [
+          {
+            type: 'text',
+            ko: `1. 투명 당근
+2. 타키온 입자
+3. 휘포케이메논
+4. 바후차라마타의 외출용 가운
+5. 라키 라쿤의 방에 있던 기디언 성경책
+6. 숫티퐁 응우옌 씨의 엉덩이에 난 꼬리
+7. 간만에 나온 종각이의 수도꼭지
+8. 마녀들의 블루스 LP판
+9. 비타 노바 댄스 강습권
+10. 카진스키가 가르친 기하학 교재
+11. 세인트 바보 교회 스테인드글라스
+12. 위악적인 사람의 겨드랑이 패치
+13. 한국정치철학연구회 총서
+14. 개버 댄서의 젖꼭지 피어싱
+15. 레즈비언 클럽 ‘PINK’의 화장실 키
+16. 악마 특급 아로마 테라피 10회권
+17. 콘웨이 진동자 비행선
+18. 페요틀과 사랑 1그램
+19. 역배변훈련자가 똥을 싼 기저귀`,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'galactic3',
+    position: [0, 0],
+    title: '갤럭틱레버리하트브로큰스토어',
+    titleEn: 'Galactic Lovely Heartbroken Store',
+    pages: [
+      {
+        segments: [
+          {
+            type: 'text',
+            ko: `20. 픽시스의 <헤이>를 스물 세번 들은 날의 통장 잔액
+21. 인디고 칠드런의 눈알
+22. MTF 비수술 성기
+23. 수족관 돌고래들의 아르 브뤼
+24. 고급두뇌를 위한 네트워크—하이브레인넷 아이디
+25. 시체애호가의 딜도
+26. 하얀 개가 찍힌 MPB 앨범 표지
+27. 인터내셔널UFO연구협회 단체사진
+28. 가로로 오는 제주도 빗물
+29. <미니마 모랄리아>가 처음 쓰인 공책
+30. 용암 다이빙용 물안경
+31. 미래의 비생산적인 각도
+32. 비문증 천사의 안약
+33. BIID 환자가 다리를 잘라낼 때 쓴 톱
+34. 하를렘에 서식하는 투구벌레의 일기장
+35. 모든 관점 볼텍스
+36. 제5인터내셔널 깃발
+37. 육체적인 킨츠기
+38. 너무 진지한 귀신 추출액`,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'galactic4',
+    position: [0, 0],
+    title: '갤럭틱레버리하트브로큰스토어',
+    titleEn: 'Galactic Lovely Heartbroken Store',
+    pages: [
+      {
+        segments: [
+          {
+            type: 'text',
+            ko: `39. 게르뉴 드래곤의 부러진 척추뼈 엑스레이
+40. 탑당구장 와이파이 비밀번호
+41. <디스코 엘리시움> DLC
+42. 백프로파게이션 알고리즘
+43. SHINGO라는 이름을 가진 컴퓨터
+44. 벡사시옹 초회 악보
+45. 나사들
+46. 나사들
+47. 복합적 완충 클러스터
+48. 나사들
+49. 캘리퍼
+50. 후인마이가 쓴 편지
+51. 나사들
+52. 나사들
+53. 토글스위치
+54. 나사들
+55. 나사들
+56. 내장들
+57. 매주 목요일 10시 이레성폭력상담소 투어권`,
+          },
+        ],
+      },
+    ],
+  },
 ]
 
 // CH.3 조각은 전부 미니 카드. 시의 마지막 장이 아니면 오버레이 하단에 "계속... →"
-const LAST_OF_POEM = new Set(['ckshp3', 'maengjeom2', 'battle9'])
+const LAST_OF_POEM = new Set(['ckshp3', 'maengjeom2', 'battle9', 'galactic4'])
 for (const f of CH3_FRAGMENTS) {
   f.compact = true
   f.continues = !LAST_OF_POEM.has(f.id)

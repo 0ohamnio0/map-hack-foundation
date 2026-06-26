@@ -565,7 +565,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
           <PoemFragment
             key={npcFragId}
             id={npcFragId}
-            paperIdx={(NPC_FRAGMENT_IDS as readonly string[]).indexOf(npcFragId)}
+            paperIdx={3}
             position={[ghostPos[0], 0.06, ghostPos[2]]}
             lieFlat
           />

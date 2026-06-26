@@ -11,7 +11,7 @@ import { useDevMode } from '@/hooks/useDevMode'
 import { useSoundManager } from '@/hooks/useSoundManager'
 import { useScrambleTransition } from '@/hooks/useGlitchText'
 import { CH2_NOTES, type PageSegment } from '@/data/ch2Notes'
-import { CH3_FRAGMENTS, NPC_FRAGMENT_IDS, BATTLE_FRAGMENT_IDS } from '@/data/ch3Fragments'
+import { CH3_FRAGMENTS, NPC_FRAGMENT_IDS, BATTLE_FRAGMENT_IDS, GALACTIC_FRAGMENT_IDS } from '@/data/ch3Fragments'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -22,8 +22,9 @@ const ALL_NOTES = [...CH2_NOTES, ...CH3_FRAGMENTS]
 const CH2_IDS = CH2_NOTES.map(n => n.id)
 function poemGroup(id: string): { ids: readonly string[]; vertical: boolean } | null {
   if (CH2_IDS.includes(id)) return { ids: CH2_IDS, vertical: false }
-  if ((NPC_FRAGMENT_IDS as readonly string[]).includes(id)) return { ids: NPC_FRAGMENT_IDS, vertical: false }
-  if ((BATTLE_FRAGMENT_IDS as readonly string[]).includes(id)) return { ids: BATTLE_FRAGMENT_IDS, vertical: true }
+  if ((NPC_FRAGMENT_IDS as readonly string[]).includes(id)) return { ids: NPC_FRAGMENT_IDS, vertical: true } // 우측 세로 ↑/↓
+  if ((BATTLE_FRAGMENT_IDS as readonly string[]).includes(id)) return { ids: BATTLE_FRAGMENT_IDS, vertical: true } // 좌측 세로 ↑/↓
+  if ((GALACTIC_FRAGMENT_IDS as readonly string[]).includes(id)) return { ids: GALACTIC_FRAGMENT_IDS, vertical: false } // 우상단 가로 ←/→
   return null
 }
 
@@ -37,17 +38,22 @@ const NOTE_PAPER: Record<string, string> = {
   termination: `${BASE}assets/tex/paper/paper-06.webp`,
   highstreamer:`${BASE}assets/tex/paper/paper-07.webp`,
 }
-// CH.3 시 조각 — CH.2 종이 텍스처 8종(paper-01~08)을 순환 재사용
-CH3_FRAGMENTS.forEach((n, i) => {
-  NOTE_PAPER[n.id] = `${BASE}assets/tex/paper/paper-0${(i % 8) + 1}.webp`
+// CH.3 시 조각 — 그룹별 종이 텍스처 통일 (해민): ckshp/맹점 04, 전투 08, 갤럭틱 01
+CH3_FRAGMENTS.forEach((n) => {
+  let p = 1
+  if (n.id.startsWith('ckshp') || n.id.startsWith('maengjeom')) p = 4
+  else if (n.id.startsWith('battle')) p = 8
+  else if (n.id.startsWith('galactic')) p = 1
+  NOTE_PAPER[n.id] = `${BASE}assets/tex/paper/paper-0${p}.webp`
 })
 
 // 시별 종이 색 — 종이 텍스처 위 multiply 오버레이로 "그 색 종이"처럼 보이게.
 //  ckshp/맹점 → 형광 연두, 전략적 행성 전투(battle) → 연보라
 const paperTint = (id: string): string | null => {
   if (id.startsWith('ckshp') || id.startsWith('maengjeom')) return '#c4ff2e' // 형광 연두
-  if (id.startsWith('battle')) return '#c9b8ff'                              // 연보라
-  return null
+  if (id.startsWith('battle')) return '#a888d8'                              // 연보라(더 진하게)
+  if (id.startsWith('galactic')) return '#ff2ea8'                           // 형광 분홍
+  return null // CH.2 메모 — 흰 종이(텍스처 그대로)
 }
 
 // 노트별 시 조각 드로잉 배경 (밝기=알파 키잉한 VP9 알파 WebM) — 한 번 그려진 뒤 마지막 프레임에 정지
@@ -255,7 +261,8 @@ export function NoteReader() {
             : (e.code === 'ArrowLeft' ? -1 : e.code === 'ArrowRight' ? 1 : 0)
           if (dir !== 0) {
             e.preventDefault()
-            const collected = grp.ids.filter(id => visitedEvents.has(`note_${id}`))
+            // 현재 읽는 시(activeNoteId)는 아직 note_ 미기록(closeNote 시 기록)이라 포함시켜야 cur≠-1
+            const collected = grp.ids.filter(id => id === activeNoteId || visitedEvents.has(`note_${id}`))
             const cur = collected.indexOf(activeNoteId)
             const nextIdx = cur + dir
             if (cur !== -1 && nextIdx >= 0 && nextIdx < collected.length) openNote(collected[nextIdx])
@@ -331,14 +338,17 @@ export function NoteReader() {
   // 텍스트 종이 정렬 베이스 오프셋 (dev 튜닝 확정값) — CH.3 compact 조각과 CH.2 풀노트는
   // 종이 크기·디자인폭이 달라 오프셋을 공유하면 어긋난다. note.compact로 분기.
   const titleShown = page === 0 && showTitle
-  const baseOffX = note.compact
+  const galacticXShift = note.id.startsWith('galactic') ? -5 : 0 // 갤럭틱 한정 X 오프셋
+  const baseOffX = (note.compact
     ? (titleShown ? -17 : -3)
-    : (titleShown ? -5 : 9)
+    : (titleShown ? -5 : 9)) + galacticXShift
   // 연두색 조각(ckshp/맹점)은 텍스트를 26px 위로 — 해민 dev 튜닝 확정(Y 오프셋 -26)
   const greenYShift = (note.id.startsWith('ckshp') || note.id.startsWith('maengjeom')) ? -26 : 0
+  const galacticShift = note.id.startsWith('galactic') ? (titleShown ? -47 : -25) : 0 // 첫장(제목) -47, 나머지 -25
+  const battleShift = (note.id.startsWith('battle') && titleShown) ? -27 : 0 // 전투 첫장만 -27
   const baseOffY = (note.compact
     ? (titleShown ? 81 : -147)
-    : (titleShown ? 25 : 53)) + greenYShift
+    : (titleShown ? 25 : 53)) + greenYShift + galacticShift + battleShift
 
   return (
     <div
@@ -493,7 +503,7 @@ export function NoteReader() {
           boxSizing: 'border-box',
           // 세로 패딩 축소(스크롤 방지용 세로 공간 확보) — 가로 40은 유지해 줄바꿈 불변
           padding: '28px 40px',
-          zoom: scale * scaleMul,
+          zoom: scale * (note.id.startsWith('galactic') ? 1.10 : scaleMul), // 갤럭틱 한정 배율 1.10
           transform: `translate(${baseOffX + offX}px, ${baseOffY + offY}px)`,
           display: 'flex',
           flexDirection: 'column',
@@ -517,12 +527,13 @@ export function NoteReader() {
         {page === 0 && showTitle && (
           <div style={{
             fontFamily: '"Unifont", monospace',
-            fontSize: 20,
-            letterSpacing: 4,
+            fontSize: note.title.length > 10 ? 13 : 20,       // 긴 제목(갤럭틱…)은 한 줄에 들어가게 축소
+            letterSpacing: note.title.length > 10 ? 1 : 4,
             textAlign: 'center',
             marginBottom: 14,
             color: '#1a1a1a',
             width: '100%',
+            whiteSpace: 'nowrap',
           }}>
             <NoteText ko={note.title} en={titleEn} />
           </div>
@@ -542,23 +553,6 @@ export function NoteReader() {
           ))}
         </div>
 
-        {/* 시의 마지막 장이 아니면 — 다음 조각이 더 있음을 알리는 표시 */}
-        {note.continues && (
-          <div style={{
-            marginTop: showTitle ? 'auto' : 18, // 제목 없는(중앙정렬) 조각은 auto로 텍스트를 밀지 않음
-            paddingTop: 18,
-            width: '100%',
-            textAlign: 'right',
-            fontFamily: '"Unifont", monospace',
-            fontSize: 13,
-            letterSpacing: 2,
-            color: '#1a1a1a',
-            opacity: 0.55,
-            userSelect: 'none',
-          }}>
-            계속... →
-          </div>
-        )}
         </div>
 
         {/* 페이지 풋터 — 종이 안쪽 검정, 다중 페이지일 때만 (발견성) */}
@@ -583,12 +577,23 @@ export function NoteReader() {
           </div>
         )}
         </div>
+        {/* 계속... — 종이 하단에 고정(본문 길이·스크롤 무관). 콘텐츠 영역 직속 absolute. */}
+        {note.continues && (
+          <div style={{
+            position: 'absolute', right: 20, bottom: 16, zIndex: 3,
+            fontFamily: '"Unifont", monospace', fontSize: 9, letterSpacing: 2,
+            color: '#1a1a1a', opacity: 0.55, userSelect: 'none', pointerEvents: 'none',
+          }}>
+            계속... →
+          </div>
+        )}
         </div>
 
         {/* 종이 텍스처 오버레이 — 스크롤 영역 밖, 종이 박스 고정 필름 (스크롤 전 구간 적용) */}
         {activeNoteId && NOTE_PAPER[activeNoteId] && (() => {
           const fillNotes = new Set(['hell-salad', 'bichae', 'jeju-fire'])
           const isFill = fillNotes.has(activeNoteId)
+          const isCh2 = CH2_IDS.includes(activeNoteId) // CH.2 메모 — 색조 제거해 하얀 종이(질감은 유지)
           return (
             <div style={{
               position: 'absolute',
@@ -599,7 +604,8 @@ export function NoteReader() {
               backgroundPosition: isFill ? 'center' : undefined,
               mixBlendMode: 'multiply',
               pointerEvents: 'none',
-              opacity: 0.3,
+              opacity: isCh2 ? 0.18 : 0.3,
+              filter: isCh2 ? 'saturate(0)' : undefined,
             }} />
           )
         })()}

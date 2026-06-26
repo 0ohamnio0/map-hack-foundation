@@ -20,9 +20,8 @@ import { PixelateEffect, type PixelateEffectImpl } from '@/components/effects/Pi
 import { ItaewonLayer } from '@/components/game/ItaewonLayer';
 import { NoteReader } from '@/components/game/NoteReader';
 import { PoemFragment, FRAG_TINT } from '@/components/game/PoemFragment';
-import { BATTLE_FRAGMENT_IDS, NPC_FRAGMENT_IDS } from '@/data/ch3Fragments';
+import { BATTLE_FRAGMENT_IDS, NPC_FRAGMENT_IDS, GALACTIC_FRAGMENT_IDS } from '@/data/ch3Fragments';
 import { CH2_NOTES } from '@/data/ch2Notes';
-import { SPARKLE_COLOR, DEFAULT_SPARKLE } from '@/components/game/Note';
 import { suspendChapterMusic, startElevatorMusic, endElevatorMusic, stopChapterMusic } from '@/lib/chapterMusic';
 
 const MAZE_SIZE = 10;
@@ -975,14 +974,21 @@ const POSTER_PLACEMENTS: { x: number; z: number; rotY: number }[] = [
   { x: WALL_INSET, z: cellC(2), rotY: Math.PI / 2 },             // 9 — West (행 2)
 ];
 
-// finale 빈네모 — 약 단계에서 미읽고 지나간 ckshp/맹점(최대 5) 회수용 추가 배치.
-// battle 9개(POSTER_PLACEMENTS)와 안 겹치는 빈 벽 자리.
-const NPC_PLACEMENTS: { x: number; z: number; rotY: number }[] = [
-  { x: cellC(2), z: WALL_INSET, rotY: 0 },                          // N 열 2
+// finale 빈네모 — 약 단계에서 미읽고 지나간 ckshp/맹점(최대 5) 회수용. 벽이 아니라 바닥에 떨어진 형태.
+const NPC_FLOOR_POS: { x: number; z: number }[] = [
+  { x: cellC(2), z: cellC(2) },
+  { x: cellC(7), z: cellC(3) },
+  { x: cellC(3), z: cellC(7) },
+  { x: cellC(6), z: cellC(6) },
+  { x: cellC(8), z: cellC(8) },
+];
+
+// 갤럭틱레버리하트브로큰스토어 4조각 — 벽에 붙임(형광핑크). battle 벽·npc 바닥과 안 겹치는 빈 벽 자리.
+const GALACTIC_PLACEMENTS: { x: number; z: number; rotY: number }[] = [
+  { x: cellC(6), z: WALL_INSET, rotY: 0 },                          // N 열 6
+  { x: GALLERY_WALL - WALL_INSET, z: cellC(1), rotY: -Math.PI / 2 }, // E 행 1
   { x: GALLERY_WALL - WALL_INSET, z: cellC(5), rotY: -Math.PI / 2 }, // E 행 5
   { x: cellC(5), z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },     // S 열 5
-  { x: WALL_INSET, z: cellC(4), rotY: Math.PI / 2 },               // W 행 4
-  { x: WALL_INSET, z: cellC(8), rotY: Math.PI / 2 },               // W 행 8
 ];
 
 // finale 빈 네모 벽 갤러리 — 전략적 행성 전투 9조각 (id battle1..9, ch3Fragments 레지스트리 index 5~13)
@@ -1002,13 +1008,20 @@ const PoemGallery: React.FC = () => {
   return (
     <Suspense fallback={null}>
       {POSTER_PLACEMENTS.map((p, i) => (
-        <PoemFragment key={i} id={shuffledIds[i]} paperIdx={5 + i} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} tint="#c4a5ff" />
+        <PoemFragment key={i} id={shuffledIds[i]} paperIdx={7} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} tint="#c4a5ff" />
       ))}
       {unreadNpc.map((id, i) => {
-        const p = NPC_PLACEMENTS[i];
+        const p = NPC_FLOOR_POS[i];
         if (!p) return null;
         return (
-          <PoemFragment key={id} id={id} paperIdx={NPC_FRAGMENT_IDS.indexOf(id)} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} tint="#c4ff2e" />
+          <PoemFragment key={id} id={id} paperIdx={3} position={[p.x, 0.06, p.z]} lieFlat tint="#c4ff2e" />
+        );
+      })}
+      {GALACTIC_FRAGMENT_IDS.map((id, i) => {
+        const p = GALACTIC_PLACEMENTS[i];
+        if (!p) return null;
+        return (
+          <PoemFragment key={id} id={id} paperIdx={0} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} tint="#ff2ea8" />
         );
       })}
     </Suspense>
@@ -1395,76 +1408,51 @@ export const Ch3Scene: React.FC = () => {
           전략적 행성 전투 9칸은 finale 진입 시 좌측 세로 중앙에 추가 — 좌우대칭. 수집된 것만 점등 · 클릭 재열람. */}
       {!cutscenePhase && (() => {
         const BATTLE_TINT = '#c4a5ff'; // 벽 갤러리 조각과 동일한 연보라
-        const slot = (id: string, i: number, tintC: string) => {
+        // 4종 공통 — CH.2 종이(접힌 모서리 문서) 모양. 색만 다름. 수집(got) 시 점등, 미수집은 흐림.
+        const slot = (id: string, _i: number, tintC: string) => {
           const got = visitedEvents.has(`note_${id}`);
+          const c = got ? tintC : 'rgba(255,255,255,0.22)';
           return (
-            <div
+            <svg
               key={id}
+              viewBox="0 0 24 32" width="22" height="29"
               onClick={() => { if (got) openNote(id); }}
               style={{
-                width: 26, height: 34,
-                border: `1px solid ${got ? tintC : 'rgba(255,255,255,0.18)'}`,
-                background: 'rgba(0,0,0,0.55)',
-                boxShadow: got ? `0 0 8px ${tintC}66` : 'none',
-                opacity: got ? 1 : 0.4,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: got ? tintC : 'rgba(243,238,221,0.5)',
-                fontFamily: '"Unifont", monospace', fontSize: 11,
                 cursor: got ? 'pointer' : 'default', pointerEvents: 'auto',
+                opacity: got ? 1 : 0.55,
+                filter: got ? `drop-shadow(0 0 4px ${tintC}77)` : 'none',
               }}
             >
-              {i + 1}
-            </div>
+              <path d="M4 2 L15 2 L20 7 L20 30 L4 30 Z" fill="rgba(0,0,0,0.55)" stroke={c} strokeWidth="1.6" strokeLinejoin="round" />
+              <path d="M15 2 L15 7 L20 7" fill="none" stroke={c} strokeWidth="1.3" strokeLinejoin="round" />
+            </svg>
           );
         };
-        const npcGot = NPC_FRAGMENT_IDS.some(id => visitedEvents.has(`note_${id}`));
         const z = activeNoteId !== null ? 2100 : 1500;
-        // CH.2에서 우체통에 안 넣고 들고 온 쪽지 — CH.3 좌하단에 CH.2와 동일한 봉투 룩으로 계속 표시, 클릭 재열람.
-        const carriedCh2 = CH2_NOTES.filter(n => visitedEvents.has(`note_${n.id}`));
+        // 가로 슬롯(CH.2 메모·galactic)용 tab 순차 열람 힌트 (→ 가로 화살표)
+        const tabHintRow = (
+          <span style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 4, opacity: 0.5, alignSelf: 'center' }}>
+            <svg viewBox="0 0 22 16" width="15" height="11" aria-hidden>
+              <path d="M3 8 L15 8 M11 4 L15 8 L11 12 M19 3 L19 13" fill="none" stroke="#f3eedd" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span style={{ fontFamily: '"Unifont", monospace', fontSize: 10, letterSpacing: 1, color: '#f3eedd' }}>tab</span>
+          </span>
+        );
         return (
           <>
-            {carriedCh2.length > 0 && (
+            {/* CH.2 메모 수집 — 좌하단 가로, 흰색. CH.3에서도 항상 유지(편지 보냈으면 note_ 소멸 → 빈 슬롯 그대로 표시). */}
+            {CH2_NOTES.length > 0 && (
               <div style={{
                 position: 'fixed', left: 24, bottom: 24, zIndex: z,
-                display: 'flex', alignItems: 'center', gap: 10,
-                pointerEvents: 'none', userSelect: 'none',
-                filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.8))',
+                display: 'flex', flexDirection: 'row', gap: 6, pointerEvents: 'none', userSelect: 'none',
               }}>
-                {carriedCh2.map((n) => {
-                  const noteColor = SPARKLE_COLOR[n.id] ?? DEFAULT_SPARKLE;
-                  const isActive = n.id === activeNoteId;
-                  return (
-                    <svg
-                      key={n.id}
-                      viewBox="0 0 24 32"
-                      width="18"
-                      height="24"
-                      style={{
-                        cursor: 'pointer',
-                        pointerEvents: 'auto',
-                        transition: 'transform 0.15s ease',
-                        filter: isActive ? 'drop-shadow(0 0 2px rgba(255,255,255,0.95))' : undefined,
-                      }}
-                      onClick={() => openNote(n.id)}
-                      onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.18)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-                    >
-                      <path
-                        d="M3 2 L17 2 L21 6 L21 30 L3 30 Z"
-                        fill={noteColor}
-                        stroke={isActive ? '#ffffff' : noteColor}
-                        strokeWidth={isActive ? 1.6 : 1.5}
-                        strokeLinejoin="round"
-                      />
-                      <path d="M17 2 L17 6 L21 6" fill="none" stroke="#1a1a1a" strokeWidth="1.2" />
-                    </svg>
-                  );
-                })}
+                {CH2_NOTES.map((n, i) => slot(n.id, i, '#ffffff'))}
+                {tabHintRow}
               </div>
             )}
-            {npcGot && (
+            {(
               <div style={{
-                position: 'fixed', right: 24, top: '50%', transform: 'translateY(-50%)', zIndex: z,
+                position: 'fixed', right: 24, top: '28%', transform: 'translateY(-50%)', zIndex: z,
                 display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none', userSelect: 'none',
               }}>
                 {NPC_FRAGMENT_IDS.map((id, i) => slot(id, i, FRAG_TINT))}
@@ -1477,9 +1465,9 @@ export const Ch3Scene: React.FC = () => {
                 </span>
               </div>
             )}
-            {allCollected && (
+            {(
               <div style={{
-                position: 'fixed', left: 24, top: '50%', transform: 'translateY(-50%)', zIndex: z,
+                position: 'fixed', left: 24, top: '72%', transform: 'translateY(-50%)', zIndex: z,
                 display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none', userSelect: 'none',
               }}>
                 {BATTLE_FRAGMENT_IDS.map((id, i) => slot(id, i, BATTLE_TINT))}
@@ -1490,6 +1478,16 @@ export const Ch3Scene: React.FC = () => {
                   </svg>
                   <span style={{ fontFamily: '"Unifont", monospace', fontSize: 10, letterSpacing: 1, color: '#f3eedd' }}>tab</span>
                 </span>
+              </div>
+            )}
+            {/* 갤럭틱레버리하트브로큰스토어 4칸 — finale 우상단 가로(형광핑크). CH.2 메모(좌상단 가로)와 좌우대칭 */}
+            {(
+              <div style={{
+                position: 'fixed', right: 24, top: 24, zIndex: z,
+                display: 'flex', flexDirection: 'row', gap: 6, pointerEvents: 'none', userSelect: 'none',
+              }}>
+                {GALACTIC_FRAGMENT_IDS.map((id, i) => slot(id, i, '#ff2ea8'))}
+                {tabHintRow}
               </div>
             )}
           </>
@@ -1628,6 +1626,10 @@ export const Ch3Scene: React.FC = () => {
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label="→ 빈 네모 (전부 수집)" onClick={() => setDevEmptyTrigger(n => n + 1)} />
+          <DevButton label="모든 쪽지 채움 (UI 미리보기)" onClick={() => {
+            [...CH2_NOTES.map(n => n.id), ...NPC_FRAGMENT_IDS, ...BATTLE_FRAGMENT_IDS, ...GALACTIC_FRAGMENT_IDS]
+              .forEach(id => triggerEvent(`note_${id}`));
+          }} />
           <DevButton label="Elevator Cutscene" onClick={() => { if (!cutscenePhase) startElevatorCutscene(); }} />
           <DevButton label="Skip → CH4" onClick={() => goToChapter('CH4')} />
           <DevButton label="Skip → CH2" onClick={() => goToChapter('CH2')} />
