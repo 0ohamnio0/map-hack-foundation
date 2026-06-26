@@ -131,7 +131,7 @@ const MAX_WALLS = 512;
 
 // 벽 텍스처 — mart_walls/wall_1~4 (각 3168×1344, 2.357:1). 높이고정·폭 늘림없이(repeatX=길이/텍폭).
 // 인접 벽끼리 다른 이미지가 오도록 위치 기반 인덱스로 4장 분산.
-const WALL_TEX_FILES = ['mart_walls/wall_1.webp', 'mart_walls/wall_2.webp', 'mart_walls/wall_3.webp', 'mart_walls/wall_4.webp', 'mart_walls/other_mart.webp'];
+const WALL_TEX_FILES = ['mart_walls/wall_1.webp', 'mart_walls/wall_2.webp', 'mart_walls/wall_3.webp', 'mart_walls/wall_4.webp', 'mart_walls/other_mart.webp', 'mart_walls/cola_mart.webp', 'mart_walls/milk_mart.webp'];
 const WALL_TEX_W = (3168 / 1344) * WALL_HEIGHT;  // 텍스처 1장이 벽높이(4)에서 차지하는 가로 월드폭 ≈ 9.43
 const WALL_PIXELIZE = 0.2;                        // 환경 픽셀라이즈 강도 (클수록 거침). npc/cart는 미적용
 const BOUND_PAIR = [1, 3];                        // (비-빈네모) 경계벽에 CELL 단위로 번갈아 깔 두 텍스처 (wall_2, wall_4)
@@ -647,6 +647,17 @@ const ElevatorCutscene: React.FC<{
     return undefined;
   }, [phase, play]);
 
+  // 우주씬: 담배 소리 3종 시퀀스 — 진입 2초 후 cig2(~11s), 종료+1초마다 smoking_4 → smoking_5 (루프 없음)
+  useEffect(() => {
+    if (phase !== 'space') return;
+    const timers = [
+      setTimeout(() => play('cigarette_smoke'), 2000),
+      setTimeout(() => play('smoking_4'), 17982),  // 2000 + 10982 + 5000
+      setTimeout(() => play('smoking_5'), 26482),  // 17982 + 3500 + 5000
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [phase, play]);
+
   // Auto floor counter — 1 → 99 → ★
   useEffect(() => {
     if (phase !== 'elevator') { setFloor('01'); setLookDir(null); return; }
@@ -748,6 +759,12 @@ const ElevatorCutscene: React.FC<{
             transition: 'transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1)',
           }}>
             <img src={`${ELEV}full.webp`} alt="" style={{ display: 'block', width: '100%', height: '100%' }} />
+
+            {/* 좌측 벽 상단 별 낙서 — 룩업(W/↑)으로 위를 봐야만 보이는 권역(default 패닝 31~81% 밖). NEVER LOOK UP 힌트와 호응 */}
+            <img src={`${import.meta.env.BASE_URL}assets/tex/ch3/ceiling_stars.webp`} alt="" style={{
+              position: 'absolute', top: '12%', left: '22%', width: '7%',
+              pointerEvents: 'none', userSelect: 'none',
+            }} />
 
             {/* 층 표시기 — baked 디스플레이 스크린(문 위, 중심 49%/23.6%, 6%×3.6%) 안에 그린 카운터 */}
             <div style={{

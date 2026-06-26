@@ -26,6 +26,32 @@ const DEBUG_HUD = typeof window !== 'undefined'
 
 const CHAPTERS: Chapter[] = ['START', 'INTRO', 'CH1', 'CH2', 'CH3', 'CH4', 'CH5'];
 
+// 챕터 이동 버튼에 표기할 한글 이름 (INTRO·CH1 둘 다 '침대')
+const CHAPTER_LABELS: Partial<Record<Chapter, string>> = {
+  START: '버튼', INTRO: '···', CH1: '침대에서', CH2: '골목', CH3: '마트에서', CH4: '병원으로', CH5: '블로그',
+};
+
+// 무거운 영상이 "필요한 순간 마운트→로드"라 늦게 뜨던 문제 —
+// 현재 챕터 동안 다음에 쓸 영상을 hidden video(preload=auto)로 미리 받아 캐시에 올려둔다.
+const VIDEO_BASE = `${import.meta.env.BASE_URL ?? '/'}assets/video/`;
+const PRELOAD_NEXT_VIDEOS: Partial<Record<Chapter, string[]>> = {
+  START: ['intro_final.mp4'],            // → INTRO 인트로 영상 (68M)
+  INTRO: ['airport.mp4', 'letter.mp4'],  // → CH.2 공항 환각 + 편지 영상
+  CH1: ['airport.mp4', 'letter.mp4'],    // CH.1 동안에도 계속 버퍼링
+};
+
+const VideoPreloader: React.FC<{ chapter: Chapter }> = ({ chapter }) => {
+  const srcs = PRELOAD_NEXT_VIDEOS[chapter] ?? [];
+  if (srcs.length === 0) return null;
+  return (
+    <div aria-hidden style={{ position: 'fixed', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      {srcs.map(s => (
+        <video key={s} src={`${VIDEO_BASE}${s}`} preload="auto" muted playsInline />
+      ))}
+    </div>
+  );
+};
+
 const ChapterHUD: React.FC<{ chapter: string }> = ({ chapter }) => {
   const goToChapter = useGameStore(s => s.goToChapter);
 
@@ -42,7 +68,6 @@ const ChapterHUD: React.FC<{ chapter: string }> = ({ chapter }) => {
       flexDirection: 'column',
       gap: 4,
     }}>
-      <span style={{ pointerEvents: 'none', marginBottom: 4 }}>{chapter}</span>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
         {CHAPTERS.map(ch => (
           <button
@@ -51,7 +76,7 @@ const ChapterHUD: React.FC<{ chapter: string }> = ({ chapter }) => {
             style={{
               padding: '2px 6px',
               fontSize: 10,
-              fontFamily: 'monospace',
+              fontFamily: '"Unifont", monospace',
               background: ch === chapter ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)',
               color: 'rgba(255,255,255,0.7)',
               border: '1px solid rgba(255,255,255,0.2)',
@@ -59,7 +84,7 @@ const ChapterHUD: React.FC<{ chapter: string }> = ({ chapter }) => {
               borderRadius: 2,
             }}
           >
-            {ch}
+            {CHAPTER_LABELS[ch] ?? ch}
           </button>
         ))}
       </div>
@@ -178,6 +203,7 @@ export const Game: React.FC = () => {
         </Canvas>
       )}
       {renderScene()}
+      <VideoPreloader chapter={chapter} />
       {showIntroMedia && <IntroMedia />}
       {(DEBUG_HUD || gameCompleted) && <ChapterHUD chapter={chapter} />}
       <FadeOverlay />

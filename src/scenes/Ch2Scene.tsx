@@ -24,6 +24,7 @@ import { Ch2AihubProps } from '@/components/game/Ch2AihubProps';
 import { Ch2Signs, type SignBuilding } from '@/components/game/Ch2Signs';
 import { Ch2FlatProps } from '@/components/game/Ch2FlatProps';
 import { Ch2CustomBuildings } from '@/components/game/Ch2CustomBuildings';
+import { Ch2Graffiti } from '@/components/game/Ch2Graffiti';
 import { CameraOrbitOverride } from '@/components/game/CameraOrbitOverride';
 import { Ch2CamCuts } from '@/components/game/Ch2CamCuts';
 import { CH2_NOTES } from '@/data/ch2Notes';
@@ -1608,6 +1609,7 @@ const Ch2PhysicsScene: React.FC<{
       {/* 맞춤 건물/사인 — 원경 컷아웃 / 코너 건물 / 코너 간판 */}
       <Suspense fallback={null}>
         <Ch2CustomBuildings />
+        <Ch2Graffiti buildings={SIGN_BUILDINGS} />
       </Suspense>
 
       {/* STEP 1: Signposts + movement tracking */}
@@ -1778,6 +1780,7 @@ export const Ch2Scene: React.FC = () => {
   const openNote     = useGameStore(s => s.openNote);
   const letterSent   = useGameStore(s => s.letterSent);
   const sendLetter   = useGameStore(s => s.sendLetter);
+  const gameCompleted = useGameStore(s => s.gameCompleted);
   const devMode      = useDevMode();
   const [muted, toggleMute] = useMute();
   const [ch2Toggles, toggleCh2] = useCh2Toggles();
@@ -1804,8 +1807,11 @@ export const Ch2Scene: React.FC = () => {
   }, [airportActive, activeNoteId, postalActive]);
 
   const allNotesCollected = collectedNotes === totalNotes;
-  // 7/7 수집하면 통과 가능. 편지 발송은 자율(선택) — 발송 여부와 무관하게 나갈 수 있다.
-  const canEnter = allNotesCollected;
+  // 크레딧 완주 후 편지 미발송 상태로 CH2 재진입 → 출구를 막고 우체통 발송 전용으로 유도.
+  // (편지 보낸 사람은 resetChapterState에서 note_ 소멸 → collectedNotes 0 → 이 조건 미충족)
+  const reentryMode = gameCompleted && allNotesCollected && !letterSent;
+  // 7/7 수집하면 통과 가능. 편지 발송은 자율(선택). 단 재진입 모드에선 출구를 닫는다.
+  const canEnter = allNotesCollected && !reentryMode;
   // 우체통 반경에서 아직 편지 안 보냈으면 편지가 문 입장보다 우선
   // (반경 겹침 — 이 상태에선 E가 CH.3 진입 대신 편지 보내기로만)
   const mailboxSendable = atMailbox && allNotesCollected && !letterSent;
@@ -1890,9 +1896,34 @@ export const Ch2Scene: React.FC = () => {
           pointerEvents: 'none',
           userSelect: 'none',
         }}>
-          {allNotesCollected
-            ? '[E] 들어가기'
-            : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
+          {reentryMode
+            ? '출구는 닫혔습니다  —  먼저 편지를 부치세요'
+            : allNotesCollected
+              ? '[E] 들어가기'
+              : `쪽지를 모두 모아야 들어갈 수 있습니다  (${collectedNotes}/${totalNotes})`}
+        </div>
+      )}
+
+      {/* 재진입(완주 후 미발송) 안내 — 우체통 프롬프트가 안 떠 있을 때 상단 배너로 목적지 안내 */}
+      {reentryMode && !showMailboxPrompt && !postalActive && activeNoteId === null && !airportActive && (
+        <div style={{
+          position: 'fixed',
+          left: '50%',
+          top: '8%',
+          transform: 'translateX(-50%)',
+          zIndex: 1500,
+          fontFamily: '"Unifont", monospace',
+          fontSize: 13,
+          letterSpacing: 3,
+          color: '#f3eedd',
+          background: 'rgba(0,0,0,0.65)',
+          padding: '8px 18px',
+          border: '1px solid rgba(243,238,221,0.3)',
+          textShadow: '0 0 6px rgba(0,0,0,0.8)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}>
+          📮  수집한 쪽지를 우체통에 부치세요
         </div>
       )}
 
