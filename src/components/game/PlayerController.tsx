@@ -11,8 +11,12 @@ const FRICTION = 6;
 const MAX_SPEED = 4;
 const SNAP_UNIT = 0.05;
 
-const GRID_POS_LERP = 9; // CH.3 — 한 셀을 빠르게 끊어 이동. 느린 lerp(이전 3.5)는 양자화 중간단계에 머무는 시간이 길어 "미끄러짐"으로 느껴졌음
-const GRID_STEP = 7; // CH.3 — = CELL_SIZE. 셀당 스냅 1개 → 한 입력에 정확히 한 칸. (이전 1.75/3.5는 셀당 4/2단계라 한 칸이 여러 칸 미끄러지는 것처럼 보임)
+// CH.3 카트 이동 튜닝 — dev 패널(P)의 슬라이더로 라이브 조절. 객체를 mutate하므로 useFrame이 매 프레임 최신값을 읽음.
+//   gridStep: 양자화 끊김 단위(작을수록 잘게 부드럽게, CELL_SIZE 7의 약수 권장). posLerp: 슬라이드 속도(클수록 빠르게 끊어 이동).
+export const cartTuning = {
+  gridStep: 0.875, // 해민 확정 — 잘게 끊겨 부드럽게 (CELL_SIZE 7의 1/8)
+  posLerp: 1,      // 해민 확정 — 느린 슬라이드 = 묵직한 카트 느낌
+};
 const FACING_STEP = Math.PI / 12; // CH.3 — 회전 각도 양자화(15°) → 회전도 프레임 뺀 듯 끊기게 (전진 끊김과 톤 맞춤)
 const GRID_FACING_LERP = 12;
 const GRID_INPUT_COOLDOWN = 0.22; // seconds between inputs
@@ -175,7 +179,7 @@ export const PlayerController: React.FC<Props> = ({
       prevKeys.current = new Set(k);
 
       // Lerp position toward target
-      const lp = 1 - Math.exp(-GRID_POS_LERP * dt);
+      const lp = 1 - Math.exp(-cartTuning.posLerp * dt);
       gridCurrentPos.current.x += (gridTargetPos.current.x - gridCurrentPos.current.x) * lp;
       gridCurrentPos.current.z += (gridTargetPos.current.z - gridCurrentPos.current.z) * lp;
 
@@ -195,8 +199,9 @@ export const PlayerController: React.FC<Props> = ({
       // 양자화 격자를 셀 중심(cellToWorld = gx*cs + cs/2)에 위상 정렬. GRID_STEP=cellSize일 때
       // 정렬 안 하면 round 경계(x.5)가 셀 중심과 어긋나 lerp가 경계를 못 넘어 카트가 한 칸에 고정됨.
       const qHalf = gridCellSize / 2;
-      const qx = Math.round((gridCurrentPos.current.x - qHalf) / GRID_STEP) * GRID_STEP + qHalf;
-      const qz = Math.round((gridCurrentPos.current.z - qHalf) / GRID_STEP) * GRID_STEP + qHalf;
+      const gs = cartTuning.gridStep;
+      const qx = Math.round((gridCurrentPos.current.x - qHalf) / gs) * gs + qHalf;
+      const qz = Math.round((gridCurrentPos.current.z - qHalf) / gs) * gs + qHalf;
       const qFacing = Math.round(gridCurrentFacing.current / FACING_STEP) * FACING_STEP;
       camera.position.set(qx, 1.8, qz);
       camera.lookAt(
