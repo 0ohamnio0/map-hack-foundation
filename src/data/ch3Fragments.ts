@@ -635,6 +635,7 @@ breathe`,
           {
             type: 'text',
             ko: `은하계의 제일 위층 다락에서 운영하는 이 상점은 오직 고통교환으로만 거래를 한다. 상점에 들어선 고객은 거대한 전개도 형태의 상품 선반을 마주하게 된다. 전개도 상에서 각각의 부품은 상응하는 고통가치를 가진 고객의 물건과 교환 가능하다. 고객이 탁상 위에 고통을 상징하는 물건을 올려 놓고 관련된 이야기를 하면 교환 가능한 품목에 불이 켜지며, 그 후 원하는 품목의 번호를 불러 물건을 꺼내고 자신의 물건을 다시 투입하는 방식으로 거래가 이루어진다. 어떤 품목이 얼마만큼의 가치를 가지고 있는지는 전개도가 판별한다. 그러나 악명높은 우주해적 버글러 비클럭서스의 말에 의하면 수많은 살상피해를 가져온 5098년식 우주선 GPx-39 모델을 가져와도 45번부터는 불이 아예 켜지지 않았다고 한다.`,
+            en: `This store, run in the topmost attic of the galaxy, trades only in the exchange of pain. A customer who steps inside faces a vast shelf of goods shaped like an unfolded net. On the net, each part can be exchanged for a customer's object of corresponding pain-value. When a customer sets an object symbolizing pain on the table and tells the story tied to it, the exchangeable items light up; then they call out the number of the item they want, take it out, and feed their own object back in—that's how the trade is done. The net itself judges how much each item is worth. But according to the notorious space pirate Burglar Beeclocksus, even bringing the 5098-model spaceship GPx-39, which caused countless lethal casualties, the lights wouldn't come on at all from number 45 onward.`,
             size: 'small',
           },
         ],
@@ -670,6 +671,25 @@ breathe`,
 17. 콘웨이 진동자 비행선
 18. 페요틀과 사랑 1그램
 19. 역배변훈련자가 똥을 싼 기저귀`,
+            en: `1. Transparent carrot
+2. Tachyon particle
+3. Hypokeimenon
+4. Bahuchara Mata's going-out gown
+5. The Gideon Bible from Rocky Raccoon's room
+6. The tail on Mr. Suttipong Nguyen's backside
+7. Jonggak's faucet, out at last after a long while
+8. The Witches' Blues LP
+9. A Vita Nova dance-lesson pass
+10. The geometry textbook Kaczynski taught from
+11. Saint Babo Church stained glass
+12. A feignedly-wicked person's armpit patch
+13. The Korean Political Philosophy Society collected series
+14. A gabber dancer's nipple piercing
+15. The restroom key of lesbian club 'PINK'
+16. A Demon Express aromatherapy 10-session pass
+17. A Conway-oscillator airship
+18. Peyote and love, one gram
+19. The diaper a reverse-potty-trainee shat in`,
           },
         ],
       },
@@ -704,6 +724,25 @@ breathe`,
 36. 제5인터내셔널 깃발
 37. 육체적인 킨츠기
 38. 너무 진지한 귀신 추출액`,
+            en: `20. The bank balance from the day I heard Pixies' "Hey" twenty-three times
+21. An Indigo Child's eyeball
+22. MTF non-op genitalia
+23. The art brut of aquarium dolphins
+24. A network for high-grade brains—a HighBrainNet ID
+25. A necrophile's dildo
+26. An MPB album cover with a white dog on it
+27. An International UFO Research Association group photo
+28. Jeju rainwater that comes in sideways
+29. The notebook where Minima Moralia was first written
+30. Lava-diving goggles
+31. An unproductive angle of the future
+32. The eye drops of an angel with floaters
+33. The saw a BIID patient used to cut off their own leg
+34. The diary of a rhinoceros beetle living in Harlem
+35. An all-perspectives vortex
+36. A Fifth International flag
+37. Corporeal kintsugi
+38. Extract of an overly earnest ghost`,
           },
         ],
       },
@@ -738,6 +777,25 @@ breathe`,
 55. 나사들
 56. 내장들
 57. 매주 목요일 10시 이레성폭력상담소 투어권`,
+            en: `39. An X-ray of a Gernew dragon's broken vertebra
+40. The Top Billiards WiFi password
+41. A Disco Elysium DLC
+42. A backpropagation algorithm
+43. A computer named SHINGO
+44. The first-run score of Vexations
+45. Screws
+46. Screws
+47. A composite buffer cluster
+48. Screws
+49. A caliper
+50. A letter written by Huyen Mai
+51. Screws
+52. Screws
+53. A toggle switch
+54. Screws
+55. Screws
+56. Entrails
+57. A tour pass to the Ire Sexual Violence Counseling Center, Thursdays at 10`,
           },
         ],
       },

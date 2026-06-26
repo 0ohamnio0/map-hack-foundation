@@ -33,6 +33,9 @@ const SOUND_MAP: Record<string, string | null> = {
   cigarette_smoke: 'ch3/cigarette_smoke.mp3',
   smoking_4: 'ch3/smoking_4.mp3',
   smoking_5: 'ch3/smoking_5.mp3',
+  radio_02: 'ch3/radio_02.mp3',
+  radio_04: 'ch3/radio_04.mp3',
+  radio_10: 'ch3/radio_10.mp3',
   npc_super: 'ch3/npc_super.mp3',
   elevator_room: 'ch3/elevator_room.mp3',
   elevator_ding: 'ch3/elevator_ding.mp3',
@@ -98,5 +101,9 @@ export function useSoundManager() {
     }
   }, []);
 
-  return { play, stop, loop };
+  const setVolume = useCallback((name: string, vol: number) => {
+    howls[name]?.volume(vol);
+  }, []);
+
+  return { play, stop, loop, setVolume };
 }

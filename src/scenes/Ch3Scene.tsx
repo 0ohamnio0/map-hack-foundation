@@ -443,8 +443,13 @@ const FittingRoom: React.FC<{ worldPos: { x: number; z: number }; nx: number; nz
   }, []);
   // E.R 로고 데칼 — 뒷 벽(nz 면) 바깥(북쪽) 아래쪽. 빈 네모(revealed)일 때만 드러남.
   const ER_W = W * 0.85, ER_H = ER_W * (996 / 1321);
-  const erMat = useMemo(() => makeSnapMaterialWithTexture('er_logo.webp',
-    { emissive: 0.7, pixelize: WALL_PIXELIZE, pixelAspect: ER_W / ER_H }), []);
+  const erMat = useMemo(() => {
+    const m = makeSnapMaterialWithTexture('er_logo.webp',
+      { emissive: 0.7, pixelize: WALL_PIXELIZE, pixelAspect: ER_W / ER_H });
+    m.transparent = true;   // 투명 배경(알파) 살리기 — 흰 바탕 제거
+    m.alphaTest = 0.5;
+    return m;
+  }, []);
   return (
     <group position={[worldPos.x, FITTING_Y, worldPos.z]}>
       {/* 4면 닫힌 박스 — flush 2면(코너 벽에 붙음) + outer 2면 + 천장. 벽=커튼 텍스처 */}
@@ -922,6 +927,8 @@ const MED_GLB_BASE = `${import.meta.env.BASE_URL}assets/models/medicine/`;
 const MED_MODEL_SCALE = 0.5; // glb 크기 → 씬 스케일 (필요 시 조정)
 // 약 발광 — baked 텍스처(map)를 emissiveMap으로 걸어 텍스처 색 그대로 자체발광. dev 패널(P) 슬라이더로 세기 조절
 const medGlowTuning = { intensity: 1.75 };
+// 빈 네모 고스트 라디오 — 시착실 기댄 고스트 근접 시 3종 루프(거리 기반 볼륨, 기본 작게)
+const RADIO_SLOTS = ['radio_02', 'radio_04', 'radio_10'] as const;
 const MedicinePickup: React.FC<{
   med: typeof MEDICINES[0];
   worldPos: { x: number; z: number };
@@ -1090,7 +1097,7 @@ const Ch3Inner: React.FC<{
   const setActiveEffect = useGameStore(s => s.setActiveEffect);
   const setNotification = useGameStore(s => s.setNotification);
   const noteOpen = useGameStore(s => s.activeNoteId !== null); // 시 조각 오버레이 열림 → 이동 정지
-  const { play } = useSoundManager();
+  const { play, loop, setVolume } = useSoundManager();
   const elevatorVisited = useGameStore(s => s.visitedEvents.has('ch3_elevator'));
   const [collected, setCollected] = useState<Set<number>>(new Set());
   const [posState, setPosState] = useState({ x: 0, z: 0 });
@@ -1189,11 +1196,27 @@ const Ch3Inner: React.FC<{
       // 시착실 = 엘리베이터 portal(중간) / 흰약 후엔 CH4 출구 — proximity-only state (E-confirm in Ch3Scene)
       const elevDist = Math.sqrt((px - fittingRoomWorld.x) ** 2 + (pz - fittingRoomWorld.z) ** 2);
       onElevatorZoneChange?.(elevDist < CELL_SIZE * 0.6);
+      // 빈 네모 — 시착실 기댄 고스트 라디오: 가까울수록 크게(기본 데시벨 작게).
+      // 반비례로 마트 앰비언트를 줄여 라디오로 자연스럽게 크로스페이드.
+      if (collected.size === MEDICINES.length) {
+        const RADMAX = CELL_SIZE * 4;
+        const prox = Math.max(0, 1 - elevDist / RADMAX);
+        RADIO_SLOTS.forEach((s) => setVolume(s, prox * 0.3));
+        setVolume('mart_bgm', 1 - prox);
+      }
     };
 
     const interval = setInterval(check, 100);
     return () => clearInterval(interval);
-  }, [posState, collected, medPositions, fittingRoomWorld, elevatorVisited, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange]);
+  }, [posState, collected, medPositions, fittingRoomWorld, elevatorVisited, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange, setVolume]);
+
+  // 빈 네모 라디오 3종 루프 시작/정지 — isEmpty 동안만 (거리 볼륨은 check에서 매 100ms 갱신)
+  const isEmptyRadio = collected.size === MEDICINES.length;
+  useEffect(() => {
+    if (!isEmptyRadio) return;
+    RADIO_SLOTS.forEach((s) => { setVolume(s, 0); loop(s, true); });
+    return () => RADIO_SLOTS.forEach((s) => loop(s, false));
+  }, [isEmptyRadio, loop, setVolume]);
 
   const frameCount = useRef(0);
   const handlePosition = (x: number, z: number) => {
@@ -1348,6 +1371,8 @@ export const Ch3Scene: React.FC = () => {
   const allCollected = collectedSet.size === MEDICINES.length;
   // 빈 네모에서 전투(전략적 행성 전투) 9조각을 전부 모아야 출구 개방 + 미니맵 시착실 표시
   const allBattleCollected = allCollected && BATTLE_FRAGMENT_IDS.every(id => visitedEvents.has(`note_${id}`));
+  // 빈 네모 초록 쪽지(ckshp/맹점) 전부 읽음 — 미니맵은 마지막 초록 읽을 때 숨긴다
+  const allGreenRead = ['ckshp1', 'ckshp2', 'ckshp3', 'maengjeom1', 'maengjeom2'].every(id => visitedEvents.has(`note_${id}`));
   const minimapMarkers = useMemo<MinimapMarker[]>(() => {
     const markers: MinimapMarker[] = [];
     const fr = findFittingCorner(maze, CELL_SIZE).pos;
@@ -1580,9 +1605,11 @@ export const Ch3Scene: React.FC = () => {
         </div>
       )}
 
-      {/* Hide minimap & UI during cutscene */}
+      {/* Hide minimap during cutscene. 빈 네모에서 초록 쪽지(ckshp/맹점) 전부 읽으면 천천히 페이드아웃 */}
       {!cutscenePhase && (
-        <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} markers={minimapMarkers} showExit={false} />
+        <div style={{ opacity: allCollected && allGreenRead ? 0 : 1, transition: 'opacity 2.5s ease-out' }}>
+          <Minimap maze={maze} playerX={playerPos.x} playerZ={playerPos.z} cellSize={CELL_SIZE} markers={minimapMarkers} showExit={false} />
+        </div>
       )}
 
       {/* Notification */}
