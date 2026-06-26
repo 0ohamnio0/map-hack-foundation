@@ -172,9 +172,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     ghostEncounteredFlag = false;
     minDurationPassed = false;
     if (effect && duration) {
-      // duration = minimum 보장. duration 후 ghostEncountered 체크, true면 종료, false면 polling
+      // duration = minimum 보장. duration 후 ghostEncountered 체크, true면 종료, false면 polling.
+      // 안전장치: 유령 스폰 실패 등으로 encounter가 영영 안 와도 hard deadline(duration + MAX_WAIT) 후
+      //   강제 종료 — activeEffect가 영구히 남아 EffectOverlay/ChapterEffects가 화면을 잠그는 것 방지.
+      const MAX_WAIT = 6000;
+      const deadline = Date.now() + duration + MAX_WAIT;
       const tryEnd = () => {
-        if (ghostEncounteredFlag) {
+        if (ghostEncounteredFlag || Date.now() >= deadline) {
           set({ activeEffect: null });
           effectTimeoutId = null;
         } else {

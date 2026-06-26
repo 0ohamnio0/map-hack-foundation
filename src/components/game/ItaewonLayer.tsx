@@ -381,40 +381,37 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
       }
     }
 
-    // in-bounds 전체(LOS·FOV 무시) 셋 — 화면 안 후보가 없을 때(카메라가 벽을 봄) "가장 가까운" 셀에
-    // 스폰하기 위함. 과거: 벽 보면 clear-LOS 전방 후보가 0 → 옆/먼 셀만 남아 유령이 화면 밖 먼 곳에 떠서 "안 등장".
-    const nearAny: { gx: number; gy: number; dist: number }[] = []
-    for (let oy = -MAX_R; oy <= MAX_R; oy++) {
-      for (let ox = -MAX_R; ox <= MAX_R; ox++) {
-        if (Math.max(Math.abs(ox), Math.abs(oy)) < MIN_CHEB) continue
-        const cx = pCellX + ox
-        const cy = pCellY + oy
-        if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
-        if (prev && prev.gx === cx && prev.gy === cy) continue
-        nearAny.push({ gx: cx, gy: cy, dist: Math.hypot(ox, oy) })
-      }
-    }
-
     // 선택 — (1) clear-LOS + 화면 안 후보가 있으면 그중 가까운 절반 random (약 먹자마자 시야에 등장)
-    //        (2) 없으면(카메라가 벽 봄) LOS 무시하고 가장 가까운 in-bounds 셀 (한 칸 돌면 보이고 근접 발견)
+    //        (2) 없으면(카메라가 벽 봄) 아래 front-fallback이 카메라 정면에 강제 스폰
     const inViewCands = candidates.filter((c) => c.inView)
     let target: { gx: number; gy: number } | undefined
-    let how: string
     if (inViewCands.length) {
       inViewCands.sort((a, b) => a.dist - b.dist)
       const pool = inViewCands.slice(0, Math.max(1, Math.ceil(inViewCands.length / 2)))
       target = pool[Math.floor(Math.random() * pool.length)]
-      how = 'inview-near'
-    } else {
-      const fallback = nearAny.length ? nearAny : candidates
-      fallback.sort((a, b) => a.dist - b.dist)
-      target = fallback[0]
-      how = nearAny.length ? 'nearest-any' : 'candidates-only'
     }
     if (!target) {
-      console.warn('[ItaewonLayer] spawn failed — no in-bounds cell', { pCellX, pCellY })
+      // 전방 clear-LOS·화면 안 후보가 없음(벽 마주봄 등) → 과거엔 nearAny[0](화면 밖 옆/뒤 셀)로
+      // 떨어져 "유령이 안 보이고 encounter도 안 잡혀 효과가 안 끝나는" 사슬을 만들었다.
+      // 대신 finale와 동일하게 카메라 정면(MIN_CHEB+0.5 셀 앞)에 강제 스폰 → 항상 화면 안 등장 → encounter 보장.
+      const fwd = new THREE.Vector3()
+      camera.getWorldDirection(fwd)
+      const fl = Math.hypot(fwd.x, fwd.z) || 1
+      const ahead = (MIN_CHEB + 0.5) * cellSize
+      const wmax = mazeSize * cellSize
+      const clampW = (v: number) => Math.max(cellSize * 0.5, Math.min(wmax - cellSize * 0.5, v))
+      const fx = clampW(camX + (fwd.x / fl) * ahead)
+      const fz = clampW(camZ + (fwd.z / fl) * ahead)
+      console.log('[ItaewonLayer] ghost spawn front-fallback', { fx, fz, pCellX, pCellY })
+      setGhostPos([fx, 0, fz])
+      setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])
+      spawnCountRef.current += 1
+      prevGhostCellRef.current = null
+      isFirstSpawnRef.current = false
+      wasInViewRef.current = false
       return
     }
+    const how = inViewCands.length ? 'inview-near' : 'front-fallback'
 
     const world = cellToWorld(target.gx, target.gy, cellSize)
     console.log('[ItaewonLayer] ghost spawn', { gx: target.gx, gy: target.gy, world, pCellX, pCellY, isFirst, how, candidates: candidates.length, inView: inViewCands.length })
