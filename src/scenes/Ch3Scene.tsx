@@ -975,8 +975,19 @@ const POSTER_PLACEMENTS: { x: number; z: number; rotY: number }[] = [
   { x: WALL_INSET, z: cellC(2), rotY: Math.PI / 2 },             // 9 — West (행 2)
 ];
 
+// finale 빈네모 — 약 단계에서 미읽고 지나간 ckshp/맹점(최대 5) 회수용 추가 배치.
+// battle 9개(POSTER_PLACEMENTS)와 안 겹치는 빈 벽 자리.
+const NPC_PLACEMENTS: { x: number; z: number; rotY: number }[] = [
+  { x: cellC(2), z: WALL_INSET, rotY: 0 },                          // N 열 2
+  { x: GALLERY_WALL - WALL_INSET, z: cellC(5), rotY: -Math.PI / 2 }, // E 행 5
+  { x: cellC(5), z: GALLERY_WALL - WALL_INSET, rotY: Math.PI },     // S 열 5
+  { x: WALL_INSET, z: cellC(4), rotY: Math.PI / 2 },               // W 행 4
+  { x: WALL_INSET, z: cellC(8), rotY: Math.PI / 2 },               // W 행 8
+];
+
 // finale 빈 네모 벽 갤러리 — 전략적 행성 전투 9조각 (id battle1..9, ch3Fragments 레지스트리 index 5~13)
 const PoemGallery: React.FC = () => {
+  const visitedEvents = useGameStore(s => s.visitedEvents);
   // 조각 id를 벽 위치에 랜덤 배정 (순서대로 붙이지 않음) — 마운트 1회 고정
   const shuffledIds = useMemo(() => {
     const a = [...BATTLE_FRAGMENT_IDS];
@@ -986,11 +997,20 @@ const PoemGallery: React.FC = () => {
     }
     return a;
   }, []);
+  // 약 단계에서 미읽고 지나간 ckshp/맹점 — 빈네모 벽에 추가 회수 배치(연두). 읽으면 note_ 기록되며 사라짐.
+  const unreadNpc = NPC_FRAGMENT_IDS.filter((id) => !visitedEvents.has(`note_${id}`));
   return (
     <Suspense fallback={null}>
       {POSTER_PLACEMENTS.map((p, i) => (
         <PoemFragment key={i} id={shuffledIds[i]} paperIdx={5 + i} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} tint="#c4a5ff" />
       ))}
+      {unreadNpc.map((id, i) => {
+        const p = NPC_PLACEMENTS[i];
+        if (!p) return null;
+        return (
+          <PoemFragment key={id} id={id} paperIdx={NPC_FRAGMENT_IDS.indexOf(id)} position={[p.x, FRAG_Y, p.z]} rotationY={p.rotY} tint="#c4ff2e" />
+        );
+      })}
     </Suspense>
   );
 };
