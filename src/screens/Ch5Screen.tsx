@@ -813,12 +813,19 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
         // Overlay mode runs DARK_THEME (white text on transparent) — capture
         // against black so text stays visible. Dev mode uses the light blog.
         const captureBg = overlayMode ? '#000000' : '#ffffff'
-        const raw = await html2canvas(blogWrapRef.current, {
-          backgroundColor: captureBg,
-          scale: 1.5,
-          logging: false,
-          useCORS: true,
-        })
+        // 인터넷이 없으면 외부 이미지(glitter gif)·폰트가 연결 타임아웃(기본 15s)까지 hang →
+        // dolly가 영영 시작 못 해 "방명록→크레딧 이동 안 됨". imageTimeout 단축 + 2.5s race로
+        // 캡처를 빨리 포기하고 진행(스냅샷 없으면 live DOM 폴백, 크레딧엔 반드시 도달).
+        const raw = await Promise.race([
+          html2canvas(blogWrapRef.current, {
+            backgroundColor: captureBg,
+            scale: 1.5,
+            logging: false,
+            useCORS: true,
+            imageTimeout: 1500,
+          }),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('snapshot timeout')), 2500)),
+        ])
         const dstW = Math.max(960, raw.width)
         const dstH = Math.round(dstW / SCREEN_ASPECT)
         const target = document.createElement('canvas')
