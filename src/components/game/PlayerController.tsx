@@ -115,6 +115,30 @@ export const PlayerController: React.FC<Props> = ({
     return () => { cartHowl.stop(); };
   }, [chapter, cartHowl]);
 
+  // 약 먹어 미로가 재생성되면 — 플레이어 정면이 새 벽이면 열린 방향으로 카메라를 즉시 회전.
+  // "빨간약 먹고 벽 마주본 리스폰" + 그로 인한 "유령 정면 fallback이 벽에 막혀 안 보임"을 함께 해소.
+  useEffect(() => {
+    if (!gridCellSize || !collisionWalls || collisionWalls.length === 0) return;
+    const open = (yaw: number) => {
+      const fx = Math.round(Math.sin(yaw));
+      const fz = Math.round(Math.cos(yaw));
+      const nx = gridTargetPos.current.x + fx * gridCellSize;
+      const nz = gridTargetPos.current.z + fz * gridCellSize;
+      const mx = (gridTargetPos.current.x + nx) / 2;
+      const mz = (gridTargetPos.current.z + nz) / 2;
+      return !collidesWithWalls(mx, mz, collisionWalls) && !collidesWithWalls(nx, nz, collisionWalls);
+    };
+    const yaw = gridTargetFacing.current;
+    if (open(yaw)) return; // 정면이 통로면 그대로
+    for (const turn of [Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      if (open(yaw + turn)) {
+        gridTargetFacing.current = yaw + turn;
+        gridCurrentFacing.current = yaw + turn;
+        break;
+      }
+    }
+  }, [collisionWalls, gridCellSize]);
+
   useFrame((_, delta) => {
     if (!shouldUpdate(delta)) return;
     const dt = 1 / 24;

@@ -21,7 +21,7 @@ interface Props {
   showExit?: boolean;
 }
 
-const MINIMAP_SIZE = 160;
+const MINIMAP_SIZE = 320;
 const PADDING = 12;
 
 export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2, markers, showExit = true }) => {
@@ -33,18 +33,19 @@ export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2,
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const scale = MINIMAP_SIZE / (maze.width * cellSize);
-    const res = MINIMAP_SIZE;
+    const res = 120; // 저해상 캔버스 → CSS pixelated 업스케일로 도트(픽셀) 룩
+    const scale = res / (maze.width * cellSize);
     canvas.width = res;
     canvas.height = res;
 
-    // Background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-    ctx.fillRect(0, 0, res, res);
+    // Background — 완전 투명 (블랙 배경 제거). 가시성은 라인 색·굵기로.
+    ctx.clearRect(0, 0, res, res);
+    ctx.imageSmoothingEnabled = false;
 
-    // Draw walls
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineWidth = 1;
+    // Draw walls — 진하고 굵은 픽셀 라인
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'square';
 
     for (let y = 0; y < maze.height; y++) {
       for (let x = 0; x < maze.width; x++) {
@@ -112,8 +113,8 @@ export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2,
     // Player dot
     const px = playerX * scale;
     const pz = playerZ * scale;
-    ctx.fillStyle = '#ff3333';
-    ctx.shadowColor = '#ff0000';
+    ctx.fillStyle = '#ff69b4';
+    ctx.shadowColor = '#ff1493';
     ctx.shadowBlur = 6;
     ctx.beginPath();
     ctx.arc(px, pz, 3.5, 0, Math.PI * 2);
@@ -128,11 +129,11 @@ export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2,
       right: PADDING,
       width: MINIMAP_SIZE,
       height: MINIMAP_SIZE,
-      border: '1px solid rgba(255,255,255,0.15)',
+      border: '5px solid rgba(255,255,255,0.8)', // 픽셀 벽 굵기·색과 통일 (테두리만 얇던 문제)
       zIndex: 200,
       pointerEvents: 'none',
     }}>
-      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated' }} />
     </div>
   );
 };

@@ -245,11 +245,11 @@ const FlickerLight: React.FC = () => {
 
 const MEDICINES = [
   // duration = 효과 minimum 지속 시간 (ms). 그 후 자동 종료. encounter는 ghost cycle 트리거 (효과 종료와 별개)
-  { name: 'Lithium Carbonate', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 } },
-  { name: 'Aripiprazole', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 } },
-  { name: 'Quetiapine Fumarate', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 } },
-  { name: 'Alprazolam', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 } },
-  { name: 'Fluoxetine', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 } },
+  { name: 'Lithium Carbonate', color: '#ff3333', effect: 'desaturate', duration: 8000, soundSlot: 'gulp_red', cell: { gx: 2, gy: 2 }, glb: 'lithium' },
+  { name: 'Aripiprazole', color: '#3366ff', effect: 'blur', duration: 10000, soundSlot: 'gulp_blue', cell: { gx: 5, gy: 3 }, glb: 'aripiprazole' },
+  { name: 'Quetiapine Fumarate', color: '#ffcc00', effect: 'darken', duration: 8000, soundSlot: 'gulp_yellow', cell: { gx: 3, gy: 6 }, glb: 'quetiapine' },
+  { name: 'Alprazolam', color: '#33cc33', effect: 'anxiolytic', duration: 6000, soundSlot: 'gulp_green', cell: { gx: 7, gy: 7 }, glb: 'alprazolam' },
+  { name: 'Fluoxetine', color: '#ffffff', effect: 'whiteflash', duration: 1800, soundSlot: 'gulp_white', cell: { gx: 8, gy: 5 }, glb: 'fluoxetine' },
 ];
 
 // 약 먹을수록 미로가 단순해진다 — 픽업 순서(약 종류 무관)대로 벽 제거 비율 단조 증가.
@@ -332,12 +332,12 @@ const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
     <button
       onClick={() => { if (!clicked) setClicked(true); }}
       style={{
-        padding: '4px 10px',
+        padding: '8px 20px',
         fontFamily: '"Unifont", monospace',
-        fontSize: 11,
+        fontSize: 22,
         color: '#fff',
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        border: '1px solid rgba(255,255,255,0.2)',
+        backgroundColor: 'transparent',
+        border: 'none',
         cursor: 'pointer',
         transform: `rotate(${tilt}deg)`,
         transition: 'opacity 0.15s',
@@ -901,29 +901,60 @@ const ElevatorCutscene: React.FC<{
   return null;
 };
 
+const MED_GLB_BASE = `${import.meta.env.BASE_URL}assets/models/medicine/`;
+const MED_MODEL_SCALE = 0.5; // glb 크기 → 씬 스케일 (필요 시 조정)
+// 약 발광 — baked 텍스처(map)를 emissiveMap으로 걸어 텍스처 색 그대로 자체발광. dev 패널(P) 슬라이더로 세기 조절
+const medGlowTuning = { intensity: 1.75 };
 const MedicinePickup: React.FC<{
   med: typeof MEDICINES[0];
   worldPos: { x: number; z: number };
   collected: boolean;
 }> = ({ med, worldPos, collected }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const matsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  const { scene } = useGLTF(`${MED_GLB_BASE}${med.glb}.glb`);
+  // baked 텍스처(map)를 emissiveMap으로 → 텍스처 색 그대로 표면이 밝아짐(하얗게 X). 머티리얼은 클론해 공유 캐시 보호.
+  const model = useMemo(() => {
+    const cloned = scene.clone();
+    const mats: THREE.MeshStandardMaterial[] = [];
+    cloned.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && mesh.material && !Array.isArray(mesh.material)) {
+        const c = (mesh.material as THREE.MeshStandardMaterial).clone();
+        if (c.map) {
+          c.emissive = new THREE.Color('#ffffff');
+          c.emissiveMap = c.map;
+          c.emissiveIntensity = medGlowTuning.intensity;
+        }
+        mesh.material = c;
+        mats.push(c);
+      }
+    });
+    matsRef.current = mats;
+    return cloned;
+  }, [scene]);
 
   useFrame(({ clock }) => {
-    if (meshRef.current && !collected) {
-      meshRef.current.rotation.y = clock.elapsedTime * 2;
-      meshRef.current.position.y = 0.5 + Math.sin(clock.elapsedTime * 3) * 0.1;
+    // 발광 세기 라이브 반영 (dev 패널 P 슬라이더)
+    for (const m of matsRef.current) m.emissiveIntensity = medGlowTuning.intensity;
+    if (groupRef.current && !collected) {
+      groupRef.current.rotation.y = clock.elapsedTime * 0.6; // 천천히 빙글 (세로축)
+      groupRef.current.position.y = 0.5 + Math.sin(clock.elapsedTime * 3) * 0.1;
     }
   });
 
   if (collected) return null;
 
   return (
-    <mesh ref={meshRef} position={[worldPos.x, 0.5, worldPos.z]}>
-      <boxGeometry args={[0.3, 0.5, 0.3]} />
-      <meshStandardMaterial color={med.color} emissive={med.color} emissiveIntensity={0.3} />
-    </mesh>
+    <group ref={groupRef} position={[worldPos.x, 0.5, worldPos.z]} scale={MED_MODEL_SCALE}>
+      {/* primitive를 90도 세움(누운 약 → 수직). group은 세로축(y)으로 빙글 */}
+      <primitive object={model} rotation={[Math.PI / 2, 0, 0]} />
+      {/* 약 주변 은은한 발광 빛 */}
+      <pointLight color={med.color} intensity={1.2} distance={5} decay={2} />
+    </group>
   );
 };
+MEDICINES.forEach((m) => useGLTF.preload(`${MED_GLB_BASE}${m.glb}.glb`));
 
 // cart — Canvas 안 카메라 고정 HUD 평면. 메인 씬에 있어 약 효과(EffectComposer)를 동일하게 받음
 const CART_ASPECT = 1536 / 1030;
@@ -1292,6 +1323,8 @@ export const Ch3Scene: React.FC = () => {
   // CART 이동 dev 슬라이더 — cartTuning 객체를 직접 mutate(useFrame이 매 프레임 읽음) + state로 패널만 리렌더
   const [cartGridStep, setCartGridStep] = useState(cartTuning.gridStep);
   const [cartPosLerp, setCartPosLerp] = useState(cartTuning.posLerp);
+  // 약 발광 dev 슬라이더 — medGlowTuning 객체 직접 mutate(MedicinePickup useFrame이 매 프레임 읽음) + state로 패널만 리렌더
+  const [medGlow, setMedGlow] = useState(medGlowTuning.intensity);
 
   // 약 5개 전부 수집 → 출구 안내 (마지막 약 알림 직후 표시)
   // Minimap markers: 시착실 — 전부 수집 후엔 초록 출구, 그 전엔 엘베(magenta, 사용 전까지) + 약 위치(수집 전, 흰약은 첫 4개 모은 뒤 노출).
@@ -1648,6 +1681,13 @@ export const Ch3Scene: React.FC = () => {
             슬라이드 속도 posLerp — {cartPosLerp}
             <input type="range" min={1} max={20} step={0.5} value={cartPosLerp}
               onChange={(e) => { const v = +e.target.value; cartTuning.posLerp = v; setCartPosLerp(v); }} />
+          </label>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <div style={{ color: '#fc8', fontSize: 10, letterSpacing: 1 }}>약 발광 튜닝</div>
+          <label style={{ fontSize: 10, color: '#aaa', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            텍스처 발광 세기 — {medGlow}
+            <input type="range" min={0} max={3} step={0.05} value={medGlow}
+              onChange={(e) => { const v = +e.target.value; medGlowTuning.intensity = v; setMedGlow(v); }} />
           </label>
           <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close · 슬라이더 만진 뒤 화면 클릭하면 이동키 복귀</div>
         </div>
