@@ -334,9 +334,11 @@ export function NoteReader() {
   const baseOffX = note.compact
     ? (titleShown ? -17 : -3)
     : (titleShown ? -5 : 9)
-  const baseOffY = note.compact
+  // 연두색 조각(ckshp/맹점)은 텍스트를 26px 위로 — 해민 dev 튜닝 확정(Y 오프셋 -26)
+  const greenYShift = (note.id.startsWith('ckshp') || note.id.startsWith('maengjeom')) ? -26 : 0
+  const baseOffY = (note.compact
     ? (titleShown ? 81 : -147)
-    : (titleShown ? 25 : 53)
+    : (titleShown ? 25 : 53)) + greenYShift
 
   return (
     <div
