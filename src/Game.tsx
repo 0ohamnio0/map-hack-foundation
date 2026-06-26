@@ -12,7 +12,7 @@ import { Ch2Scene } from '@/scenes/Ch2Scene';
 import { Ch3Scene } from '@/scenes/Ch3Scene';
 import { Ch4Screen } from '@/screens/Ch4Screen';
 import { Ch5Screen } from '@/screens/Ch5Screen';
-import { playChapterMusic } from '@/lib/chapterMusic';
+import { playChapterMusic, stopChapterMusic } from '@/lib/chapterMusic';
 import { SketchDebugPanel } from '@/components/effects/SketchDebugPanel';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { useWebGLAvailable } from '@/hooks/useWebGLAvailable';
@@ -121,6 +121,9 @@ export const Game: React.FC = () => {
     if (chapter === 'START' || chapter === 'INTRO') return;
     // CH.1은 인트로 영상 오디오(ch1.mp3 baked)가 그대로 이어지는 동안 ch1.mp3 중복 재생 금지.
     if (chapter === 'CH1' && useGameStore.getState().introAudioActive) return;
+    // 완주(크레딧) 후 챕터 버튼으로 2회차 플레이 — BGM 음악은 뮤트(SFX는 그대로). 의도된 동작.
+    // getState()로 즉시 읽어 deps에 gameCompleted를 넣지 않음 → 1회차 크레딧 음악이 끊기지 않음.
+    if (useGameStore.getState().gameCompleted) { stopChapterMusic(); return; }
     playChapterMusic(chapter);
   }, [chapter]);
 

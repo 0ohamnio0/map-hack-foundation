@@ -43,7 +43,7 @@ export const Minimap: React.FC<Props> = ({ maze, playerX, playerZ, cellSize = 2,
     ctx.imageSmoothingEnabled = false;
 
     // Draw walls — 진하고 굵은 픽셀 라인
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 2;
     ctx.lineCap = 'square';
 

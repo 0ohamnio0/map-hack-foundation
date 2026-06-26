@@ -804,6 +804,10 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   const triggerDolly = useCallback(async () => {
     if (dollyStartRef.current !== null) return
     dollyStartRef.current = -1
+    // 방명록 작성(전송 성공) 시 열려 있던 팝업 전부 자동 닫기 — 크레딧 전환 전 화면 정리
+    setPopup1Closed(true)
+    setPopup2Closed(true)
+    setMessagePopupClosed(true)
     if (blogWrapRef.current) {
       try {
         const html2canvas = (await import('html2canvas')).default

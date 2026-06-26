@@ -20,7 +20,7 @@ export const cartTuning = {
 const FACING_STEP = Math.PI / 12; // CH.3 — 회전 각도 양자화(15°) → 회전도 프레임 뺀 듯 끊기게 (전진 끊김과 톤 맞춤)
 const GRID_FACING_LERP = 12;
 const GRID_INPUT_COOLDOWN = 0.22; // seconds between inputs
-const CART_VOL = 0.5;   // CH.3 롤링 카트 사운드 볼륨
+const CART_VOL = 0.9;   // CH.3 롤링 카트 사운드 볼륨 (소스 +8dB 증폭 + 상향 — 마트 BGM 위로 들리게)
 const CART_FADE = 6;    // 이동 시작/정지 시 볼륨 페이드 속도(자연스러운 멈춤)
 
 function snap(v: number, unit: number) {
