@@ -6,6 +6,8 @@ interface GameState {
   chapter: Chapter;
   visitedEvents: Set<string>;
   isTransitioning: boolean;
+  /** 전환 커튼(FadeOverlay) 페이드 길이(ms) — goToChapter가 챕터별로 조절. 기본 400. */
+  transitionMs: number;
   leftMovement: number;
   rightMovement: number;
   cartItems: string[];
@@ -27,7 +29,7 @@ interface GameState {
   /** 인트로 영상의 baked 오디오가 CH.1 BGM으로 캐리 중인지 — true면 Game이 CH.1에서 ch1.mp3 중복 재생 안 함 */
   introAudioActive: boolean;
   setIntroAudioActive: (v: boolean) => void;
-  goToChapter: (chapter: Chapter) => void;
+  goToChapter: (chapter: Chapter, fadeMs?: number) => void;
   /** 엔딩 크레딧 진입 시 호출 → 챕터 선택 네비 해금 */
   markGameCompleted: () => void;
   /** 무거운 씬이 로드·물리 안정화(캐릭터 착지) 완료 시 호출 → 전환 커튼 해제 신호 */
@@ -61,6 +63,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   chapter: 'START',
   visitedEvents: new Set<string>(),
   isTransitioning: false,
+  transitionMs: 400,
   chapterReady: true,
   gameCompleted: false,
   introAudioActive: false,
@@ -75,19 +78,20 @@ export const useGameStore = create<GameState>((set, get) => ({
   noteLanguage: 'ko',
   letterSent: false,
 
-  goToChapter: (chapter: Chapter) => {
-    // 씬 전환 크로스페이드(검은 커튼). 이건 짧게 — 실제 "로딩화면"은 각 씬 내부의
+  goToChapter: (chapter: Chapter, fadeMs = 400) => {
+    // 씬 전환 크로스페이드(검은 커튼). 기본은 짧게 — 실제 "로딩화면"은 각 씬 내부의
     // 로딩 오버레이가 담당하며, chapterReady 신호로 실제 로드 완료까지 유지된다.
     // 무거운 씬은 chapterReady=false로 시작 → 씬이 markChapterReady()를 부를 때까지 로딩 유지.
+    // fadeMs를 키우면 그만큼 천천히 암전돼 여운이 생긴다(CH.3→CH.4 출구 등).
     const needsLoad = chapter === 'CH2';
-    set({ isTransitioning: true, chapterReady: !needsLoad });
-    // Mid-point transition (400ms fade out, 400ms fade in)
+    set({ isTransitioning: true, transitionMs: fadeMs, chapterReady: !needsLoad });
+    // Mid-point transition (fadeMs fade out, fadeMs fade in)
     setTimeout(() => {
       set({ chapter });
-    }, 400);
+    }, fadeMs);
     setTimeout(() => {
       set({ isTransitioning: false });
-    }, 800);
+    }, fadeMs * 2);
   },
 
   markChapterReady: () => set({ chapterReady: true }),

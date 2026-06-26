@@ -553,7 +553,8 @@ const SpaceCharacterMesh: React.FC = () => {
     </group>
   );
 };
-// (mx.pott 15MB는 eager preload 안 함 — 우주씬 진입 시 로드. CH.3 미로 동안 GPU 메모리 절약 → 고스트 로드 여유)
+// (mx.pott 15MB는 미로 내내 eager preload 안 함 — 엘베 컷신 시작 시 프리로드(startElevatorCutscene).
+//  CH.3 미로 동안 GPU 메모리 절약 → 고스트 로드 여유. 컷신 진입 후 21s 엘베 phase 동안 미리 받아 우주씬서 즉시 표시)
 
 // PixelateEffect는 prop 비반응 → ref+useFrame으로 구동 (CH.2와 동일 패턴).
 // 우주씬 끝 PIX_RAMP_MS 동안(캐릭터 풀 opacity 중에) 0→1 픽셀 붕괴 → returning 동안 1 유지하며 페이드.
@@ -1109,8 +1110,19 @@ const Ch3Inner: React.FC<{
   const noteOpen = useGameStore(s => s.activeNoteId !== null); // 시 조각 오버레이 열림 → 이동 정지
   const { play, loop, setVolume } = useSoundManager();
   const elevatorVisited = useGameStore(s => s.visitedEvents.has('ch3_elevator'));
+  // 초록(형광 연두) 조각 ckshp·맹점 5종 전부 읽었는지 — 고스트 라디오는 이 뒤에야 울림(해민 확정).
+  const greenAllRead = useGameStore(s =>
+    ['ckshp1', 'ckshp2', 'ckshp3', 'maengjeom1', 'maengjeom2'].every(id => s.visitedEvents.has(`note_${id}`)),
+  );
   const [collected, setCollected] = useState<Set<number>>(new Set());
   const [posState, setPosState] = useState({ x: 0, z: 0 });
+
+  // 엘베 컷신 이미지(특히 full.webp 4.6MB) 미리 캐시 — 컷신 진입 시 검은 화면에서 시작하던 문제 방지.
+  // new Image()는 디코드/디스크 캐시만 채움(GPU 텍스처 미사용) → 미로 탐색 중 깔아둬도 메모리 부담 없음.
+  useEffect(() => {
+    ['elevator/full.webp', 'elevator/full_nodoor.webp', 'elevator/door_left.webp', 'elevator/door_right.webp', 'ceiling_stars.webp']
+      .forEach((f) => { const img = new Image(); img.src = `${TEX_BASE}${f}`; });
+  }, []);
 
   // dev — 빈 네모로 점프: 전부 수집 처리 + 마지막 픽업 흐름(빈 미로 재생성) 트리거
   useEffect(() => {
@@ -1208,7 +1220,8 @@ const Ch3Inner: React.FC<{
       onElevatorZoneChange?.(elevDist < CELL_SIZE * 0.6);
       // 빈 네모 — 시착실 기댄 고스트 라디오: 가까울수록 크게(기본 데시벨 작게).
       // 반비례로 마트 앰비언트를 줄여 라디오로 자연스럽게 크로스페이드.
-      if (collected.size === MEDICINES.length) {
+      // 초록 조각 전부 읽은 뒤에만 울림 — 그 전엔 무음(마트 앰비언스만).
+      if (collected.size === MEDICINES.length && greenAllRead) {
         const RADMAX = CELL_SIZE * 4;
         const prox = Math.max(0, 1 - elevDist / RADMAX);
         RADIO_SLOTS.forEach((s) => setVolume(s, prox * 0.3));
@@ -1218,10 +1231,10 @@ const Ch3Inner: React.FC<{
 
     const interval = setInterval(check, 100);
     return () => clearInterval(interval);
-  }, [posState, collected, medPositions, fittingRoomWorld, elevatorVisited, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange, setVolume]);
+  }, [posState, collected, greenAllRead, medPositions, fittingRoomWorld, elevatorVisited, addToCart, play, setActiveEffect, setNotification, triggerEvent, onDrugPickup, onCollectedChange, onElevatorZoneChange, setVolume]);
 
-  // 빈 네모 라디오 3종 루프 시작/정지 — isEmpty 동안만 (거리 볼륨은 check에서 매 100ms 갱신)
-  const isEmptyRadio = collected.size === MEDICINES.length;
+  // 빈 네모 라디오 3종 루프 시작/정지 — 초록 조각 전부 읽은 뒤(isEmpty+greenAllRead) 동안만 (거리 볼륨은 check에서 매 100ms 갱신)
+  const isEmptyRadio = collected.size === MEDICINES.length && greenAllRead;
   useEffect(() => {
     if (!isEmptyRadio) return;
     RADIO_SLOTS.forEach((s) => { setVolume(s, 0); loop(s, true); });
@@ -1414,12 +1427,16 @@ export const Ch3Scene: React.FC = () => {
   // Elevator cutscene sequencer
   const startElevatorCutscene = useCallback(() => {
     setCutscenePhase('elevator');
+    // mx.pott(15MB) 프리로드 — 엘베 phase(21s) 동안 미리 받아 우주씬 진입 시 캐릭터가 늦게 뜨지 않게.
+    // (미로 내내 eager preload는 GPU 메모리 부담이라 피하고, 컷신 진입 시점에만 시작)
+    useGLTF.preload(SPACE_GLB_URL);
     suspendChapterMusic();  // 마트 BGM만 정지 — 엘베 안에선 엘베 SFX만 (우주 BGM은 아직 X)
 
     // Phase 1 → Phase 2 — 우주씬 진입 시 코스믹 BGM 시작 (space SFX 루프는 ElevatorCutscene가 담당)
     setTimeout(() => {
       setCutscenePhase('space');
-      startElevatorMusic();
+      // 2회차(완주 후 챕터 점프)에선 코스믹 BGM도 뮤트 — SFX만 유지. (endElevatorMusic 복원분은 null이라 자동 no-op)
+      if (!useGameStore.getState().gameCompleted) startElevatorMusic();
     }, ELEVATOR_DURATION);
 
     // Phase 2 → returning (fade out)
@@ -1447,7 +1464,7 @@ export const Ch3Scene: React.FC = () => {
         triggerEvent('ch3_exit');
         play('elevator_door'); // 시착실 문 소리 + 공통 transition
         play('transition');
-        goToChapter('CH4');
+        goToChapter('CH4', 1400); // 천천히 암전(여운) — 기본 400 대신 1400ms (CH.4 로딩 화면이 검정으로 이어받음)
       } else if (showElevatorPrompt) {
         triggerEvent('ch3_elevator');
         play('elevator_door'); // 시착실 진입 문 소리
@@ -1542,7 +1559,7 @@ export const Ch3Scene: React.FC = () => {
             )}
             {(
               <div style={{
-                position: 'fixed', right: 24, top: '28%', transform: 'translateY(-50%)', zIndex: z,
+                position: 'fixed', right: 24, top: '20%', transform: 'translateY(-50%)', zIndex: z,
                 display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none', userSelect: 'none',
               }}>
                 {NPC_FRAGMENT_IDS.map((id, i) => slot(id, i, FRAG_TINT))}
