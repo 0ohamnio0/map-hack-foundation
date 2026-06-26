@@ -7,7 +7,7 @@ import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { useGLTF, useAnimations, PerspectiveCamera } from '@react-three/drei';
 import { r3f } from '@/lib/r3fTunnel';
 import { Suspense } from 'react';
-import { PlayerController, type WallAABB } from '@/components/game/PlayerController';
+import { PlayerController, type WallAABB, cartTuning } from '@/components/game/PlayerController';
 import { SceneExporter } from '@/components/dev/SceneExporter';
 import { useGameStore } from '@/store/useGameStore';
 import { useSoundManager } from '@/hooks/useSoundManager';
@@ -842,7 +842,8 @@ const ElevatorCutscene: React.FC<{
         {/* 문 열림 — 우주씬 위 엘베 인테리어(개구부 투명) + 좌우 도어 슬라이드, 열린 뒤 인테리어 페이드아웃 */}
         <div style={{
           position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 1005, pointerEvents: 'none',
-          animation: 'elevDoorsFade 2.6s ease-in forwards',
+          animation: 'elevDoorsFade 1.7s ease-in forwards',
+          willChange: 'opacity', // 마운트 시 미리 레이어 승격 → 문 열릴 때(애니 시작) 200vh 자식이 재래스터화되며 위치가 반짝 점프하는 것 방지
         }}>
           {/* transform 대신 top/margin으로 배치 — translate는 이 200vh 패널을 거대 단일 GPU 레이어로
               승격시켜 레티나(DPR2)에서 GPU 최대 텍스처 한계 초과 → 슬라이드 중 검정/투명 블록 깨짐.
@@ -891,7 +892,7 @@ const ElevatorCutscene: React.FC<{
           }
           @keyframes elevDoorL { from { transform: translateX(0); } to { transform: translateX(-102%); } }
           @keyframes elevDoorR { from { transform: translateX(0); } to { transform: translateX(102%); } }
-          @keyframes elevDoorsFade { 0%, 58% { opacity: 1; } 100% { opacity: 0; } }
+          @keyframes elevDoorsFade { 0%, 30% { opacity: 1; } 100% { opacity: 0; } }
         `}</style>
       </div>
     );
@@ -1238,6 +1239,7 @@ export const Ch3Scene: React.FC = () => {
   const visitedEvents = useGameStore(s => s.visitedEvents);
   const nearFragmentId = useGameStore(s => s.nearFragmentId); // 근접 조각 → 하단 [E] 읽기 프롬프트
   const cartItems = useGameStore(s => s.cartItems);
+  const activeEffect = useGameStore(s => s.activeEffect);
   const removeFromCart = useGameStore(s => s.removeFromCart);
   const setNotification = useGameStore(s => s.setNotification);
   const notification = useGameStore(s => s.notification);
@@ -1246,6 +1248,9 @@ export const Ch3Scene: React.FC = () => {
   const elevatorVisited = useGameStore(s => s.visitedEvents.has('ch3_elevator'));
   const devMode = useDevMode();
   const [muted, toggleMute] = useMute();
+  // CART 이동 dev 슬라이더 — cartTuning 객체를 직접 mutate(useFrame이 매 프레임 읽음) + state로 패널만 리렌더
+  const [cartGridStep, setCartGridStep] = useState(cartTuning.gridStep);
+  const [cartPosLerp, setCartPosLerp] = useState(cartTuning.posLerp);
 
   // 약 5개 전부 수집 → 출구 안내 (마지막 약 알림 직후 표시)
   // Minimap markers: 시착실 — 전부 수집 후엔 초록 출구, 그 전엔 엘베(magenta, 사용 전까지) + 약 위치(수집 전, 흰약은 첫 4개 모은 뒤 노출).
@@ -1537,6 +1542,16 @@ export const Ch3Scene: React.FC = () => {
         const basketWidth = cartWidthPct * 0.56;
         const basketTop = 55 + 45 * 0.13 - 2.5; // y 살짝 위로
         const basketHeight = 45 * (0.50 - 0.13);
+        // 약 효과 중 cart 약 이름(DOM 글자)에도 효과가 보이게 — 약별 CSS 필터로 GLSL 룩 근사.
+        // GLSL(MedicationEffect)은 WebGL 후처리라 DOM에 안 닿음. anxiolytic은 EffectOverlay에 케이스가
+        // 없어 전혀 안 걸리던 것 + blur/darken은 너무 약하던 것을 여기서 보완.
+        const CART_FX: Record<string, string> = {
+          desaturate: 'grayscale(1) contrast(1.5)',           // Lithium — solarize 근사
+          blur: 'blur(2.5px) brightness(0.95)',               // Aripiprazole — 글자 충분히 흐리게
+          darken: 'brightness(0.35) contrast(1.2)',           // Quetiapine
+          anxiolytic: 'blur(1.4px) hue-rotate(45deg) saturate(1.6)', // Alprazolam — flow 왜곡 근사
+        };
+        const cartFilter = activeEffect ? (CART_FX[activeEffect] ?? 'none') : 'none';
         return (
           <div style={{
             position: 'fixed',
@@ -1550,6 +1565,8 @@ export const Ch3Scene: React.FC = () => {
             flexWrap: 'wrap',
             justifyContent: 'center',
             alignContent: 'flex-end', // 바구니 바닥부터 쌓이듯
+            filter: cartFilter,
+            transition: 'filter 0.4s ease',
           }}>
             {cartItems.map((item, i) => (
               <GlitchCartButton key={`${i}-${item}`} item={item} />
@@ -1590,7 +1607,19 @@ export const Ch3Scene: React.FC = () => {
           <DevButton label={`Sound: ${muted ? 'OFF' : 'ON'}`} onClick={toggleMute} />
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           <DevButton label="Export Scene → .glb" onClick={() => window.dispatchEvent(new Event('mh-export-glb'))} />
-          <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close</div>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <div style={{ color: '#8cf', fontSize: 10, letterSpacing: 1 }}>CART 이동 튜닝</div>
+          <label style={{ fontSize: 10, color: '#aaa', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            끊김 단위 gridStep — {cartGridStep}
+            <input type="range" min={0.875} max={7} step={0.875} value={cartGridStep}
+              onChange={(e) => { const v = +e.target.value; cartTuning.gridStep = v; setCartGridStep(v); }} />
+          </label>
+          <label style={{ fontSize: 10, color: '#aaa', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            슬라이드 속도 posLerp — {cartPosLerp}
+            <input type="range" min={1} max={20} step={0.5} value={cartPosLerp}
+              onChange={(e) => { const v = +e.target.value; cartTuning.posLerp = v; setCartPosLerp(v); }} />
+          </label>
+          <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close · 슬라이더 만진 뒤 화면 클릭하면 이동키 복귀</div>
         </div>
       )}
 
