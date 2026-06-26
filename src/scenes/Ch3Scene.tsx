@@ -288,6 +288,10 @@ const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
   const [display, setDisplay] = useState(item);
   // 진짜 물건 담은 것처럼 라벨마다 랜덤 기울기 (마운트 1회 고정)
   const tilt = useMemo(() => (Math.random() * 2 - 1) * 14, []); // ±14deg
+  // 정규화 랜덤 위치(-1~1) 고정 — 실제 %는 cartLabelTuning(중심·범위)으로 매핑(P 슬라이더 라이브 반영)
+  const rand = useMemo(() => ({ x: Math.random() * 2 - 1, y: Math.random() * 2 - 1 }), []);
+  const left = cartLabelTuning.cx + rand.x * cartLabelTuning.rx;
+  const top = cartLabelTuning.cy + rand.y * cartLabelTuning.ry;
 
   useEffect(() => {
     setDisplay(item);
@@ -332,6 +336,9 @@ const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
     <button
       onClick={() => { if (!clicked) setClicked(true); }}
       style={{
+        position: 'absolute',
+        left: `${left}%`,
+        top: `${top}%`,
         padding: '8px 20px',
         fontFamily: '"Unifont", monospace',
         fontSize: 22,
@@ -339,7 +346,8 @@ const GlitchCartButton: React.FC<{ item: string }> = ({ item }) => {
         backgroundColor: 'transparent',
         border: 'none',
         cursor: 'pointer',
-        transform: `rotate(${tilt}deg)`,
+        whiteSpace: 'nowrap',
+        transform: `translate(-50%, -50%) rotate(${tilt}deg)`,
         transition: 'opacity 0.15s',
       }}
       onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.6'; }}
@@ -929,6 +937,8 @@ const MED_MODEL_SCALE = 0.5; // glb 크기 → 씬 스케일 (필요 시 조정)
 const medGlowTuning = { intensity: 1.75 };
 // 빈 네모 고스트 라디오 — 시착실 기댄 고스트 근접 시 3종 루프(거리 기반 볼륨, 기본 작게)
 const RADIO_SLOTS = ['radio_02', 'radio_04', 'radio_10'] as const;
+// 약 이름 라벨 분포 — 카트 버켓 안에 담기게. dev 패널(P) 슬라이더로 중심(cx,cy)·범위(rx,ry) 조정.
+const cartLabelTuning = { cx: 42, cy: 75, rx: 26, ry: 36 };
 const MedicinePickup: React.FC<{
   med: typeof MEDICINES[0];
   worldPos: { x: number; z: number };
@@ -1365,6 +1375,11 @@ export const Ch3Scene: React.FC = () => {
   const [cartPosLerp, setCartPosLerp] = useState(cartTuning.posLerp);
   // 약 발광 dev 슬라이더 — medGlowTuning 객체 직접 mutate(MedicinePickup useFrame이 매 프레임 읽음) + state로 패널만 리렌더
   const [medGlow, setMedGlow] = useState(medGlowTuning.intensity);
+  // 약 이름 라벨 분포 dev 슬라이더 — cartLabelTuning mutate + state로 라벨 위치 리렌더
+  const [labelCx, setLabelCx] = useState(cartLabelTuning.cx);
+  const [labelCy, setLabelCy] = useState(cartLabelTuning.cy);
+  const [labelRx, setLabelRx] = useState(cartLabelTuning.rx);
+  const [labelRy, setLabelRy] = useState(cartLabelTuning.ry);
 
   // 약 5개 전부 수집 → 출구 안내 (마지막 약 알림 직후 표시)
   // Minimap markers: 시착실 — 전부 수집 후엔 초록 출구, 그 전엔 엘베(magenta, 사용 전까지) + 약 위치(수집 전, 흰약은 첫 4개 모은 뒤 노출).
@@ -1662,12 +1677,7 @@ export const Ch3Scene: React.FC = () => {
             top: `${basketTop}%`,
             width: `${basketWidth}%`,
             height: `${basketHeight}%`,
-            display: 'flex',
-            gap: 4,
             zIndex: 200,
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            alignContent: 'flex-end', // 바구니 바닥부터 쌓이듯
             filter: cartFilter,
             transition: 'filter 0.4s ease',
           }}>
@@ -1732,6 +1742,28 @@ export const Ch3Scene: React.FC = () => {
             텍스처 발광 세기 — {medGlow}
             <input type="range" min={0} max={3} step={0.05} value={medGlow}
               onChange={(e) => { const v = +e.target.value; medGlowTuning.intensity = v; setMedGlow(v); }} />
+          </label>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+          <div style={{ color: '#fc8', fontSize: 10, letterSpacing: 1 }}>약 이름 분포 (카트 버켓)</div>
+          <label style={{ fontSize: 10, color: '#aaa', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            중심 X — {labelCx}
+            <input type="range" min={0} max={100} step={1} value={labelCx}
+              onChange={(e) => { const v = +e.target.value; cartLabelTuning.cx = v; setLabelCx(v); }} />
+          </label>
+          <label style={{ fontSize: 10, color: '#aaa', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            중심 Y — {labelCy}
+            <input type="range" min={0} max={100} step={1} value={labelCy}
+              onChange={(e) => { const v = +e.target.value; cartLabelTuning.cy = v; setLabelCy(v); }} />
+          </label>
+          <label style={{ fontSize: 10, color: '#aaa', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            가로 범위 — {labelRx}
+            <input type="range" min={0} max={50} step={1} value={labelRx}
+              onChange={(e) => { const v = +e.target.value; cartLabelTuning.rx = v; setLabelRx(v); }} />
+          </label>
+          <label style={{ fontSize: 10, color: '#aaa', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            세로 범위 — {labelRy}
+            <input type="range" min={0} max={50} step={1} value={labelRy}
+              onChange={(e) => { const v = +e.target.value; cartLabelTuning.ry = v; setLabelRy(v); }} />
           </label>
           <div style={{ color: '#555', fontSize: 9, marginTop: 2 }}>P to close · 슬라이더 만진 뒤 화면 클릭하면 이동키 복귀</div>
         </div>

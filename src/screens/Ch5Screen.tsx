@@ -715,10 +715,7 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
   const [poweredOff, setPoweredOff] = useState(false)
   const dollyStartRef = useRef<number | null>(null)
 
-  // 엔딩 크레딧 도달 = 완주 → 상단 챕터 네비 해금 (debug=1 없이도 노출)
-  useEffect(() => {
-    if (ending) markGameCompleted()
-  }, [ending, markGameCompleted])
+  // 챕터 네비 해금(markGameCompleted)은 dolly 종료 후 screen_off(pc off) 사운드가 끝나는 시점에 호출 — 아래 dolly effect 참고
   const textareaRef = useRef<HTMLDivElement>(null)
   const blogWrapRef = useRef<HTMLDivElement>(null)
   const popupTriggeredRef = useRef(false)
@@ -861,6 +858,8 @@ export const Ch5Screen: React.FC<Props> = ({ overlayMode = false }) => {
           loop('pc_fan', false)
           play('screen_off')
           setShutdownImage(`${import.meta.env.BASE_URL ?? '/'}assets/ch5/shutdown.webp`)
+          // pc off 사운드(약 8.8s)가 끝나는 시점에 챕터 네비 해금
+          setTimeout(() => markGameCompleted(), 8830)
         }, 3000)
       }, 1000)
     }

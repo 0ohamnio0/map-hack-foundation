@@ -343,6 +343,7 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
   const [selectedPoly, setSelectedPoly] = useState<string | null>(null);
   const [expandedText, setExpandedText] = useState<string | null>(null);
   const [inkBleedActive, setInkBleedActive] = useState(false);
+  const [inkFadeIn, setInkFadeIn] = useState(false); // InkBleed 페이드인 — 글리치 svg와 크로스페이드
   // ch4_2 overlay phase: 'idle' → 'fadeIn' (multiply 0.65, 5s) → 'normal' (multiply→0, normal→1.0, 5s) → 'fadeOut' (normal→0, 5s)
   const [ch4_2Phase, setCh4_2Phase] = useState<'idle' | 'fadeIn' | 'normal' | 'fadeOut'>('idle');
   const pretextCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -865,6 +866,13 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
     setCh4_2Phase('fadeIn');
     const t = window.setTimeout(() => setCh4_2Phase("normal"), 9000);
     return () => window.clearTimeout(t);
+  }, [inkBleedActive]);
+
+  // InkBleed 페이드인 — 글리치 svg(opacity 1.5s fade-out)와 동시에 fade-in시켜 끊김 없이 디졸브
+  useEffect(() => {
+    if (!inkBleedActive) { setInkFadeIn(false); return; }
+    const r = requestAnimationFrame(() => setInkFadeIn(true));
+    return () => cancelAnimationFrame(r);
   }, [inkBleedActive]);
 
   // ESC to exit exhibit mode
@@ -1624,6 +1632,7 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
 
           {/* Ink Bleed overlay */}
           {inkBleedActive && pretextCanvasRef.current && (
+            <div style={{ opacity: inkFadeIn ? 1 : 0, transition: 'opacity 1.5s ease-in' }}>
             <InkBleed
               sourceCanvas={pretextCanvasRef.current}
               onStop={() => setInkBleedActive(false)}
@@ -1645,6 +1654,7 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
               hideTuning={exhibitMode}
               fullscreen={exhibitMode}
             />
+            </div>
           )}
 
           {/* CH.5 overlay — mounts after ink bleed ramp completes */}
