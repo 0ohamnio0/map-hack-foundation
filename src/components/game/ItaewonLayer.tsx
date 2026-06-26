@@ -100,6 +100,8 @@ interface ItaewonLayerProps {
   fittingRoom?: { x: number; z: number; halfW: number }
   /** 빈 네모(전부 수집) 상태 — true가 되면 유령을 시착실 옆벽에 기대 스폰 (whiteflash 이펙트와 독립) */
   emptySquare?: boolean
+  /** 약 위치 셀 — 유령 스폰 시 이 셀들엔 안 뜨게(약↔유령 겹쳐 쪽지 못 읽는 문제 방지) */
+  avoidCells?: { gx: number; gy: number }[]
 }
 
 function SpecialGhostEmployee({
@@ -258,7 +260,7 @@ function SpecialGhostEmployee({
   )
 }
 
-export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, playerPos: _playerPos, wallAABBs, fittingRoom, emptySquare }: ItaewonLayerProps) {
+export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, playerPos: _playerPos, wallAABBs, fittingRoom, emptySquare, avoidCells }: ItaewonLayerProps) {
   const { camera } = useThree()
   const activeEffect = useGameStore((s) => s.activeEffect)
   const markGhostEncounter = useGameStore((s) => s.markGhostEncounter)
@@ -369,6 +371,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
         const cy = pCellY + oy
         if (cx < 0 || cx >= mazeSize || cy < 0 || cy >= mazeSize) continue
         if (prev && prev.gx === cx && prev.gy === cy) continue
+        if (avoidCells && avoidCells.some((c) => c.gx === cx && c.gy === cy)) continue // 약 위치 셀 제외
         const tw = cellToWorld(cx, cy, cellSize)
         const dxg = tw.x - camX
         const dzg = tw.z - camZ
@@ -397,12 +400,28 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
       const fwd = new THREE.Vector3()
       camera.getWorldDirection(fwd)
       const fl = Math.hypot(fwd.x, fwd.z) || 1
-      const ahead = (MIN_CHEB + 0.5) * cellSize
+      const baseAng = Math.atan2(fwd.x / fl, fwd.z / fl)
+      const nearAvoid = (tx: number, tz: number) => !!avoidCells && avoidCells.some((c) => {
+        const w = cellToWorld(c.gx, c.gy, cellSize)
+        return Math.hypot(tx - w.x, tz - w.z) < cellSize * 0.6
+      })
       const wmax = mazeSize * cellSize
       const clampW = (v: number) => Math.max(cellSize * 0.5, Math.min(wmax - cellSize * 0.5, v))
-      const fx = clampW(camX + (fwd.x / fl) * ahead)
-      const fz = clampW(camZ + (fwd.z / fl) * ahead)
-      console.log('[ItaewonLayer] ghost spawn front-fallback', { fx, fz, pCellX, pCellY })
+      // 정면(off 0) 우선 — 막히면 좌우로 점점 벌려가며(거리도 늘려가며) clear-LOS 통과 위치 탐색.
+      // 빨간약처럼 정면이 벽일 때 유령이 벽 뒤에 스폰돼 안 보이던 문제 해소. 다 막혀도 정면 강제(최소 보장).
+      let fx = clampW(camX + (fwd.x / fl) * (MIN_CHEB + 0.5) * cellSize)
+      let fz = clampW(camZ + (fwd.z / fl) * (MIN_CHEB + 0.5) * cellSize)
+      let foundClear = false
+      for (const dist of [MIN_CHEB, MIN_CHEB + 1, MIN_CHEB + 2]) {
+        for (const off of [0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1]) {
+          const a = baseAng + off
+          const tx = clampW(camX + Math.sin(a) * dist * cellSize)
+          const tz = clampW(camZ + Math.cos(a) * dist * cellSize)
+          if (hasClearLOS(tx, tz) && !nearAvoid(tx, tz)) { fx = tx; fz = tz; foundClear = true; break }
+        }
+        if (foundClear) break
+      }
+      console.log('[ItaewonLayer] ghost spawn front-fallback', { fx, fz, foundClear, pCellX, pCellY })
       setGhostPos([fx, 0, fz])
       setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])
       spawnCountRef.current += 1
@@ -422,7 +441,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     prevGhostCellRef.current = { gx: target.gx, gy: target.gy }
     isFirstSpawnRef.current = false
     wasInViewRef.current = false
-  }, [cellSize, mazeSize, wallAABBs, camera])
+  }, [cellSize, mazeSize, wallAABBs, camera, avoidCells])
 
   // 약 효과 시작 시 스폰
   useEffect(() => {

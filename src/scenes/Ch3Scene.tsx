@@ -1048,6 +1048,13 @@ const Ch3Inner: React.FC<{
     }),
   [maze]);
 
+  // 유령 스폰이 약 위치에 겹치지 않게 — 약 셀 목록 (i=0 빨간약은 start+1 셀, medPositions와 동일 규칙)
+  const medCells = useMemo(() =>
+    MEDICINES.map((m, i) =>
+      i === 0 ? { gx: maze.start.x + 1, gy: maze.start.y } : { gx: m.cell.gx, gy: m.cell.gy },
+    ),
+  [maze]);
+
   const fitting = useMemo(() => findFittingCorner(maze, CELL_SIZE), [maze]);
   const fittingRoomWorld = fitting.pos;
 
@@ -1161,6 +1168,7 @@ const Ch3Inner: React.FC<{
         wallAABBs={wallAABBs}
         fittingRoom={{ x: fittingRoomWorld.x, z: fittingRoomWorld.z, halfW: FITTING_W / 2 }}
         emptySquare={collected.size === MEDICINES.length}
+        avoidCells={medCells}
       />
 
       <PlayerController
