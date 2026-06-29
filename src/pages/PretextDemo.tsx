@@ -875,15 +875,16 @@ export default function PretextDemo({ autoExhibit = false }: PretextDemoProps) {
     return () => cancelAnimationFrame(r);
   }, [inkBleedActive]);
 
-  // ESC to exit exhibit mode
+  // ESC to exit exhibit mode — editor only. In game mode (autoExhibit) ESC must NOT
+  // exit, or the editor panel under !exhibitMode would pop up over CH.4.
   useEffect(() => {
-    if (!exhibitMode) return;
+    if (!exhibitMode || autoExhibit) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') exitExhibit();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [exhibitMode, exitExhibit]);
+  }, [exhibitMode, autoExhibit, exitExhibit]);
 
   const updateTypingParam = useCallback(
     <K extends keyof TypingParams>(key: K, val: TypingParams[K]) => {
