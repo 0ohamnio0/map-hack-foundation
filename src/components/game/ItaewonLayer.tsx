@@ -326,7 +326,6 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
     const pCellY = Math.round(pp.z / cellSize)
 
     const prev = prevGhostCellRef.current
-    const isFirst = isFirstSpawnRef.current
     const camFwd = new THREE.Vector3()
     camera.getWorldDirection(camFwd)
     const camLen = Math.hypot(camFwd.x, camFwd.z) || 1
@@ -421,7 +420,6 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
         }
         if (foundClear) break
       }
-      console.log('[ItaewonLayer] ghost spawn front-fallback', { fx, fz, foundClear, pCellX, pCellY })
       setGhostPos([fx, 0, fz])
       setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])
       spawnCountRef.current += 1
@@ -430,10 +428,7 @@ export function ItaewonLayer({ cellWorldPos: _cellWorldPos, cellSize, mazeSize, 
       wasInViewRef.current = false
       return
     }
-    const how = inViewCands.length ? 'inview-near' : 'front-fallback'
-
     const world = cellToWorld(target.gx, target.gy, cellSize)
-    console.log('[ItaewonLayer] ghost spawn', { gx: target.gx, gy: target.gy, world, pCellX, pCellY, isFirst, how, candidates: candidates.length, inView: inViewCands.length })
     setGhostPos([world.x, 0, world.z])
     // 이 스폰에 대응하는 시 조각(약 순서) — ckshp1..3, maengjeom1..2
     setNpcFragId(NPC_FRAGMENT_IDS[Math.min(spawnCountRef.current, NPC_FRAGMENT_IDS.length - 1)])

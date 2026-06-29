@@ -53,7 +53,6 @@ const LandmarkMesh: React.FC<{ m: Landmark }> = ({ m }) => {
       position={[m.pos[0] * SCALE_X, m.h / 2, m.pos[1] * SCALE_Z]}
       rotation={[0, m.rotY, 0]}
       material={mat}
-      onPointerDown={(e) => { e.stopPropagation(); console.log(`[Custom] ${m.id} pos=[${m.pos}] w/h=${w.toFixed(1)}/${m.h}`) }}
     >
       <planeGeometry args={[w, m.h]} />
     </mesh>

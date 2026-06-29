@@ -896,7 +896,6 @@ export function PretextTypography({
         const name = i === 0 ? 'Oceanside Typewriter' : 'DXTypeB';
         if (r.status === 'fulfilled') {
           document.fonts.add(r.value);
-          console.log(`[PretextTypography] loaded ${name}`, r.value.status);
         } else {
           console.warn(
             `[PretextTypography] Failed to load ${name}:`,
@@ -909,11 +908,6 @@ export function PretextTypography({
         document.fonts.load('20px "DXTypeB"', '가나'),
         document.fonts.load('20px "Oceanside Typewriter"', 'Ab'),
       ]).then(() => {
-        console.log('[PretextTypography] canvas font checks', {
-          'DXTypeB ascii': document.fonts.check('20px "DXTypeB"'),
-          'DXTypeB 한글': document.fonts.check('20px "DXTypeB"', '가나'),
-          'Oceanside ascii': document.fonts.check('20px "Oceanside Typewriter"'),
-        });
         setFontReady(true);
       });
     });

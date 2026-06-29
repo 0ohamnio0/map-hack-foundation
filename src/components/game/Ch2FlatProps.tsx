@@ -62,10 +62,6 @@ const FlatPropMesh: React.FC<{ p: FlatProp }> = ({ p }) => {
     <group
       position={[x, 0, z]}
       rotation={[0, p.rotY, 0]}
-      onPointerDown={(e) => {
-        e.stopPropagation()
-        console.log(`[Flat] id=${p.id}  pos=[${p.pos[0]}, ${p.pos[1]}]  y=${p.y}  w=${p.w}`)
-      }}
     >
       {p.pole && (
         <mesh position={[0, p.y / 2, 0]} castShadow>

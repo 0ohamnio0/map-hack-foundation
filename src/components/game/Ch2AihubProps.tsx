@@ -192,12 +192,6 @@ const AihubProp: React.FC<AihubPropProps> = ({ p, index, pools }) => {
     <group
       position={[x, 0, z]}
       rotation={[p.rotX ?? 0, p.rotY ?? 0, 0]}
-      onPointerDown={(e) => {
-        e.stopPropagation()
-        console.log(
-          `[Aihub] #${index}  id=${p.id}  pos=[${p.pos[0]}, ${p.pos[1]}]  poolKey=${p.poolKey ?? '-'}  pole=${!!p.pole}`,
-        )
-      }}
     >
       {p.pole && (
         <mesh position={[0, POLE_HEIGHT / 2, 0]} castShadow>

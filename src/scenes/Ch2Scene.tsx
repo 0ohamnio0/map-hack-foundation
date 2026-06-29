@@ -440,7 +440,6 @@ useLoader.preload(THREE.TextureLoader, ROUGHNESS_URL);
 const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }) => {
   const groupRef = useRef<THREE.Group>(null);
   const activeActionRef = useRef<THREE.AnimationAction | null>(null);
-  const loggedActionNames = useRef(false);
   const [, getKeys] = useKeyboardControls();
 
   // Load main FBX with Suspense (single event — Physics mounts once, safely)
@@ -517,14 +516,6 @@ const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }
       if (name.toLowerCase().includes(lowerNeedle)) return action;
     }
     return null;
-  }, [actions]);
-
-  useEffect(() => {
-    if (loggedActionNames.current) return;
-    const names = Object.keys(actions);
-    if (names.length === 0) return;
-    loggedActionNames.current = true;
-    console.log('[CH2][ANIM] action keys', names);
   }, [actions]);
 
   // Force animation state by input:
@@ -728,10 +719,6 @@ const RoadMarkings: React.FC = () => {
             name={`road_marking-${String(i).padStart(2, '0')}-${slug}`}
             rotation={[-Math.PI / 2, 0, 0]}
             position={[bx * SCALE_X, 0.01, bz * SCALE_Z]}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              console.log(`[RoadMarking] #${i}  slug=${slug}  pos=[${bx}, ${bz}]  size=[${pw}, ${ph}]`);
-            }}
           >
             <planeGeometry args={[pw * SCALE_X, ph * SCALE_Z]} />
             <meshStandardMaterial
@@ -1024,8 +1011,7 @@ const Ch2RoofMirror: React.FC = () => {
   const y = b.h + MIRROR_H / 2;
   const rotY = Math.atan2(b.faceX, b.faceZ);
   return (
-    <mesh position={[x, y, z]} rotation={[0, rotY, 0]} material={mat} castShadow
-      onPointerDown={(e) => { e.stopPropagation(); console.log(`[RoofMirror] bldg h=${b.h.toFixed(1)} pos=[${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}]`); }}>
+    <mesh position={[x, y, z]} rotation={[0, rotY, 0]} material={mat} castShadow>
       <planeGeometry args={[MIRROR_W, MIRROR_H]} />
     </mesh>
   );
@@ -1063,8 +1049,7 @@ const Ch2StackSign: React.FC = () => {
   const y = b.h - planeH / 2 - 0.4;            // 상단
   const rotY = Math.atan2(sx, sz);
   return (
-    <mesh position={[x, y, z]} rotation={[0, rotY, 0]} material={mat} castShadow
-      onPointerDown={(e) => { e.stopPropagation(); console.log(`[StackSign] bldg pos=[${(b.cx / SCALE_X).toFixed(1)}, ${(b.cz / SCALE_Z).toFixed(1)}] h=${b.h.toFixed(1)} mesh=[${x.toFixed(1)},${y.toFixed(1)},${z.toFixed(1)}]`); }}>
+    <mesh position={[x, y, z]} rotation={[0, rotY, 0]} material={mat} castShadow>
       <planeGeometry args={[planeW, planeH]} />
     </mesh>
   );
@@ -1130,8 +1115,7 @@ const PinnedSignMesh: React.FC<{ p: PinnedSign }> = ({ p }) => {
   const x = b.cx + nx * (half + 0.06) + tx * shift;
   const z = b.cz + nz * (half + 0.06) + tz * shift;
   return (
-    <mesh position={[x, y, z]} rotation={[0, Math.atan2(nx, nz), 0]} material={mat} castShadow
-      onPointerDown={(e) => { e.stopPropagation(); console.log(`[Pinned ${p.id}] bldg=[${(b.cx / SCALE_X).toFixed(1)}, ${(b.cz / SCALE_Z).toFixed(1)}] mesh=[${x.toFixed(1)},${y.toFixed(1)},${z.toFixed(1)}]`); }}>
+    <mesh position={[x, y, z]} rotation={[0, Math.atan2(nx, nz), 0]} material={mat} castShadow>
       <planeGeometry args={[planeW, planeH]} />
     </mesh>
   );
@@ -1386,7 +1370,6 @@ const StreetScene: React.FC = () => {
                     name={`building814-w${wallIdx}-s${segIdx}`}
                     geometry={new THREE.BoxGeometry(boxW, height, boxD)}
                     material={arr814}
-                    onPointerDown={(e) => { e.stopPropagation(); console.log(`[B814] w${wallIdx} s${segIdx} face=[${-outwardSignX},${-outwardSignZ}] box=[${boxW.toFixed(1)},${height.toFixed(1)},${boxD.toFixed(1)}]`); }}
                   />
                   <CuboidCollider args={[boxW / 2, height / 2, boxD / 2]} />
                 </>
@@ -1516,13 +1499,6 @@ const Ch2PhysicsScene: React.FC<{
     const id = setInterval(stop, 33); // 매 프레임 강제 0 — Ecctrl 내부 impulse 누적 차단
     return () => clearInterval(id);
   }, [freezeControls]);
-
-  useEffect(() => {
-    console.log('[CH2][STATE] physicsReady changed', {
-      physicsReady,
-      t: performance.now(),
-    });
-  }, [physicsReady]);
 
   return (
     <Physics>

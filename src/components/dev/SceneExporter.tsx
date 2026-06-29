@@ -52,7 +52,6 @@ export const SceneExporter: React.FC<{ chapter: string }> = ({ chapter }) => {
           a.download = `map-hack-${chapter}-${ts}.glb`;
           a.click();
           URL.revokeObjectURL(url);
-          console.log('[SceneExporter] exported (skinned meshes & bones stripped)');
         },
         err => console.error('[SceneExporter] export failed', err),
         { binary: true, embedImages: true, onlyVisible: false },

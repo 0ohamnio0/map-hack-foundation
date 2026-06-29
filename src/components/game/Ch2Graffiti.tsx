@@ -145,7 +145,6 @@ const GraffitiMesh: React.FC<{ g: Graffiti; ready: boolean; buildings: SignBuild
       position={[placement.px, g.y, placement.pz]}
       rotation={[0, placement.rotY, 0]}
       material={mat}
-      onPointerDown={(e) => { e.stopPropagation(); console.log(`[Graffiti] ${g.id} pos=[${g.pos}] face=[${placement.rotY.toFixed(2)}]`) }}
     >
       <planeGeometry args={[w, h]} />
     </mesh>
