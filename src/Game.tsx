@@ -26,6 +26,11 @@ const DEBUG_HUD = typeof window !== 'undefined'
 
 const CHAPTERS: Chapter[] = ['START', 'INTRO', 'CH1', 'CH2', 'CH3', 'CH4', 'CH5'];
 
+// ?start=CH4 → 해당 챕터로 바로 진입 (디버그 모드와 무관, URL만으로 동작)
+const START_CHAPTER = typeof window !== 'undefined'
+  ? (new URLSearchParams(window.location.search).get('start')?.toUpperCase() as Chapter | undefined)
+  : undefined;
+
 // 챕터 이동 버튼에 표기할 한글 이름 (INTRO·CH1 둘 다 '침대')
 const CHAPTER_LABELS: Partial<Record<Chapter, string>> = {
   START: '버튼', INTRO: '···', CH1: '침대에서', CH2: '골목', CH3: '마트에서', CH4: '병원으로', CH5: '블로그',
@@ -151,8 +156,12 @@ export const Game: React.FC = () => {
   }, []);
 
   // 디버그: ?sketch=1 → CH3로 바로 진입 (스케치 효과 상시 full은 Ch3Effects가 처리)
+  // ?start=CH4 등 → 지정 챕터로 바로 진입
   useEffect(() => {
     if (SKETCH_DEBUG) useGameStore.setState({ chapter: 'CH3' });
+    else if (START_CHAPTER && CHAPTERS.includes(START_CHAPTER)) {
+      useGameStore.setState({ chapter: START_CHAPTER });
+    }
   }, []);
 
   // 모바일/태블릿은 게임(R3F 캔버스)을 마운트하기 전에 차단.
