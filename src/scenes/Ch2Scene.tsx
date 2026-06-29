@@ -419,7 +419,6 @@ const MAIN_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Ani
 const IDLE_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Long_Breathe_and_Look_Around_frame_rate_24.fbx`;
 const WALK_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Walking_frame_rate_24.fbx`;
 const HEADACHE_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Headache_Relief_frame_rate_24.fbx`;
-const INJURED_FBX_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_Animation_Injured_Walk_frame_rate_24.fbx`;
 const DIFFUSE_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0.png`;
 const METALLIC_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0_metallic.png`;
 const NORMAL_URL = `${BASE}assets/characters_biped/Meshy_AI_biped/Meshy_AI_texture_0_normal.png`;
@@ -432,7 +431,6 @@ useFBX.preload(MAIN_FBX_URL);
 useFBX.preload(IDLE_FBX_URL);
 useFBX.preload(WALK_FBX_URL);
 useFBX.preload(HEADACHE_FBX_URL);
-useFBX.preload(INJURED_FBX_URL);
 useLoader.preload(THREE.TextureLoader, DIFFUSE_URL);
 useLoader.preload(THREE.TextureLoader, METALLIC_URL);
 useLoader.preload(THREE.TextureLoader, NORMAL_URL);
@@ -461,7 +459,6 @@ const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }
   const [idleAction, setIdleAction] = useState<THREE.AnimationAction | null>(null);
   const [walkAction, setWalkAction] = useState<THREE.AnimationAction | null>(null);
   const [headacheAction, setHeadacheAction] = useState<THREE.AnimationAction | null>(null);
-  const [injuredAction, setInjuredAction] = useState<THREE.AnimationAction | null>(null);
   useEffect(() => {
     if (!mixer) return;
     let cancelled = false;
@@ -491,15 +488,6 @@ const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }
         const clip = headacheFbx.animations[0].clone();
         clip.name = 'Headache_Relief_frame_rate_24.fbx';
         setHeadacheAction(mixer.clipAction(clip, groupRef.current));
-      }
-    });
-
-    loader.load(INJURED_FBX_URL, (injuredFbx) => {
-      if (cancelled || !groupRef.current) return;
-      if (injuredFbx.animations.length > 0) {
-        const clip = injuredFbx.animations[0].clone();
-        clip.name = 'Injured_Walk_frame_rate_24.fbx';
-        setInjuredAction(mixer.clipAction(clip, groupRef.current));
       }
     });
 
@@ -556,8 +544,6 @@ const PlayerCharacter: React.FC<{ airportActive: boolean }> = ({ airportActive }
     let nextAction: THREE.AnimationAction | null = null;
     if (clipName === 'Headache_Relief_frame_rate_24.fbx') {
       nextAction = headacheAction ?? findActionByIncludes('headache_relief_frame_rate_24') ?? walkAction ?? findActionByIncludes('walking_frame_rate_24');
-    } else if (clipName === 'Injured_Walk_frame_rate_24.fbx') {
-      nextAction = injuredAction ?? walkAction ?? findActionByIncludes('injured_walk_frame_rate_24') ?? findActionByIncludes('walking_frame_rate_24');
     } else if (clipName === IDLE_CLIP) {
       nextAction = idleAction ?? walkAction ?? findActionByIncludes('walking_frame_rate_24');
     } else {
@@ -1532,33 +1518,6 @@ const Ch2PhysicsScene: React.FC<{
   }, [freezeControls]);
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'ArrowUp' && e.code !== 'KeyW') return;
-      console.log('[CH2][INPUT] keydown', {
-        code: e.code,
-        t: performance.now(),
-        physicsReady,
-        freezeControls,
-      });
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code !== 'ArrowUp' && e.code !== 'KeyW') return;
-      console.log('[CH2][INPUT] keyup', {
-        code: e.code,
-        t: performance.now(),
-        physicsReady,
-        freezeControls,
-      });
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, [physicsReady, freezeControls]);
-
-  useEffect(() => {
     console.log('[CH2][STATE] physicsReady changed', {
       physicsReady,
       t: performance.now(),
@@ -1690,7 +1649,7 @@ const Ch2Inner: React.FC<{
       />
 
       <FlickerLight />
-      <hemisphereLight skyColor="#c7e6ff" groundColor="#6a7683" intensity={0.9} />
+      <hemisphereLight color="#c7e6ff" groundColor="#6a7683" intensity={0.9} />
       <directionalLight position={[10, 15, -40]} intensity={1.15} color="#f8fbff" />
       <directionalLight position={[-8, 10, 14]} intensity={0.75} color="#deeeff" />
 

@@ -120,8 +120,8 @@ export function endElevatorMusic() {
   }
 }
 
-export function stopAllMusic() {
-  if (currentTrack) fadeOutAndStop(currentTrack);
+export function stopAllMusic(fadeMs = FADE_MS) {
+  if (currentTrack) fadeOutAndStop(currentTrack, fadeMs);
   currentTrack = null;
   currentSrc = null;
 }
