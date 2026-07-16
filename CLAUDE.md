@@ -16,7 +16,7 @@
 
 ## 프로젝트 개요
 
-**Map Hack** — 조울증 경험을 1인칭/3인칭 미로 탐색으로 표현하는 웹 인터랙티브 게임 (5~10분)
+**Map Hack** — 조울증 경험을 1인칭/3인칭 미로 탐색으로 표현하는 웹 인터랙티브 게임 (20분)
 스택: Vite 6 + React 19 + TypeScript + R3F + Zustand + @react-three/rapier + ecctrl
 
 ## 주요 파일
@@ -64,3 +64,9 @@ git push -u origin feature/ch2-signpost
 - 셰이더 코드는 작업지시서 하단 **레퍼런스별 실활용 코드 예제** (REF-1~15) 참조
 - 에셋 미도착 → stub 선행 구현 → 에셋 도착 시 경로만 swap
 - `@react-three/postprocessing`은 STEP 8에서 설치 (그 전에는 없음)
+
+## 배포 (Vercel)
+
+- Vercel 프로젝트: `0ohamnio0-8181s-projects/map-hack-foundation`. **main push → vercel[bot]이 1분 내 자동 prod 배포** (2026-04-25 정상화). 별도 `vercel --prod` 수동 호출 불필요. `api/guestbook.ts` 등 serverless route 포함.
+- 자동 배포가 안 뜨면 GitHub > Settings > Installations > Vercel의 repo 접근 권한부터 점검 (과거 끊김 원인: repo가 installation에서 빠짐 + 구 `deploy.yml`이 GH Pages로 배포 점유 → 2026-04-25 deploy.yml 삭제 `6c0efe5f` + GH Pages 언퍼블리시로 해결. 위 브랜치 규칙의 gh-pages 항목은 그 이전 체제 기록).
+- **협업자 커밋 배포 제약 (Vercel Hobby 플랜)**: git author 이메일이 계정 소유자(해민)인 커밋만 자동 배포됨. 협업자(예: hyuhyu) 커밋을 ff-merge하면 main HEAD author가 협업자 → vercel[bot]이 배포 skip. **권장: `git merge --no-ff`(또는 squash)로 머지커밋을 만들면** author가 해민이라 정상 배포 + 협업자 커밋은 두 번째 부모로 히스토리 보존. `--amend --reset-author` + force-push는 협업자 기여가 사라져 비권장. 즉시 배포가 급하면 로컬에서 `vercel --prod --yes` (CLI 인증이 해민이라 author 무관).
