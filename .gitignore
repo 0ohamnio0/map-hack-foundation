@@ -29,8 +29,9 @@ scripts/pool_inspect.png
 .env*.local
 
 # Agent instructions — local only (2026-08-20 untracked)
-# 사본: Archive/1. Personal Project/41. Creative Works/41.10. Map Hack (2026)/README/2026-08-20 agent-instructions/
+# 사본: Archive/1. Personal Project/41. Creative Works/41.10. Map Hack (2026)/README/2026-08-20 repo-untracked/
 CLAUDE.md
 AGENTS.md
 GEMINI.md
+DEV_LOG.md
 .claude/

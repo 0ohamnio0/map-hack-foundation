@@ -71,7 +71,3 @@ npm run prep-model # 외부 3D 모델 팩 → web-friendly GLB 변환 (scripts/p
 | `api/guestbook.ts` | 방명록 서버리스 함수 |
 | `scripts/` | 에셋 전처리 — GLB 변환, 표지판 텍스트 풀 생성 등 |
 | `public/assets/` | 3D 모델, 영상, 오디오, 폰트, 텍스처 |
-
-## 문서
-
-- [DEV_LOG.md](DEV_LOG.md) — 개발 기록
