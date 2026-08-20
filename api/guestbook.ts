@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { kv } from '@vercel/kv'
 
 const KV_KEY = 'guestbook:entries'
-const MAX_ENTRIES = 200
+const MAX_ENTRIES = 2000
 const MAX_LENGTH = 500
 
 interface GuestEntry {
