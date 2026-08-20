@@ -55,8 +55,8 @@ npm run prep-model # 외부 3D 모델 팩 → web-friendly GLB 변환 (scripts/p
 
 ## 배포
 
-- **Vercel** — SPA rewrite + `/api/guestbook` 서버리스 함수(Vercel KV, 최대 200개 엔트리)가 함께 배포된다.
-- `npm run deploy` — `gh-pages` 브랜치 스냅샷 배포(보조). 브랜치 운용 규칙은 [CLAUDE.md](CLAUDE.md) 참조.
+- **Vercel** — SPA rewrite + `/api/guestbook` 서버리스 함수(Vercel KV, 최대 2000개 엔트리)가 함께 배포된다.
+- `npm run deploy` — `gh-pages` 브랜치 스냅샷 배포(보조).
 
 ## 구조
 
@@ -74,5 +74,4 @@ npm run prep-model # 외부 3D 모델 팩 → web-friendly GLB 변환 (scripts/p
 
 ## 문서
 
-- [CLAUDE.md](CLAUDE.md) — 에이전트 세션 프로토콜, 커밋·브랜치 규칙, 작업지시서 위치
 - [DEV_LOG.md](DEV_LOG.md) — 개발 기록
