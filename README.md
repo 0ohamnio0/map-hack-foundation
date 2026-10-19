@@ -37,20 +37,20 @@ The same thing happens in psychiatry. The second half of "insight into one's ill
 .
 
 ```
-╭ ◜◝ ͡ ◜◝ ͡ ◜◝ ╮
+╭ ◜◝ ⁀ ◜◝ ⁀ ◜◝ ╮
    𝓫𝓾𝓽 𝔀𝓪𝓲𝓽...
-╰ ◟◞ ͜ ◟ ͜ ◟◞ ╯
-╭◜◝ ͡  ◜◝  ͡  ◜◝  ͡  ◜◝͡  ◜◝  ͡  ◜◝  ͡  ◜◝  ͡  ◜◝╮
+╰ ◟◞ ‿ ◟ ‿ ◟◞ ╯
+╭◜◝ ⁀  ◜◝  ⁀  ◜◝  ⁀  ◜◝⁀  ◜◝  ⁀  ◜◝  ⁀  ◜◝  ⁀  ◜◝╮
     Institutions are addicted to reading.
     Decoding is fun.
     Decoding becomes politics.
     ARG is reality.
-╰◟◞  ͜  ◟◞  ͜  ◟◞  ͜  ◟◞ ͜  ◟◞  ͜    ͜  ◟◞  ͜ ͜  ◟◞╯
-╭ ◜◝ ͡ ◜◝ ͡  ◜◝ ͡ ◜◝ ͡  ◜◝ ͡  ◜◝ ╮
+╰◟◞  ‿  ◟◞  ‿  ◟◞  ‿  ◟◞ ‿  ◟◞  ‿    ‿  ◟◞  ‿ ‿  ◟◞╯
+╭ ◜◝ ⁀ ◜◝ ⁀  ◜◝ ⁀ ◜◝ ⁀  ◜◝ ⁀  ◜◝ ╮
    In an age when handing a work's value
    over to an outside framework of justification
    so easily feels like "surrender"…
- ╰ ◟◞ ͜  ◟ ͜   ◟◞ ͜  ◟ ͜ ◟◞ ͜  ◟◞ ╯
+ ╰ ◟◞ ‿  ◟ ‿   ◟◞ ‿  ◟ ‿ ◟◞ ‿  ◟◞ ╯
                           O
                         °
 ．．．．．/)─―ヘ
