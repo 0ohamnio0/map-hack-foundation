@@ -143,7 +143,7 @@ everything is real, and interns wrote this post.
 
 ### Translator's notes
 
-- **TALK 1 / TALK 2** — public talks held alongside \<map hack\>.
+- **TALK 1 / TALK 2** — [public talks held alongside \<map hack\>](https://whiteriver.neocities.org/map_hack).
 - **Insight into one's illness** — the psychiatric term *byeongsik* (病識), "illness awareness."
 - **Taegukgi Brigade** — a Korean far-right protest movement named after the national flag it carries.
 - **October 29, 2022** — the Itaewon crowd crush in Seoul. **DC Inside** is a large Korean anonymous forum.
