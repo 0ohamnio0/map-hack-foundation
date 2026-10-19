@@ -1,73 +1,141 @@
-# Map Hack
+# The Museum as Asylum
 
 ![Map Hack](docs/readme/wip.png)
 
-**조울증 경험을 미로 탐색으로 옮긴 웹 인터랙티브 게임 (20분).**
-침대에서 시작해 골목·마트·병원을 지나 블로그에 도착하는 5개 챕터를 통과하며, 쪽지와 시 조각으로 흩어진 텍스트를 줍는다. 데스크톱 전용(WebGL 필수).
+*A self-critique of \<map hack\> — Song Haemin*
 
-- **플레이**: https://map-hack-foundation.vercel.app
-- **스택**: Vite 6 + React 19 + TypeScript · React Three Fiber + @react-three/rapier + ecctrl · Zustand · CH.4 타이포그래피는 [@chenglou/pretext](https://github.com/chenglou/pretext) · 방명록은 Vercel Serverless + KV
+- **Play**: https://map-hack-foundation.vercel.app (desktop only, WebGL required)
+- **Development notes** (Korean): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **License**: [CC BY-SA 4.0](LICENSE) — see [License](#license) below
 
-## 챕터 구성
+---
+
+This is a self-critique that argues what \<map hack\>, as an "art game outside the museum" and a "mad game," did (or tried to do). It also deals with the art brut that the museum captures, with what cannot be captured, and with what refuses capture. To get there, we imagine becoming one of the missing persons of the white cube. Where is the way out of the museum? Can a web game work as a public square that calls in peers?
+
+## 1. The Cabinet Outside Culture
+
+> *Proletarian Nights* ends with the sentence: "We will never know how she entered her own night."
+> — Bernard Aspe, *The Sharing of the Night*
+
+Jean Dubuffet received and read Hans Prinzhorn's *Artistry of the Mentally Ill* in the early-to-mid 1920s, returned to painting in 1942, and became a collector from 1945 on. Later, the critic Roger Cardinal, in his book *Outsider Art*, pointed out that Dubuffet's collecting was a classificatory project "like finches to Darwin" — an ethnographic capture. Hilton Kramer's criticism of Dubuffet is still worth thinking about: where is the line between appreciation and fetishization, between celebration and exploitation?
+
+The crux is that the madman never gets to speak. In the lineage of art brut, Adolf Wölfli became known only after his doctor, Walter Morgenthaler, bound his drawings into a book and introduced him to the world on his behalf. Henry Darger was found by his landlord among his belongings after his death. The madman enters not as a subject but as an object — discovered, classified, spoken for. Kang Jungsuck named this paradox precisely. Art brut, by its very definition, is "a discourse that says it must stay outside, so it makes no sense when the museum, from the inside, declares 'this is that'"; as a result, the maker of art brut, "as madman-genius-individual" (TALK 2), can be neither outside nor inside. This is how the missing persons of the white cube are made.
+
+## 2. Capture Is a Property of the Interface
+
+James C. Scott writes about legibility: the state intervenes only in what is legible, and legibility is not a property of the subject but of the interface between the state and the subject. The paradox of capture is a generalization of this proposition. What gets recognized depends on whether it is made visible in a form the institution can read, and the cost and conditions of that visibility are always set by the institution.
+
+## 3. Asylum Grammar
+
+The same thing happens in psychiatry. The second half of "insight into one's illness" is learning how not to get caught. In *Asylums*, Erving Goffman observed that what a total institution teaches is not cure but the knack of surviving inside the institution. The condition for discharge is not the disappearance of illness but control over one's visibility. Often, madness may simply be hidden. The artification of the medical self is a counter-move that takes back the very instruments of that capture — diagnoses, medical charts — as material for art.
+
+\<map hack\> wants to capture the medical system in reverse and burn through it.<br>
+\<map hack\> is turned inside out.<br>
+\<map hack\> is the system's asylum.<br>
+\<map hack\> is a kind of cockroach collection jar.<br>
+.<br>
+.
 
 ```
-START → INTRO → CH.1 → CH.2 → CH.3 → CH.4 → CH.5 → END(크레딧)
+╭ ◜◝ ͡ ◜◝ ͡ ◜◝ ╮
+   𝓫𝓾𝓽 𝔀𝓪𝓲𝓽...
+╰ ◟◞ ͜ ◟ ͜ ◟◞ ╯
+╭◜◝ ͡  ◜◝  ͡  ◜◝  ͡  ◜◝͡  ◜◝  ͡  ◜◝  ͡  ◜◝  ͡  ◜◝╮
+    Institutions are addicted to reading.
+    Decoding is fun.
+    Decoding becomes politics.
+    ARG is reality.
+╰◟◞  ͜  ◟◞  ͜  ◟◞  ͜  ◟◞ ͜  ◟◞  ͜    ͜  ◟◞  ͜ ͜  ◟◞╯
+╭ ◜◝ ͡ ◜◝ ͡  ◜◝ ͡ ◜◝ ͡  ◜◝ ͡  ◜◝ ╮
+   In an age when handing a work's value
+   over to an outside framework of justification
+   so easily feels like "surrender"…
+ ╰ ◟◞ ͜  ◟ ͜   ◟◞ ͜  ◟ ͜ ◟◞ ͜  ◟◞ ╯
+                          O
+                        °
+．．．．．/)─―ヘ
+      ／      ＼
+    ／    ●  ●丶
+   ｜       ▼ |   (silence)
+   ｜       亠ノ
+    U￣U￣￣￣U￣￣U
 ```
 
-| 챕터 | 이름 | 내용 |
-|------|------|------|
-| INTRO | ··· | 인트로 영상 — baked 오디오가 CH.1 BGM으로 이어짐 |
-| CH.1 | 침대에서 | 침실 연출 씬 — 카메라가 문을 향해 나아가는 시네마틱 (LightShadowRainbow) |
-| CH.2 | 골목 | 3인칭(ecctrl) 골목 미로 — 표지판, 떨어진 쪽지, 우체통 편지, 공항 환각, NPC, 그래피티 |
-| CH.3 | 마트에서 | 약 카트 담기, 연두색 시 조각 수집, 엘리베이터, 고스트 라디오, 유령 조우 |
-| CH.4 | 병원으로 | Pretext 타이포그래피 — 타이핑 → 글리치 → 잉크 번짐 (2D, 자동 진행) |
-| CH.5 | 블로그 | 블로그 화면 + 방명록 작성 → 모니터 밖으로 빠지는 dolly-out 엔딩 크레딧 |
+So the precise line is not "does it pass the standard?" but "who holds the right to judge validity?" Being captured is not in itself surrender. Using logic and form can be a tool of subversion — like a Trojan horse, like a virus. But the moment you believe that only passing makes you valid, you are occupied. If you believe the outside decides whether you have succeeded, you will lose, without fail.
 
-엔딩 크레딧에 한 번 도달하면(`gameCompleted`) 상단 챕터 네비게이션이 해금된다.
+Derrida refuted Foucault's "archaeology of silence" (giving madness a voice in the language of reason) as self-contradictory: madness explaining itself in the language of reason is a contradiction. Foucault, for his part, holds that the Cartesian cogito drew the line that expelled madness from reason. Derrida argues that a text must be read by examining its internal structure to expose its contradictions — in other words, read deconstructively.
 
-## 조작
+So what?
 
-| 키 | 동작 |
-|----|------|
-| **WASD** / 방향키 | 이동 |
-| **Shift** | 달리기 |
-| **Space** | 점프 |
-| **E** | 상호작용 — 쪽지 읽기, 시 조각 줍기 등 |
-| **Q** | 노트 본문 한/영 토글 (세션 전역 유지) |
+A poem written in machine code, \<map hack\> holds — against common belief — that the mad world is not disorder but "hyper-coherence": "excessively coherent, everything connected to everything, its internal logic interlocking without a gap." And it points out that this hyper-coherence is isomorphic with the formal coherence of programming. Carry the coherence of madness into machine code and coherence is preserved as coherence; it is not translated but executed. This can become a kind of ethics — one that refuses to force the nonverbal into the order of language.
 
-## 개발
+Instead of being translated so the institution can read you, build the conditions of your own legibility yourself — that is where \<map hack\> is generated.<br>
+\<map hack\> is a poem written in machine code.<br>
+If you read \<map hack\>'s code, you will cry.<br>
+\<map hack\>'s backend server is connected to the spirit world.<br>
+.<br>
+.<br>
+.<br>
+That said, the truth of the world \<map hack\> deals with is revealed only as far as Song Haemin has sensed it.<br>
+Song Haemin, as always, can only bear one person's share of life.<br>
+Because, for starters, there is only one body…<br>
+Because of this limit, for now, \<map hack\> carries Song Haemin's signature.
 
-```bash
-npm install
-npm run dev        # Vite dev 서버
-npm run build
-npm test           # vitest
-npm run prep-model # 외부 3D 모델 팩 → web-friendly GLB 변환 (scripts/prep-model.sh)
-```
+## 4. KNOCK-KNOCK!
 
-**URL 쿼리 (디버그)**
+The moment you justify all of this with lessons and therapeutic effects, you surrender — and you may misstep into the black pit of the grave.
 
-| 쿼리 | 동작 |
-|------|------|
-| `?debug=1` | 디버그 HUD + 챕터 이동 네비 |
-| `?start=CH4` | 지정 챕터로 바로 진입 (디버그 모드와 무관) |
-| `?sketch=1` | 스케치 이펙트 튜닝 패널 |
+Games made for education or research are called serious games, and art-house games are often filed under this genre too. Probably because the games shown in museums usually try to teach something, and are rather earnest because of it.
 
-## 배포
+But: "The term 'serious game' itself feels so damn serious and boring, and if you actually look at the games classified as serious games, they're not really games."
 
-- **Vercel** — SPA rewrite + `/api/guestbook` 서버리스 함수(Vercel KV, 최대 2000개 엔트리)가 함께 배포된다.
-- `npm run deploy` — `gh-pages` 브랜치 스냅샷 배포(보조).
+"Because 'fun' is almost as hegemonic a word in games as 'beauty' is in art. No matter how hard you work on something, if someone says 'it's not fun,' that's the end of it. But that fun is actually fun that conforms to some standard of normality. That's very political too — and saying 'it's not fun, so it's not a game' shuts down the very discussion of fun in games being political." (TALK 1, Lim Gayoung)
 
-## 구조
+A mad game must neither give up on fun nor imitate established fun.
 
-| 경로 | 설명 |
-|------|------|
-| `src/Game.tsx` | 챕터 라우터 + 다음 챕터 영상 프리로더 + HUD |
-| `src/store/useGameStore.ts` | 전역 상태 — chapter, cartItems, activeEffect, noteLanguage 등 |
-| `src/scenes/` | 3D 챕터 (CH.1~3) + 골목 레이아웃·표지판 데이터 |
-| `src/screens/` | 2D 챕터 (CH.4~5) |
-| `src/components/game/` | PlayerController, NPC, NoteReader, Minimap, StartScreen 등 |
-| `src/components/effects/` | 챕터 이펙트 — InkBleed, MedicationEffect, SketchEffect, StarNest 등 |
-| `api/guestbook.ts` | 방명록 서버리스 함수 |
-| `scripts/` | 에셋 전처리 — GLB 변환, 표지판 텍스트 풀 생성 등 |
-| `public/assets/` | 3D 모델, 영상, 오디오, 폰트, 텍스처 |
+Yet designing exactly what existing games consider fun can also work as masking. Not getting caught — until you get caught. Imitating normal fun.
+
+A well-designed joke and a successful masking resemble each other. First, in that people enjoy them. And, taken too far, both can piss someone off — and if Will Smith is in the audience, you might get slapped.
+
+## 5. Souls of the Square
+
+The premise that the authentic work of art brut exists in one person alone — a fortress no one can enter — produces the smear called "genius," and isolates the maker in exactly that way.
+
+\<map hack\> open-sources the truth.<br>
+The truth in \<map hack\> is copyleft.<br>
+\<map hack\> issues the truth a CC BY-SA license.<br>
+https://github.com/0ohamnio0/map-hack-foundation
+
+The moment the truth is no longer mine, things like normality, the public, society, or reality lose the coordinates they would damage. If masking builds a membrane, leakage is a thin crack made in it on purpose. The membrane is there not to keep from leaking but to decide how to leak. In *Camera Lucida*, Roland Barthes criticized Bourdieu's sociological approach for failing to account for the private, emotional, affective dimension of our relationship with objects. Later, Didier Eribon asked, in *Vie, vieillesse et mort d'une femme du peuple*, "Can theory cry?" Crying. Not crying. Laughing. Laughing like the world is ending. They say the worst demons are the ghosts that dance and laugh. Possess a GIF. Become a haunted meme. Write like a virus. Keep a diary that withdraws 100 bitcoins from your wallet the moment you scroll down. As an electric signal hacking the world, as rhizomatic synapses
+
+Let's think about what anonymous peers can do in the web square.<br>
+About the Taegukgi Brigade on Roblox.<br>
+About the madnesses already turned into lore.<br>
+About why a mad game has to be a web game,<br>
+about the souls riding the network.<br>
+With the souls uploaded through every photo posted to the DC Inside Incidents & Accidents gallery on October 29, 2022. Together
+
+I/\<map hack\> report as the spokesperson (*porte-parole*) of the mad who cannot speak, and (for having failed to serve madness faithfully) as the most shameful of peers.<br>
+I/\<map hack\>, as a geometric point.<br>
+As place(s).<br>
+As a missing person of the white cube.<br>
+I/\<map hack\> exist, and at last<br>
+.
+
+✰ ENDNOTE ✰<br>
+everything is real, and interns wrote this post.
+
+---
+
+### Translator's notes
+
+- **TALK 1 / TALK 2** — public talks held alongside \<map hack\>.
+- **Insight into one's illness** — the psychiatric term *byeongsik* (病識), "illness awareness."
+- **Taegukgi Brigade** — a Korean far-right protest movement named after the national flag it carries.
+- **October 29, 2022** — the Itaewon crowd crush in Seoul. **DC Inside** is a large Korean anonymous forum.
+
+## License
+
+The original text, code, and artwork of \<map hack\> by Song Haemin are licensed under [Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)](LICENSE).
+
+Third-party material keeps its own license and is **not** covered by CC BY-SA — including npm dependencies, fonts, 3D model packs, and any audio or footage not made for this project.
