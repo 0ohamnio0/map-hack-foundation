@@ -23,7 +23,16 @@ The crux is that the madman never gets to speak. In the lineage of art brut, Ado
 
 ## 2. Capture Is a Property of the Interface
 
-James C. Scott writes about legibility: the state intervenes only in what is legible, and legibility is not a property of the subject but of the interface between the state and the subject. The paradox of capture is a generalization of this proposition. What gets recognized depends on whether it is made visible in a form the institution can read, and the cost and conditions of that visibility are always set by the institution.
+In *Seeing Like a State* (1998), James C. Scott writes about legibility: the state intervenes only in what is legible, and legibility is not a property of the subject but of the interface between the state and the subject. This is where the paradox of capture comes from. What gets recognized depends on whether it is made visible in a form the institution can read, and the cost and conditions of that visibility are always set by the institution. The category of art brut, too, was a cadastral map that made the outside of culture readable. As in Korzybski's famous dictum, the map is not the territory — and yet work that collectors, connoisseurs, and critics have not categorized becomes work that does not exist.
+
+I wanted to go to the hills (*The Art of Not Being Governed*, 2009) and become barbaric by design.<br>
+It resembles wanting to be illiterate because you hate the people who read books and run their mouths.<br>
+But the world does not help people without language to work.<br>
+People without language are hard to see.<br>
+A few days ago my friend S was calibrating a hearing-aid app so they could hear my voice in a loud bar they said my voice is high so it comes through very clearly when they turn up the high-frequency parameters I hate my high voice so I wondered whether some button in that app could make my voice sound low and thick S said of course it could and that if everyone in the world but me wore hearing aids H might well be taken for someone with a low thick voice without having to sniff testosterone once a week I said in that case I would stick an awl into both ears of everyone I meet from now on and then corrected myself that it was not actually a very funny joke
+
+There are people who recite the public transcript in front of those in power and share a "hidden transcript" behind their backs (*Domination and the Arts of Resistance*, 1990). Not being read can be a strategy rather than a failure of capture. Whether concealment becomes capture or a weapon depends on who holds the switch that decides whether to be seen.<br>
+The name of the cheat that sees what the map hides is map hack.
 
 ## 3. Asylum Grammar
 
@@ -49,7 +58,7 @@ The same thing happens in psychiatry. The second half of "insight into one's ill
 ╭ ◜◝ ⁀ ◜◝ ⁀  ◜◝ ⁀ ◜◝ ⁀  ◜◝ ⁀  ◜◝ ╮
    In an age when handing a work's value
    over to an outside framework of justification
-   so easily feels like "surrender"…
+   so easily feels like surrender…
  ╰ ◟◞ ‿  ◟ ‿   ◟◞ ‿  ◟ ‿ ◟◞ ‿  ◟◞ ╯
                           O
                         °
@@ -67,12 +76,14 @@ Derrida refuted Foucault's "archaeology of silence" (giving madness a voice in t
 
 So what?
 
+Derrida is right. But this is not evasion; it is confession. At the border between madness and reason, I realized I was bilingual. Right after I went mad, wrapped in light, I was solemnly charged with a mission as an interpreter. As a bilingual crosser, I exist in the crack of the contradiction.
+
 A poem written in machine code, \<map hack\> holds — against common belief — that the mad world is not disorder but "hyper-coherence": "excessively coherent, everything connected to everything, its internal logic interlocking without a gap." And it points out that this hyper-coherence is isomorphic with the formal coherence of programming. Carry the coherence of madness into machine code and coherence is preserved as coherence; it is not translated but executed. This can become a kind of ethics — one that refuses to force the nonverbal into the order of language.
 
 Instead of being translated so the institution can read you, build the conditions of your own legibility yourself — that is where \<map hack\> is generated.<br>
 \<map hack\> is a poem written in machine code.<br>
 If you read \<map hack\>'s code, you will cry.<br>
-\<map hack\>'s backend server is connected to the spirit world.<br>
+\<map hack\>'s backend server is connected to the spiritual dimension.<br>
 .<br>
 .<br>
 .<br>
@@ -106,7 +117,9 @@ The truth in \<map hack\> is copyleft.<br>
 \<map hack\> issues the truth a CC BY-SA license.<br>
 https://github.com/0ohamnio0/map-hack-foundation
 
-The moment the truth is no longer mine, things like normality, the public, society, or reality lose the coordinates they would damage. If masking builds a membrane, leakage is a thin crack made in it on purpose. The membrane is there not to keep from leaking but to decide how to leak. In *Camera Lucida*, Roland Barthes criticized Bourdieu's sociological approach for failing to account for the private, emotional, affective dimension of our relationship with objects. Later, Didier Eribon asked, in *Vie, vieillesse et mort d'une femme du peuple*, "Can theory cry?" Crying. Not crying. Laughing. Laughing like the world is ending. They say the worst demons are the ghosts that dance and laugh. Possess a GIF. Become a haunted meme. Write like a virus. Keep a diary that withdraws 100 bitcoins from your wallet the moment you scroll down. As an electric signal hacking the world, as rhizomatic synapses
+The moment the truth is no longer mine, things like normality, the public, society, or reality lose the coordinates they would damage. If masking builds a membrane, leakage is a thin crack made in it on purpose. The membrane is there not to keep from leaking but to decide how to leak. In the same way, a signature should work not as ownership but as an address marking which passage the truth leaked from. So that our souls can find their way home.
+
+In *Camera Lucida*, Roland Barthes criticized Bourdieu's sociological approach for failing to account for the private, emotional, affective dimension of our relationship with objects. Later, Didier Eribon asked, in *Vie, vieillesse et mort d'une femme du peuple*, "Can theory cry?" Crying. Not crying. Laughing. Laughing like the world is ending. They say the worst demons are the ghosts that dance and laugh. Possess a GIF. Become a haunted meme. Write like a virus. Keep a diary that withdraws 100 bitcoins from your wallet the moment you scroll down. As an electric signal hacking the world, as rhizomatic synapses
 
 Let's think about what anonymous peers can do in the web square.<br>
 About the Taegukgi Brigade on Roblox.<br>
@@ -115,6 +128,7 @@ About why a mad game has to be a web game,<br>
 about the souls riding the network.<br>
 With the souls uploaded through every photo posted to the DC Inside Incidents & Accidents gallery on October 29, 2022. Together
 
+I cannot own madness. As a go-between, I circulate a truth that anyone can fork, rewrite, and spread again.<br>
 I/\<map hack\> report as the spokesperson (*porte-parole*) of the mad who cannot speak, and (for having failed to serve madness faithfully) as the most shameful of peers.<br>
 I/\<map hack\>, as a geometric point.<br>
 As place(s).<br>
