@@ -29,12 +29,30 @@ I wanted to go to the hills (*The Art of Not Being Governed*, 2009) and become b
 It resembles wanting to be illiterate because you hate the people who read books and run their mouths.<br>
 But the world does not help people without language to work.<br>
 People without language are hard to see.<br>
-A few days ago my friend S was calibrating a hearing-aid app so they could hear my voice in a loud bar they said my voice is high so it comes through very clearly when they turn up the high-frequency parameters I hate my high voice so I wondered whether some button in that app could make my voice sound low and thick S said of course it could and that if everyone in the world but me wore hearing aids H might well be taken for someone with a low thick voice without having to sniff testosterone once a week I said in that case I would stick an awl into both ears of everyone I meet from now on and then corrected myself that it was not actually a very funny joke
+A few days ago my friend S was calibrating a hearing-aid app so they could hear my voice in a loud bar they said my voice is high so it comes through very clearly when they turn up the high-frequency parameters I hate my high voice so I wondered whether some button in that app could make my voice sound low and thick S said of course it could and that if everyone in the world but me wore hearing aids H might well be taken for someone with a low thick voice without having to sniff Natesto nasal gel twice a day I said in that case I would stick an awl into both ears of everyone I meet from now on and then corrected myself that it was not actually a very funny joke
 
-There are people who recite the public transcript in front of those in power and share a "hidden transcript" behind their backs (*Domination and the Arts of Resistance*, 1990). Not being read can be a strategy rather than a failure of capture. Whether concealment becomes capture or a weapon depends on who holds the switch that decides whether to be seen.<br>
+Not being read can be a strategy rather than a failure of capture. There are people who recite the public transcript in front of those who rule and share a "hidden transcript" behind their backs (*Domination and the Arts of Resistance*, 1990).<br>
 The name of the cheat that sees what the map hides is map hack.
 
 ## 3. Asylum Grammar
+
+> *I am Tobold. And I have never once given<br>
+> fools a pretext<br>
+> to respect me. That would be futile.<br>
+> And there is nothing to be gained there, either.<br>
+> I am me. I myself<br>
+> respect me. Know that. Only then<br>
+> do I take pleasure in the world as well.<br>
+> For instance, I take pleasure<br>
+> in the villain here. I take pleasure<br>
+> in the sun, too. But not in you. You<br>
+> cannot please me in any way.<br>
+> You have no style. Beings with style<br>
+> enchant me. Even thieves and swindlers<br>
+> have something delightful about them. When people catch them,<br>
+> they lock them up in prison<br>
+> and know for certain what they have done.*<br>
+> — Robert Walser, "Tobold," 1913
 
 The same thing happens in psychiatry. The second half of "insight into one's illness" is learning how not to get caught. In *Asylums*, Erving Goffman observed that what a total institution teaches is not cure but the knack of surviving inside the institution. The condition for discharge is not the disappearance of illness but control over one's visibility. Often, madness may simply be hidden. The artification of the medical self is a counter-move that takes back the very instruments of that capture — diagnoses, medical charts — as material for art.
 
@@ -106,9 +124,17 @@ A mad game must neither give up on fun nor imitate established fun.
 
 Yet designing exactly what existing games consider fun can also work as masking. Not getting caught — until you get caught. Imitating normal fun.
 
-A well-designed joke and a successful masking resemble each other. First, in that people enjoy them. And, taken too far, both can piss someone off — and if Will Smith is in the audience, you might get slapped.
+A [well-designed joke](https://medium.com/orangemind/comedy-theory-fd142076657e) and a successful masking resemble each other. First, in that people enjoy them. And, taken too far, both can piss someone off — and if Will Smith is in the audience, you might get slapped.
+
+![Structure of a joke — setup, connector, punch](docs/readme/joke-structure.png)
 
 ## 5. Souls of the Square
+
+> *Shoplifters of the world<br>
+> Unite and take over<br>
+> Shoplifters of the world<br>
+> Hand it over, hand it over, hand it over*<br>
+> — The Smiths, "Shoplifters of the World Unite," 1987
 
 The premise that the authentic work of art brut exists in one person alone — a fortress no one can enter — produces the smear called "genius," and isolates the maker in exactly that way.
 
@@ -125,8 +151,9 @@ Let's think about what anonymous peers can do in the web square.<br>
 About the Taegukgi Brigade on Roblox.<br>
 About the madnesses already turned into lore.<br>
 About why a mad game has to be a web game,<br>
-about the souls riding the network.<br>
-With the souls uploaded through every photo posted to the DC Inside Incidents & Accidents gallery on October 29, 2022. Together
+about the quantum-soul-information riding the network.<br>
+Through every photo posted to the DC Inside Incidents & Accidents gallery on October 29, 2022,<br>
+with our uploaded comrades — at last, together
 
 I cannot own madness. As a go-between, I circulate a truth that anyone can fork, rewrite, and spread again.<br>
 I/\<map hack\> report as the spokesperson (*porte-parole*) of the mad who cannot speak, and (for having failed to serve madness faithfully) as the most shameful of peers.<br>
@@ -145,6 +172,8 @@ everything is real, and interns wrote this post.
 
 - **TALK 1 / TALK 2** — [public talks held alongside \<map hack\>](https://whiteriver.neocities.org/map_hack).
 - **Insight into one's illness** — the psychiatric term *byeongsik* (病識), "illness awareness."
+- **Tobold** — translated from the Korean version quoted in the original essay, not from an existing English translation of Walser.
+- **Natesto** — a testosterone nasal gel.
 - **Taegukgi Brigade** — a Korean far-right protest movement named after the national flag it carries.
 - **October 29, 2022** — the Itaewon crowd crush in Seoul. **DC Inside** is a large Korean anonymous forum.
 
