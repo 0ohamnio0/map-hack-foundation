@@ -1,6 +1,6 @@
 # The Museum as Asylum
 
-![Map Hack](docs/readme/wip.png)
+![Map Hack — CH.3](docs/readme/ch3-mart.png)
 
 *A self-critique of \<map hack\> — Song Haemin*
 
