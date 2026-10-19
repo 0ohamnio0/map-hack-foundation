@@ -46,28 +46,28 @@ The same thing happens in psychiatry. The second half of "insight into one's ill
 .
 
 ```
-╭ ◜◝ ⁀ ◜◝ ⁀ ◜◝ ╮
+╭◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝╮
    𝓫𝓾𝓽 𝔀𝓪𝓲𝓽...
-╰ ◟◞ ‿ ◟ ‿ ◟◞ ╯
-╭◜◝ ⁀  ◜◝  ⁀  ◜◝  ⁀  ◜◝⁀  ◜◝  ⁀  ◜◝  ⁀  ◜◝  ⁀  ◜◝╮
+╰◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞╯
+╭◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝╮
     Institutions are addicted to reading.
     Decoding is fun.
     Decoding becomes politics.
     ARG is reality.
-╰◟◞  ‿  ◟◞  ‿  ◟◞  ‿  ◟◞ ‿  ◟◞  ‿    ‿  ◟◞  ‿ ‿  ◟◞╯
-╭ ◜◝ ⁀ ◜◝ ⁀  ◜◝ ⁀ ◜◝ ⁀  ◜◝ ⁀  ◜◝ ╮
-   In an age when handing a work's value
-   over to an outside framework of justification
-   so easily feels like surrender…
- ╰ ◟◞ ‿  ◟ ‿   ◟◞ ‿  ◟ ‿ ◟◞ ‿  ◟◞ ╯
-                          O
-                        °
-．．．．．/)─―ヘ
-      ／      ＼
-    ／    ●  ●丶
-   ｜       ▼ |   (silence)
-   ｜       亠ノ
-    U￣U￣￣￣U￣￣U
+╰◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞╯
+╭◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝╮
+    In an age when handing a work's value
+    over to an outside framework of justification
+    so easily feels like surrender…
+╰◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞╯
+                      O
+                  °
+ . . . . /)―ヘ
+        /        \
+      /      ●    ●丶
+      |           ▼ |   (silence)
+      |           亠ノ
+     U¯U¯¯¯¯¯¯¯U¯¯¯¯U
 ```
 
 So the precise line is not "does it pass the standard?" but "who holds the right to judge validity?" Being captured is not in itself surrender. Using logic and form can be a tool of subversion — like a Trojan horse, like a virus. But the moment you believe that only passing makes you valid, you are occupied. If you believe the outside decides whether you have succeeded, you will lose, without fail.
