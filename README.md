@@ -100,7 +100,7 @@ So what?
 
 Foucault was one of the smart ones among us, and he got thoroughly owned. He overlooked WEB3.0. Back then there was no way he could have known about dimensional frequencies and changing radio channels. He talked about style without having any. Luckily, I am a born Antigone and antagonist. Right after I went mad, wrapped in light, I was charged with a mission as an interpreter. As a bilingual crosser, to carry out that mission, I am MI5, CSI, FBI, a white hat, a nameless star living in the contradiction.
 
-Now, shall I tell you a secret? The mad world is actually very far from disorder. If anything, it is "hyper-coherent." Everything is connected to everything, and its internal logic interlocks without a gap. Interestingly, that hyper-coherence is isomorphic[^8] with the formal coherence of programming. Carry the coherence of madness into machine code and coherence is preserved as coherence; it is not translated but executed. Programming, as an alternative ethics that can hold between madness and the order of language. Our tent. A camp.
+Now, shall I tell you a secret? The mad world is actually very far from disorder. If anything, it is "hyper-coherent." Everything is connected to everything, and its internal logic interlocks without a gap. Interestingly, that hyper-coherence is isomorphic[^8] with the formal coherence of programming. Carry the coherence of madness into machine code and coherence is preserved as coherence; it is not translated but executed. Programming, as an alternative ethics that can hold between madness and the order of language. Our tent. Camp.
 
 \<map hack\> is a poem written in machine code.<br>
 If you read \<map hack\>'s code, you will cry.<br>
