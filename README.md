@@ -29,8 +29,13 @@ James C. Scott put it this way about legibility: "The state intervenes only in w
 I also wanted to "go to the hills and become barbaric by design."[^5]<br>
 It resembles wanting to be illiterate because you hate the people who read books and run their mouths.<br>
 But the world does not help people without language to work.<br>
-People without language are hard to see.<br>
-A few days ago my friend S was calibrating a hearing-aid app so they could hear my voice in a loud bar they said my voice is high so it comes through very clearly when they turn up the high-frequency parameters I hate my high voice so I wondered whether some button in that app could make my voice sound low and thick S said of course it could and that if everyone in the world but me wore hearing aids H might well be taken for someone with a low thick voice without having to sniff Natesto nasal gel twice a day I said in that case I would stick an awl into both ears of everyone I meet from now on and then corrected myself that it was not actually a very funny joke
+People without language are hard to see.
+
+<details><summary></summary>
+
+A few days ago my friend S was calibrating the audible range on a hearing-aid app so they could hear my voice in a loud bar they said my voice is high so it comes through very clearly when they turn up the high-frequency parameters I hate my high voice so I wondered whether some button in that app could make my voice sound low and thick S said of course it could and that if everyone in the world but me wore hearing aids H might well be taken for someone with a low thick voice without having to sniff Natesto nasal gel twice a day I said in that case I would stick an awl into both ears of everyone I meet from now on and then corrected myself, saying it was not actually a very funny joke
+
+</details>
 
 Not being read can be a strategy rather than a failure of capture.<br>
 The protocol of people who recite the official script in front of the enemy and share a "hidden transcript"[^6] behind their backs.<br>
