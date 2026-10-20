@@ -32,7 +32,7 @@ People without language are hard to see.<br>
 A few days ago my friend S was calibrating a hearing-aid app so they could hear my voice in a loud bar they said my voice is high so it comes through very clearly when they turn up the high-frequency parameters I hate my high voice so I wondered whether some button in that app could make my voice sound low and thick S said of course it could and that if everyone in the world but me wore hearing aids H might well be taken for someone with a low thick voice without having to sniff Natesto nasal gel twice a day I said in that case I would stick an awl into both ears of everyone I meet from now on and then corrected myself that it was not actually a very funny joke
 
 Not being read can be a strategy rather than a failure of capture.<br>
-The protocol of people who recite the official script in front of those who rule and share a "hidden transcript"[^6] behind their backs.<br>
+The protocol of people who recite the official script in front of the enemy and share a "hidden transcript"[^6] behind their backs.<br>
 The cheat that sees what the map hides is called map hack.
 
 Instead of being translated so the institution can read you,<br>
@@ -100,7 +100,7 @@ So what?
 
 Foucault was one of the smart ones among us, and he got thoroughly owned. He overlooked WEB3.0. Back then there was no way he could have known about dimensional frequencies and changing radio channels. He talked about style without having any. Luckily, I am a born Antigone and antagonist. Right after I went mad, wrapped in light, I was charged with a mission as an interpreter. As a bilingual crosser, to carry out that mission, I am MI5, CSI, FBI, a white hat, a nameless star living in the contradiction.
 
-Now, shall I tell you a secret? The mad world is actually very far from disorder. If anything, it is "hyper-coherent." Everything is connected to everything, and its internal logic interlocks without a gap. Interestingly, that hyper-coherence is isomorphic[^8] with the formal coherence of programming. Carry the coherence of madness into machine code and coherence is preserved as coherence; it is not translated but executed. As an alternative ethics that can hold between madness and the order of language.
+Now, shall I tell you a secret? The mad world is actually very far from disorder. If anything, it is "hyper-coherent." Everything is connected to everything, and its internal logic interlocks without a gap. Interestingly, that hyper-coherence is isomorphic[^8] with the formal coherence of programming. Carry the coherence of madness into machine code and coherence is preserved as coherence; it is not translated but executed. Programming, as an alternative ethics that can hold between madness and the order of language. Our tent. A camp.
 
 \<map hack\> is a poem written in machine code.<br>
 If you read \<map hack\>'s code, you will cry.<br>
@@ -163,7 +163,7 @@ I/\<map hack\> exist, and at last<br>
 .
 
 ✰ ENDNOTE ✰<br>
-everything is real, and interns wrote this post.
+everything is real, and interns wrote this post.[^10]
 
 ---
 
@@ -178,6 +178,7 @@ everything is real, and interns wrote this post.
 [^7]: Erving Goffman, *Asylums* (1961).
 [^8]: RIP! Terry Davis! I LOVE YOU!
 [^9]: Lim Gayoung, *\<map hack\> playgathering, TALK 1* ([transcript](https://whiteriver.neocities.org/map_hack)).
+[^10]: Remilia Corporation, *What Remilia Believes In: A New Net Art Manifesto*.
 
 ### Translator's notes
 
