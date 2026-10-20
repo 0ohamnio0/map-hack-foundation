@@ -7,6 +7,7 @@
 - **Play**: https://map-hack-foundation.vercel.app (desktop only, WebGL required)
 - **Development notes** (Korean): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 - **License**: [CC BY-SA 4.0](LICENSE) — see [License](#license) below
+- **한국어**: [README.ko.md](README.ko.md)
 
 ---
 
