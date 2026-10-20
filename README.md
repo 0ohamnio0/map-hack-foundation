@@ -75,7 +75,7 @@ The same thing happens in psychiatry. The second half of "insight into one's ill
     Institutions are addicted to reading.
     Decoding is fun.
     Decoding becomes politics.
-    ARG is reality.
+    ARG is realism.
 ╰◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞‿◟◞╯
 ╭◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝⁀◜◝╮
     In an age when handing a work's value
