@@ -121,12 +121,12 @@ The body is the soul's address.<br>
 The body is a spreadsheet.<br>
 Identity is a kind of immune system.<br>
 The body is threatened from within,<br>
-and what I cannot handle as I please, what is other, what is in the middle of disappearing, surges up (surgissement) in the body itself, as the body,<br>
+and what I cannot handle as I please, what is other, what is in the middle of disappearing, makes its *surgissement* in the body itself, as the body,<br>
 and what has surged up comes back. Because I believe in you, who will come back.<br>
-Resurrection (Résurrection) is upsurge (surrection).<br>
-Leakage is resurrection.
+*Résurrection* is *surrection*.<br>
+Leakage is *Résurrection*.
 
-The signature is a farewell (salut).<br>
+The signature is a *salut*.<br>
 That is why \<map hack\> carries Song Haemin's signature.<br>
 The glorious body is a body that leaves and, at the same time, a body that speaks. A body that speaks only in leaving.
 
