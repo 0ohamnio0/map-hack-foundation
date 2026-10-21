@@ -125,20 +125,20 @@
 몸은 스프레드시트다.<br>
 정체성은 일종의 면역체계다.<br>
 몸은 내부로부터 위협받고,<br>
-내 마음대로 다룰 수 없는 것, 타자인 것, 사라지는 도중에 있는 것이 몸 자체 안에서, 몸으로서 돌출(surgissement)하고,<br>
+내 마음대로 다룰 수 없는 것, 타자인 것, 사라지는 도중에 있는 것이 몸 자체 안에서, 몸으로서 돌출(surgissement)[^9]하고,<br>
 돌출한 것은 돌아온다. 돌아올 너를 믿으니까.<br>
 부활(Résurrection)은 융기(surrection)다.<br>
 누수는 부활이다.
 
 서명은 안녕(salut)이다.<br>
 이 때문에 \<map hack\>에는 송해민의 서명이 적혀 있다.<br>
-영광스러운 몸은 떠나는 몸이자 동시에 말하는 몸이다. 오로지 떠나면서만 말하는 몸이다.
+영광스러운 몸은 떠나는 몸이자 동시에 말하는 몸이다. 오로지 떠나면서만 말하는 몸[^10]이다.
 
 ## 4. KNOCK-KNOCK!
 
 이 모든 것을 교훈과 치료 효과로 정당화하는 순간 항복하고 무덤의 검은 구덩이로 발을 헛디딜 수도 있다. 대학원 연구실에서 만드는 좆나 재미없는 교육용 연구용 게임을 시리어스 게임이라 일컫는데, 종종 아트하우스 게임도 이 장르로 분류되곤 한다. 이는 미술관에 전시되는 게임들도 대개는 무언가를 가르치려 하고, 그 때문에 사뭇 진지하기 때문일 것이다.
 
-“왜냐면 '재미'라는 게 게임에서는 거의 미술에서의 '아름다움'만큼이나 헤게모니적인 단어예요. 아무리 열심히 만들어도 '재미없어' 이러면 끝이에요. 근데 이때의 재미는 사실 정상의 어떤 기준에 부합하는 재미인 거잖아요. 그것도 되게 정치적인 건데, '재미가 없으니 게임이 아니다'라는 말은 게임에서의 재미가 정치적인 거라는 논의 자체를 차단하는 거죠.”[^9]
+“왜냐면 '재미'라는 게 게임에서는 거의 미술에서의 '아름다움'만큼이나 헤게모니적인 단어예요. 아무리 열심히 만들어도 '재미없어' 이러면 끝이에요. 근데 이때의 재미는 사실 정상의 어떤 기준에 부합하는 재미인 거잖아요. 그것도 되게 정치적인 건데, '재미가 없으니 게임이 아니다'라는 말은 게임에서의 재미가 정치적인 거라는 논의 자체를 차단하는 거죠.”[^11]
 
 그렇다면 일단 재미있게 만들어야 한다. 기존 게임에서 재밌다고 여겨지는 것들을 그대로 설계해서 들키기 전까지 들키지 않기. 정상인들의 게임을 흉내내며 그들이 즐거워하는 틈을 타 걔네들 뇌에 몰래 베리칩 끼워 넣기.
 
@@ -186,7 +186,7 @@ https://github.com/0ohamnio0/map-hack-foundation
 .
 
 ✰ ENDNOTE ✰<br>
-everything is real, and interns wrote this post.[^10]
+everything is real, and interns wrote this post.[^12]
 
 ---
 
@@ -200,8 +200,10 @@ everything is real, and interns wrote this post.[^10]
 [^6]: 『Domination and the Arts of Resistance』 (1990), James C. Scott
 [^7]: 『Asylums』 (1961), Erving Goffman
 [^8]: RIP! Terry Davis! I LOVE YOU!
-[^9]: 『\<map hack\> 플레이게더링 행사 TALK 1』, 임가영 발언 ([녹취록](https://whiteriver.neocities.org/map_hack))
-[^10]: What Remilia Believes In: A New Net Art Manifesto, Remilia Corporation
+[^9]: 『Noli me tangere』 (2003), Jean-Luc Nancy, pp. 32-33
+[^10]: 『Noli me tangere』 (2003), Jean-Luc Nancy, pp.75-76
+[^11]: 『\<map hack\> 플레이게더링 행사 TALK 1』, 임가영 발언 ([녹취록](https://whiteriver.neocities.org/map_hack))
+[^12]: What Remilia Believes In: A New Net Art Manifesto, Remilia Corporation
 
 ## 라이선스
 

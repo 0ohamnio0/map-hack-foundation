@@ -121,20 +121,20 @@ The body is the soul's address.<br>
 The body is a spreadsheet.<br>
 Identity is a kind of immune system.<br>
 The body is threatened from within,<br>
-and what I cannot handle as I please, what is other, what is in the middle of disappearing, makes its *surgissement* in the body itself, as the body,<br>
+and what I cannot handle as I please, what is other, what is in the middle of disappearing, makes its *surgissement*[^9] in the body itself, as the body,<br>
 and what has surged up comes back. Because I believe in you, who will come back.<br>
 *Résurrection* is *surrection*.<br>
 Leakage is *Résurrection*.
 
 The signature is a *salut*.<br>
 That is why \<map hack\> carries Song Haemin's signature.<br>
-The glorious body is a body that leaves and, at the same time, a body that speaks. A body that speaks only in leaving.
+The glorious body is a body that leaves and, at the same time, a body that speaks. A body that speaks only in leaving.[^10]
 
 ## 4. KNOCK-KNOCK!
 
 The moment you justify all of this with lessons and therapeutic effects, you surrender — and you may misstep into the black pit of the grave. The fucking boring educational and research games made in grad-school labs are called serious games, and art-house games are often filed under this genre too. Probably because the games shown in museums usually try to teach something, and are rather earnest because of it.
 
-"Because 'fun' is almost as hegemonic a word in games as 'beauty' is in art. No matter how hard you work on something, if someone says 'it's not fun,' that's the end of it. But that fun is actually fun that conforms to some standard of normality. That's very political too — and saying 'it's not fun, so it's not a game' shuts down the very discussion of fun in games being political."[^9]
+"Because 'fun' is almost as hegemonic a word in games as 'beauty' is in art. No matter how hard you work on something, if someone says 'it's not fun,' that's the end of it. But that fun is actually fun that conforms to some standard of normality. That's very political too — and saying 'it's not fun, so it's not a game' shuts down the very discussion of fun in games being political."[^11]
 
 Then, first of all, it has to be fun. Design exactly what existing games consider fun, and don't get caught until you get caught. Imitate the games of normal people, and while they are busy enjoying themselves, slip a VeriChip into their brains.
 
@@ -178,7 +178,7 @@ I/\<map hack\> exist, and at last<br>
 .
 
 ✰ ENDNOTE ✰<br>
-everything is real, and interns wrote this post.[^10]
+everything is real, and interns wrote this post.[^12]
 
 ---
 
@@ -192,8 +192,10 @@ everything is real, and interns wrote this post.[^10]
 [^6]: James C. Scott, *Domination and the Arts of Resistance* (1990).
 [^7]: Erving Goffman, *Asylums* (1961).
 [^8]: RIP! Terry Davis! I LOVE YOU!
-[^9]: Lim Gayoung, *\<map hack\> playgathering, TALK 1* ([transcript](https://whiteriver.neocities.org/map_hack)).
-[^10]: Remilia Corporation, *What Remilia Believes In: A New Net Art Manifesto*.
+[^9]: Jean-Luc Nancy, *Noli me tangere* (2003), pp. 32–33.
+[^10]: Jean-Luc Nancy, *Noli me tangere* (2003), pp. 75–76.
+[^11]: Lim Gayoung, *\<map hack\> playgathering, TALK 1* ([transcript](https://whiteriver.neocities.org/map_hack)).
+[^12]: Remilia Corporation, *What Remilia Believes In: A New Net Art Manifesto*.
 
 ### Translator's notes
 
