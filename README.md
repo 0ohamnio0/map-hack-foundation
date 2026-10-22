@@ -16,11 +16,11 @@ This is a self-critique that argues what \<map hack\>, as an "art game outside t
 ## 1. The Cabinet Outside Culture
 
 > *Proletarian Nights* ends with the sentence: "We will never know how she entered her own night."
-> — Bernard Aspe, *The Sharing of the Night*
+> — Bernard Aspe, *The Sharing of the Night*, 2015
 
 Jean Dubuffet came to read Hans Prinzhorn's *Artistry of the Mentally Ill* in the early-to-mid 1920s. It was a book of pictures drawn by psychiatric patients. Deeply shaken, Dubuffet copied them over and over, and from 1945 on he began collecting the pictures of mad people in earnest. Later, the critic Roger Cardinal criticized Dubuffet's collecting as a classificatory project "like finches to Darwin"[^1] — an ethnographic capture. Hilton Kramer, too, got angry at Dubuffet: "Where is the line between appreciation and fetishization, between celebration and exploitation?"
 
-The gist of their scolding is that the madman never gets to speak. Those known as makers of art brut often have no purpose in, or awareness of, making art. In the lineage that collects and exhibits such output, the makers take no trouble to be "discovered." Adolf Wölfli became known only after his doctor, Walter Morgenthaler, bound his drawings into a book and introduced him to the world on his behalf. Henry Darger was found by his landlord among his belongings after his death. The madman enters not as a subject but as an object — discovered, classified, spoken for. Art brut, by its very definition, is "a discourse that says it must stay outside, so it makes no sense when the museum, from the inside, declares 'this is that'"; as a result, the maker of art brut, "as madman-genius-individual,"[^2] can be neither outside nor inside. The premise that the authentic work of art brut exists in one person alone — a fortress no one can enter — produces the smear called "genius." At the same time, in exactly that way, it stuffs and mounts the maker and the world outside language, and keeps them from being alive any longer. It waits for them to be used up or to die. As if only the assigning of value had value. This is how the missing persons of the white cube are made.
+The gist of their scolding is that the madman never gets to speak. Those known as makers of art brut often have no purpose in, or awareness of, making art (or so they are read). In the lineage that collects and exhibits such output, the makers take no trouble to be "discovered." Adolf Wölfli became known only after his doctor, Walter Morgenthaler, bound his drawings into a book and introduced him to the world on his behalf. Henry Darger was found by his landlord among his belongings after his death. The madman enters the museum not as a subject but as an object — discovered, classified, spoken for. Art brut, by its very definition, is "a discourse that says it must stay outside, so it makes no sense when the museum, from the inside, declares 'this is that'" — and it is left standing that way; as a result, the maker of art brut, "as madman-genius-individual,"[^2] can be neither outside nor inside. The premise that the authentic work of art brut exists in one person alone — a fortress no one can enter — produces the smear called "genius." At the same time, in exactly that way, it stuffs and mounts the maker and the world outside language, and keeps them from being alive any longer. It waits for them to be used up or to die. As if only the assigning of value had value. This is how the missing persons of the white cube are made.
 
 ## 2. Capture Is a Property of the Interface
 
@@ -29,7 +29,7 @@ James C. Scott put it this way about legibility: "The state intervenes only in w
 I also wanted to "go to the hills and become barbaric by design."[^5]<br>
 It resembles wanting to be illiterate because you hate the people who read books and run their mouths.<br>
 But the world does not help people without language to work.<br>
-People without language are hard to see.
+People who have left language are hard to see.
 
 <details><summary></summary>
 
@@ -104,7 +104,7 @@ Derrida refuted Foucault's "archaeology of silence" (giving madness a voice in t
 
 So what?
 
-Foucault was one of the smart ones among us, and he got thoroughly owned. He overlooked WEB3.0. Back then there was no way he could have known about dimensional frequencies and changing radio channels. He talked about style without having any. Luckily, I am a born Antigone and antagonist. Right after I went mad, wrapped in light, I was charged with a mission as an interpreter. As a bilingual crosser, to carry out that mission, I am MI5, CSI, FBI, a white hat, a nameless star living in the contradiction.
+Foucault was one of the smart ones among us, and he got thoroughly owned. He overlooked WEB3.0. Back then there was no way he could have known about dimensional frequencies and changing radio channels. He talked about style without having any. Luckily, I am a born Antigone and antagonist. Right after I went mad, wrapped in light, I was charged with the mission of interpretation. As a bilingual crosser, to carry out that mission, I am MI5, CSI, FBI, a white hat, a nameless star living in the contradiction.
 
 Now, shall I tell you a secret? The mad world is actually very far from disorder. If anything, it is "hyper-coherent." Everything is connected to everything, and its internal logic interlocks without a gap. Interestingly, that hyper-coherence is isomorphic[^8] with the formal coherence of programming. Carry the coherence of madness into machine code and coherence is preserved as coherence; it is not translated but executed. Programming, as an alternative ethics that can hold between madness and the order of language. Our tent. Camp.
 
@@ -132,13 +132,11 @@ The glorious body is a body that leaves and, at the same time, a body that speak
 
 ## 4. KNOCK-KNOCK!
 
-The moment you justify all of this with lessons and therapeutic effects, you surrender — and you may misstep into the black pit of the grave. The fucking boring educational and research games made in grad-school labs are called serious games, and art-house games are often filed under this genre too. Probably because the games shown in museums usually try to teach something, and are rather earnest because of it.
+The moment you justify all of this with lessons and therapeutic effects, you surrender — and you may misstep into the black pit of a serious grave. The fucking boring educational games made in grad-school labs are called serious games, and art-house games are often filed under this genre too. Probably because the games shown in museums usually try to teach something, and are rather earnest because of it.
 
 "Because 'fun' is almost as hegemonic a word in games as 'beauty' is in art. No matter how hard you work on something, if someone says 'it's not fun,' that's the end of it. But that fun is actually fun that conforms to some standard of normality. That's very political too — and saying 'it's not fun, so it's not a game' shuts down the very discussion of fun in games being political."[^11]
 
-Then, first of all, it has to be fun. Design exactly what existing games consider fun, and don't get caught until you get caught. Imitate the games of normal people, and while they are busy enjoying themselves, slip a VeriChip into their brains.
-
-A [well-designed joke](https://medium.com/orangemind/comedy-theory-fd142076657e) and a successful masking resemble each other. First, in that people enjoy them. And, taken too far, both can piss someone off — and if Will Smith is in the audience, you might get slapped.
+Then, first of all, it has to be fun. Design exactly what existing games consider fun, and don't get caught until you get caught. Imitate the games of normal people, and while they are busy enjoying themselves, slip a VeriChip into their brains. A [well-designed joke](https://medium.com/orangemind/comedy-theory-fd142076657e) and a successful masking resemble each other. First, in that people enjoy them. And, taken too far, both can piss someone off — and if Will Smith is in the audience, you might get slapped.
 
 ![Structure of a joke — setup, connector, punch](docs/readme/joke-structure.png)
 
@@ -155,11 +153,11 @@ The truth in \<map hack\> is copyleft.<br>
 \<map hack\> issues the truth a CC BY-SA license.<br>
 https://github.com/0ohamnio0/map-hack-foundation
 
-The moment the truth is no longer mine, things like normality, the public, society, or reality lose the coordinates they would damage. Say masking wraps the truth in an ambiguous membrane. Then the truth leaks through a thin crack made in it on purpose. The membrane, in other words, is there not to keep from leaking but to decide how to leak. In the same way, a signature should work only as an address marking which passage the truth leaked from, not as ownership. For an ever more elaborate strategy of leakage.
+The moment the truth is no longer mine, things like normality, the public, society, or reality lose the coordinates they would damage. Say masking is the act of wrapping the truth in an ambiguous membrane. Then the truth leaks through a thin crack made in it on purpose. The membrane, in other words, is there not to keep from leaking but to decide how to leak. In the same way, a signature should work only as an address marking which passage the truth leaked from, not as ownership. For an ever more elaborate strategy of leakage.
 
-Or so that our souls can find a home to return to.
+Or so that our souls can find a place to return to.
 
-In *Camera Lucida*, Roland Barthes criticized Bourdieu's sociological approach for failing to account for the private, emotional, affective dimension of our relationship with objects. Later, Didier Eribon asked, in *Vie, vieillesse et mort d'une femme du peuple*, "Can theory cry?" Crying. Not crying. Laughing. Laughing like the world is ending. They say the worst demons are the ghosts that dance and laugh. Become an SCP. Possess a GIF. Become a haunted meme. Write like a virus. Keep a diary that withdraws 100 bitcoins from your wallet the moment you scroll down. As an electric signal hacking the world, as rhizomatic synapses
+In *Camera Lucida*, Roland Barthes criticized Bourdieu's sociological approach for failing to account for the private, emotional, affective dimension of our relationship with objects. Didier Eribon asked, in *Vie, vieillesse et mort d'une femme du peuple*, "Can theory cry?" Crying. Not crying. Laughing. Laughing like the world is ending. They say the worst demons are the ghosts that dance and laugh. Become an SCP. Possess a GIF. Become a haunted meme. Write like a virus. Keep a diary that withdraws 100 bitcoins from your wallet the moment you scroll down. As an electric signal hacking the world, as rhizomatic synapses
 
 Let's think about what anonymous peers can do in the web square.<br>
 About the Taegukgi Brigade on Roblox.<br>
