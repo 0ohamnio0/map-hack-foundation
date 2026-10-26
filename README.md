@@ -126,15 +126,15 @@ and what has surged up comes back. Because I believe in you, who will come back.
 *Résurrection* is *surrection*.<br>
 Leakage is *Résurrection*.
 
-The signature is a *salut*.<br>
+The signature is a *salut*.[^10]<br>
 That is why \<map hack\> carries Song Haemin's signature.<br>
-The glorious body is a body that leaves and, at the same time, a body that speaks. A body that speaks only in leaving.[^10]
+The glorious body is a body that leaves and, at the same time, a body that speaks. A body that speaks only in leaving.[^11]
 
 ## 4. KNOCK-KNOCK!
 
 The moment you justify all of this with lessons and therapeutic effects, you surrender — and you may misstep into the black pit of a serious grave. The fucking boring educational games made in grad-school labs are called serious games, and art-house games are often filed under this genre too. Probably because the games shown in museums usually try to teach something, and are rather earnest because of it.
 
-"Because 'fun' is almost as hegemonic a word in games as 'beauty' is in art. No matter how hard you work on something, if someone says 'it's not fun,' that's the end of it. But that fun is actually fun that conforms to some standard of normality. That's very political too — and saying 'it's not fun, so it's not a game' shuts down the very discussion of fun in games being political."[^11]
+"Because 'fun' is almost as hegemonic a word in games as 'beauty' is in art. No matter how hard you work on something, if someone says 'it's not fun,' that's the end of it. But that fun is actually fun that conforms to some standard of normality. That's very political too — and saying 'it's not fun, so it's not a game' shuts down the very discussion of fun in games being political."[^12]
 
 Then, first of all, it has to be fun. Design exactly what existing games consider fun, and don't get caught until you get caught. Imitate the games of normal people, and while they are busy enjoying themselves, slip a VeriChip into their brains. A [well-designed joke](https://medium.com/orangemind/comedy-theory-fd142076657e) and a successful masking resemble each other. First, in that people enjoy them. And, taken too far, both can piss someone off — and if Will Smith is in the audience, you might get slapped.
 
@@ -176,7 +176,7 @@ I/\<map hack\> exist, and at last<br>
 .
 
 ✰ ENDNOTE ✰<br>
-everything is real, and interns wrote this post.[^12]
+everything is real, and interns wrote this post.[^13]
 
 ---
 
@@ -191,9 +191,10 @@ everything is real, and interns wrote this post.[^12]
 [^7]: Erving Goffman, *Asylums* (1961).
 [^8]: RIP! Terry Davis! I LOVE YOU!
 [^9]: Jean-Luc Nancy, *Noli me tangere* (2003), pp. 32–33.
-[^10]: Jean-Luc Nancy, *Noli me tangere* (2003), pp. 75–76.
-[^11]: Lim Gayoung, *\<map hack\> playgathering, TALK 1* ([transcript](https://whiteriver.neocities.org/map_hack)).
-[^12]: Remilia Corporation, *What Remilia Believes In: A New Net Art Manifesto*.
+[^10]: See Choi Seulah, "Departing of the body in Jean-Luc Nancy's *Noli Me Tangere*," *美學* vol. 90, no. 2 (2024), pp. 117–147.
+[^11]: Jean-Luc Nancy, *Noli me tangere* (2003), pp. 75–76.
+[^12]: Lim Gayoung, *\<map hack\> playgathering, TALK 1* ([transcript](https://whiteriver.neocities.org/map_hack)).
+[^13]: Remilia Corporation, *What Remilia Believes In: A New Net Art Manifesto*.
 
 ### Translator's notes
 
